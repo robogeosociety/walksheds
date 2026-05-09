@@ -5,6 +5,7 @@ import {
   findStationByCode,
   parseWalkshedParams,
   buildWalkshedParams,
+  combineQuery,
 } from '../deepLink'
 
 const BASE = '/walksheds/'
@@ -141,5 +142,28 @@ describe('buildWalkshedParams', () => {
 
   it('builds params for single', () => {
     expect(buildWalkshedParams(new Set([15]))).toBe('?walkshed=15')
+  })
+})
+
+describe('combineQuery', () => {
+  it('returns empty string when all parts are empty', () => {
+    expect(combineQuery('', '', '')).toBe('')
+  })
+
+  it('returns single part unchanged', () => {
+    expect(combineQuery('?walkshed=5')).toBe('?walkshed=5')
+  })
+
+  it('skips empty parts', () => {
+    expect(combineQuery('', '?pois=abc')).toBe('?pois=abc')
+    expect(combineQuery('?walkshed=5', '')).toBe('?walkshed=5')
+  })
+
+  it('joins multiple parts with single ? prefix', () => {
+    expect(combineQuery('?walkshed=5', '?pois=abc')).toBe('?walkshed=5&pois=abc')
+  })
+
+  it('handles parts without leading ?', () => {
+    expect(combineQuery('walkshed=5', 'pois=abc')).toBe('?walkshed=5&pois=abc')
   })
 })

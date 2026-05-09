@@ -23,6 +23,7 @@ Usage:
 
 import argparse
 import gzip
+import hashlib
 import json
 import math
 import os
@@ -37,6 +38,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 STATION_INDEX = os.path.join(ROOT, "data", "station-index.json")
 OUTPUT_DIR = os.path.join(ROOT, "public", "pois")
 RAW_DUMP = os.path.join(ROOT, "data", "pois", "raw", "osm-seattle.json.gz")
+MAIN_CATEGORIES_JSON = os.path.join(ROOT, "src", "mainCategories.json")
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 OVERPASS_TIMEOUT = 180
@@ -400,7 +402,28 @@ def categorize_tag(tag, tag_index):
     return tag_index.get(tag, DEFAULT_TAG_CATEGORY)
 
 
-def build_tag_categories_manifest(all_tags, tag_index):
+def load_main_category_ids():
+    """Read the canonical ordered list of main POI category ids shared with the frontend."""
+    with open(MAIN_CATEGORIES_JSON) as f:
+        return list(json.load(f))
+
+
+def build_filter_schema(main_category_ids, sorted_tags):
+    """Build the filter_schema block: an ordered fingerprint of POI filter dimensions.
+
+    The 8-char hash lets the frontend detect URLs generated against a different
+    schema (e.g. tags added/removed by --refresh). Decoding stays best-effort by
+    name, so the hash is a signal — not a decoder key.
+    """
+    main_list = list(main_category_ids)
+    tag_list = list(sorted_tags)
+    payload = {"v": 1, "main": main_list, "tags": tag_list}
+    blob = json.dumps(payload, separators=(",", ":"))
+    digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()[:8]
+    return {"hash": digest, "main_categories": main_list, "tags": tag_list}
+
+
+def build_tag_categories_manifest(all_tags, tag_index, main_category_ids=None):
     """Build the public/pois/tag-categories.json payload for the given tag set."""
     used = set()
     tag_to_category = {}
@@ -416,7 +439,17 @@ def build_tag_categories_manifest(all_tags, tag_index):
         else:
             cat = EXPLICIT_TAG_CATEGORIES[cat_id]
             categories[cat_id] = {"label": cat["label"], "color": cat["color"]}
-    return {"categories": categories, "tag_to_category": dict(sorted(tag_to_category.items()))}
+
+    sorted_tag_to_category = dict(sorted(tag_to_category.items()))
+    manifest = {
+        "filter_schema": build_filter_schema(
+            main_category_ids if main_category_ids is not None else load_main_category_ids(),
+            sorted_tag_to_category.keys(),
+        ),
+        "categories": categories,
+        "tag_to_category": sorted_tag_to_category,
+    }
+    return manifest
 
 
 def _normalize(value):
@@ -723,12 +756,14 @@ def write_tag_categories_manifest(all_fcs, dry_run=False):
 
     manifest = build_tag_categories_manifest(all_tags, tag_index)
     path = os.path.join(OUTPUT_DIR, "tag-categories.json")
+    schema = manifest["filter_schema"]
     if dry_run:
         print(f"  [dry-run] Would write {path}")
     else:
         with open(path, "w") as f:
             json.dump(manifest, f, indent=2, ensure_ascii=False)
         print(f"  Wrote {path}")
+    print(f"  filter_schema hash: {schema['hash']} ({len(schema['main_categories'])} main + {len(schema['tags'])} tags)")
 
     by_category = {}
     for tag, cat_id in manifest["tag_to_category"].items():

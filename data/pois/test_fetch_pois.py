@@ -17,16 +17,19 @@ from fetch_pois import (
     format_address,
     normalize_element,
     build_category,
+    build_filter_schema,
     build_tag_categories_manifest,
     build_tag_index,
     categorize_tag,
     collect_tag_provenance,
+    load_main_category_ids,
     validate_geojson,
     haversine_dist,
     BOOL_TAG_FIELDS,
     CATEGORIES,
     DEFAULT_TAG_CATEGORY,
     EXPLICIT_TAG_CATEGORIES,
+    MAIN_CATEGORIES_JSON,
     RAW_KEYS,
     TAG_ALIASES,
     VALID_CATEGORIES,
@@ -443,6 +446,66 @@ class TestBuildTagCategoriesManifest:
         for cat_id, cat in manifest["categories"].items():
             assert cat["color"].startswith("#")
             assert cat["label"]
+
+
+class TestFilterSchema:
+    MAIN = ["restaurants", "bars", "coffee", "parks"]
+
+    def test_hash_is_8_hex_chars(self):
+        schema = build_filter_schema(self.MAIN, ["pizza", "wifi"])
+        assert len(schema["hash"]) == 8
+        int(schema["hash"], 16)  # raises if not hex
+
+    def test_hash_stable_across_calls(self):
+        a = build_filter_schema(self.MAIN, ["pizza", "wifi"])
+        b = build_filter_schema(self.MAIN, ["pizza", "wifi"])
+        assert a["hash"] == b["hash"]
+
+    def test_hash_changes_when_tag_added(self):
+        a = build_filter_schema(self.MAIN, ["pizza", "wifi"])
+        b = build_filter_schema(self.MAIN, ["pizza", "wifi", "vegan"])
+        assert a["hash"] != b["hash"]
+
+    def test_hash_changes_when_tag_removed(self):
+        a = build_filter_schema(self.MAIN, ["pizza", "wifi"])
+        b = build_filter_schema(self.MAIN, ["pizza"])
+        assert a["hash"] != b["hash"]
+
+    def test_hash_changes_when_main_categories_reordered(self):
+        a = build_filter_schema(["restaurants", "bars"], ["pizza"])
+        b = build_filter_schema(["bars", "restaurants"], ["pizza"])
+        assert a["hash"] != b["hash"]
+
+    def test_lists_preserve_input_order(self):
+        # Filter schema is a fingerprint of CALLER-provided order. Manifest call
+        # site is responsible for passing alphabetically-sorted tags; this test
+        # locks in that the schema does NOT silently re-sort.
+        schema = build_filter_schema(self.MAIN, ["zebra", "apple"])
+        assert schema["main_categories"] == self.MAIN
+        assert schema["tags"] == ["zebra", "apple"]
+
+    def test_manifest_embeds_filter_schema(self):
+        index = build_tag_index()
+        manifest = build_tag_categories_manifest(
+            {"takeaway", "pizza"}, index, main_category_ids=self.MAIN,
+        )
+        assert "filter_schema" in manifest
+        schema = manifest["filter_schema"]
+        assert schema["main_categories"] == self.MAIN
+        assert schema["tags"] == ["pizza", "takeaway"]  # alphabetical from manifest
+        assert len(schema["hash"]) == 8
+
+    def test_manifest_uses_default_main_categories_when_unspecified(self):
+        index = build_tag_index()
+        manifest = build_tag_categories_manifest({"pizza"}, index)
+        assert manifest["filter_schema"]["main_categories"] == load_main_category_ids()
+
+    def test_main_categories_json_matches_load_helper(self):
+        with open(MAIN_CATEGORIES_JSON) as f:
+            raw = json.load(f)
+        assert load_main_category_ids() == raw
+        assert isinstance(raw, list)
+        assert all(isinstance(x, str) for x in raw)
 
 
 class TestCollectTagProvenance:
