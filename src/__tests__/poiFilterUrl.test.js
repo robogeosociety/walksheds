@@ -61,6 +61,25 @@ describe('buildPoiFilterParam', () => {
     )
     expect(out.slice(1)).toMatch(/^[a-zA-Z0-9.~=-]+$/)
   })
+
+  it('returns empty string when state matches the supplied defaults', () => {
+    const defaults = ['parks', 'coffee']
+    expect(buildPoiFilterParam(new Set(['parks', 'coffee']), new Set(), SCHEMA, defaults)).toBe('')
+    // Insertion order should not matter
+    expect(buildPoiFilterParam(new Set(['coffee', 'parks']), new Set(), SCHEMA, defaults)).toBe('')
+  })
+
+  it('encodes when categories diverge from defaults', () => {
+    const defaults = ['parks', 'coffee']
+    const out = buildPoiFilterParam(new Set(['parks']), new Set(), SCHEMA, defaults)
+    expect(out).toBe('?pois=a3f2c1b9~c.parks')
+  })
+
+  it('encodes when defaults are present but tags are also selected', () => {
+    const defaults = ['parks', 'coffee']
+    const out = buildPoiFilterParam(new Set(['parks', 'coffee']), new Set(['pizza']), SCHEMA, defaults)
+    expect(out).toBe('?pois=a3f2c1b9~c.coffee.parks~t.pizza')
+  })
 })
 
 describe('parsePoiFilterParam', () => {

@@ -116,4 +116,7 @@ export const MAIN_POI_CATEGORIES = MAIN_CATEGORY_IDS.map(id => ({
 
 export const MAIN_POI_CATEGORY_IDS = MAIN_CATEGORY_IDS
 
+// Default-on main categories when no ?pois= filter is provided.
+export const DEFAULT_ENABLED_MAIN_CATEGORIES = ['parks', 'coffee']
+
 export const POI_INTERACTIVE_LAYERS = ['poi-circles']

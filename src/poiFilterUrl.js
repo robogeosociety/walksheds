@@ -25,12 +25,27 @@ function orderedIntersect(orderedList, presentSet) {
   return out
 }
 
+function sameMembers(setLike, iterable) {
+  const other = iterable instanceof Set ? iterable : new Set(iterable)
+  if (setLike.size !== other.size) return false
+  for (const x of setLike) if (!other.has(x)) return false
+  return true
+}
+
 /**
  * Build a `?pois=...` query string fragment for the given filter state.
- * Returns '' when no filters are active.
+ * Returns '' when filter state matches the defaults (caller-supplied) or is
+ * fully empty — so default views and shared "no filter" links stay clean.
  */
-export function buildPoiFilterParam(enabledCategories, poiFilters, schema) {
+export function buildPoiFilterParam(enabledCategories, poiFilters, schema, defaultMainCategories = null) {
   if (!schema || !schema.hash) return ''
+  if (
+    poiFilters.size === 0 &&
+    defaultMainCategories &&
+    sameMembers(enabledCategories, defaultMainCategories)
+  ) {
+    return ''
+  }
   const cats = orderedIntersect(schema.main_categories || [], enabledCategories)
   const tags = orderedIntersect(schema.tags || [], poiFilters)
   if (cats.length === 0 && tags.length === 0) return ''

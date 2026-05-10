@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds } from './mapbox'
-import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES } from './constants'
+import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByMainCategoriesAndTags, getAvailableTags, mergeFeatureCollections } from './poiUtils'
@@ -104,7 +104,7 @@ export default function Walksheds() {
   const [poiData, setPoiData] = useState({})
   const [tagCategories, setTagCategories] = useState(null)
   const [poiFilters, setPoiFilters] = useState(new Set())
-  const [enabledCategories, setEnabledCategories] = useState(new Set())
+  const [enabledCategories, setEnabledCategories] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
   const [poiPopup, setPoiPopup] = useState(null)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
   const mapViewRef = useRef(null)
@@ -163,7 +163,7 @@ export default function Walksheds() {
       const schema = tagCategories?.filter_schema
       const path = buildStationPath(lineNum, stopCode, base) + combineQuery(
         buildWalkshedParams(enabledWalksheds),
-        buildPoiFilterParam(enabledCategories, poiFilters, schema),
+        buildPoiFilterParam(enabledCategories, poiFilters, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
       )
       window.history.replaceState(null, '', path)
     }
@@ -352,7 +352,7 @@ export default function Walksheds() {
     const schema = tagCategories?.filter_schema
     const path = buildStationPath(lineNum, feat.properties.stopCode, base) + combineQuery(
       buildWalkshedParams(enabledWalksheds),
-      buildPoiFilterParam(enabledCategories, poiFilters, schema),
+      buildPoiFilterParam(enabledCategories, poiFilters, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
     )
     window.history.replaceState(null, '', path)
   }, [enabledWalksheds, enabledCategories, poiFilters, stationsData, currentLine, tagCategories])
