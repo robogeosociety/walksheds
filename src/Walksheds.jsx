@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds } from './mapbox'
-import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES } from './constants'
-import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams } from './deepLink'
+import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
+import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
+import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByMainCategoriesAndTags, getAvailableTags, mergeFeatureCollections } from './poiUtils'
 import { useNavigation } from './useNavigation'
 import MapView from './MapView'
@@ -103,13 +104,14 @@ export default function Walksheds() {
   const [poiData, setPoiData] = useState({})
   const [tagCategories, setTagCategories] = useState(null)
   const [poiFilters, setPoiFilters] = useState(new Set())
-  const [enabledCategories, setEnabledCategories] = useState(new Set())
+  const [enabledCategories, setEnabledCategories] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
   const [poiPopup, setPoiPopup] = useState(null)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
   const mapViewRef = useRef(null)
   const selectedStationRef = useRef(null)
   const graphRef = useRef(null)
   const resolvedRef = useRef(false)
+  const poisResolvedRef = useRef(false)
 
   const dataFetchedRef = useRef(false)
   useEffect(() => {
@@ -158,7 +160,11 @@ export default function Walksheds() {
     if (stopCode != null) {
       const base = import.meta.env.BASE_URL
       const lineNum = line.replace('-line', '')
-      const path = buildStationPath(lineNum, stopCode, base) + buildWalkshedParams(enabledWalksheds)
+      const schema = tagCategories?.filter_schema
+      const path = buildStationPath(lineNum, stopCode, base) + combineQuery(
+        buildWalkshedParams(enabledWalksheds),
+        buildPoiFilterParam(enabledCategories, poiFilters, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
+      )
       window.history.replaceState(null, '', path)
     }
 
@@ -187,7 +193,7 @@ export default function Walksheds() {
       setLegendPosition(computeLegendPosition(map, results, enabledWalksheds))
       setAutoCollapsed(legendOverlapsWalkshed(map, results, enabledWalksheds))
     })
-  }, [stationsData, enabledWalksheds])
+  }, [stationsData, enabledWalksheds, enabledCategories, poiFilters, tagCategories])
 
   // Re-fit map when walkshed toggles change
   useEffect(() => {
@@ -335,7 +341,7 @@ export default function Walksheds() {
     queueMicrotask(() => selectStation(station.name, station.lng, station.lat, station.line))
   }, [stationsData, selectStation])
 
-  // Sync walkshed query params when toggles change
+  // Sync walkshed + POI filter query params when toggles change
   useEffect(() => {
     if (!selectedStationRef.current) return
     const feat = stationsData?.features.find(f => f.properties.name === selectedStationRef.current.name)
@@ -343,9 +349,28 @@ export default function Walksheds() {
     const base = import.meta.env.BASE_URL
     const lineNum = currentLine?.replace('-line', '')
     if (!lineNum) return
-    const path = buildStationPath(lineNum, feat.properties.stopCode, base) + buildWalkshedParams(enabledWalksheds)
+    const schema = tagCategories?.filter_schema
+    const path = buildStationPath(lineNum, feat.properties.stopCode, base) + combineQuery(
+      buildWalkshedParams(enabledWalksheds),
+      buildPoiFilterParam(enabledCategories, poiFilters, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
+    )
     window.history.replaceState(null, '', path)
-  }, [enabledWalksheds, stationsData, currentLine])
+  }, [enabledWalksheds, enabledCategories, poiFilters, stationsData, currentLine, tagCategories])
+
+  // Restore POI filter state from `?pois=` once the schema is loaded.
+  // Runs once; does not call replaceState so the original URL stays until the
+  // user makes a change. Defers setState to a microtask to satisfy
+  // react-hooks/set-state-in-effect.
+  useEffect(() => {
+    if (!tagCategories || poisResolvedRef.current) return
+    poisResolvedRef.current = true
+    const parsed = parsePoiFilterParam(window.location.search, tagCategories.filter_schema)
+    if (!parsed) return
+    queueMicrotask(() => {
+      if (parsed.categories.size) setEnabledCategories(parsed.categories)
+      if (parsed.tags.size) setPoiFilters(parsed.tags)
+    })
+  }, [tagCategories])
 
   useNavigation({ graphRef, selectedStationRef, currentLine, selectStation })
 

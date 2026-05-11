@@ -1,3 +1,5 @@
+import MAIN_CATEGORY_IDS from './mainCategories.json'
+
 export const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
 export const SEATTLE_CENTER = [-122.33, 47.60]
@@ -78,35 +80,43 @@ export const POI_FILES = [
 
 // Always-visible main category toggles. Each pill matches POIs by raw OSM
 // `properties.category` value and/or by `properties.tags` membership.
-export const MAIN_POI_CATEGORIES = [
-  {
-    id: 'restaurants',
+// Order is driven by `mainCategories.json` (shared with the Python pipeline so
+// the filter-schema hash stays in sync).
+const MAIN_POI_CATEGORY_DEFS = {
+  restaurants: {
     label: 'restaurants',
     color: '#E67E22',
     matchCategories: ['restaurant', 'fast_food', 'ice_cream', 'bakery'],
     matchTags: [],
   },
-  {
-    id: 'bars',
+  bars: {
     label: 'bars',
     color: '#9B59B6',
     matchCategories: ['bar', 'pub'],
     matchTags: ['brewery', 'winery', 'distillery', 'has-bar'],
   },
-  {
-    id: 'coffee',
+  coffee: {
     label: 'coffee',
     color: '#7B4A2A',
     matchCategories: ['cafe'],
     matchTags: ['coffee', 'coffee-shop', 'coffee-roaster'],
   },
-  {
-    id: 'parks',
+  parks: {
     label: 'parks',
     color: '#2ECC71',
     matchCategories: ['park', 'playground', 'garden'],
     matchTags: [],
   },
-]
+}
+
+export const MAIN_POI_CATEGORIES = MAIN_CATEGORY_IDS.map(id => ({
+  id,
+  ...MAIN_POI_CATEGORY_DEFS[id],
+}))
+
+export const MAIN_POI_CATEGORY_IDS = MAIN_CATEGORY_IDS
+
+// Default-on main categories when no ?pois= filter is provided.
+export const DEFAULT_ENABLED_MAIN_CATEGORIES = ['parks', 'coffee']
 
 export const POI_INTERACTIVE_LAYERS = ['poi-circles']

@@ -91,3 +91,16 @@ export function buildWalkshedParams(enabledSet) {
   const sorted = [...enabledSet].sort((a, b) => a - b)
   return '?' + sorted.map(m => `walkshed=${m}`).join('&')
 }
+
+/**
+ * Combine multiple `?…`-prefixed query strings into a single one. Each part
+ * may be '' or start with '?'. Returns '' or a single '?'-prefixed string.
+ */
+export function combineQuery(...parts) {
+  const segments = []
+  for (const p of parts) {
+    if (!p) continue
+    segments.push(p.startsWith('?') ? p.slice(1) : p)
+  }
+  return segments.length ? '?' + segments.join('&') : ''
+}
