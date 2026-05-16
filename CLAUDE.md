@@ -66,7 +66,7 @@ Per-feature properties on output GeoJSON: `id` (OSM node/way id), `name`, `categ
 
 ## Deployment
 
-React SPA deployed to GitHub Pages via `.github/workflows/deploy.yml` on push to main.
+React SPA deployed to GitHub Pages via `.github/workflows/deploy.yml` on push to main. Served from `https://walksheds.xyz` (custom domain). The domain binding lives in `public/CNAME` (Vite copies it into `dist/` at build time; GitHub Pages reads it on deploy). DNS for `walksheds.xyz` is managed in Cloudflare via the Terraform module in `infra/` — see `infra/README.md`.
 
 ### Pointing the live site at a PR branch
 

@@ -152,6 +152,7 @@ playwright-report/
 *.tfstate
 *.tfstate.backup
 *.tfvars
+!*.tfvars.example
 
 # Processed transit data (regenerated from data/raw/)
 data/processed/
