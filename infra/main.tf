@@ -2,49 +2,50 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# GitHub Pages apex IPs.
-# https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site#configuring-an-apex-domain
-locals {
-  github_pages_a_ips = [
-    "185.199.108.153",
-    "185.199.109.153",
-    "185.199.110.153",
-    "185.199.111.153",
-  ]
-  github_pages_aaaa_ips = [
-    "2606:50c0:8000::153",
-    "2606:50c0:8001::153",
-    "2606:50c0:8002::153",
-    "2606:50c0:8003::153",
-  ]
+# 1. Look up the existing Cloudflare Zone
+data "cloudflare_zone" "main" {
+  filter = {
+    name = var.domain_name
+  }
 }
 
-resource "cloudflare_record" "apex_a" {
-  for_each = toset(local.github_pages_a_ips)
-  zone_id  = var.zone_id
-  name     = "@"
-  type     = "A"
-  content  = each.value
-  # DNS-only so GitHub Pages can provision the Let's Encrypt cert for the apex.
-  proxied = false
-  ttl     = 1
-}
-
-resource "cloudflare_record" "apex_aaaa" {
-  for_each = toset(local.github_pages_aaaa_ips)
-  zone_id  = var.zone_id
-  name     = "@"
-  type     = "AAAA"
-  content  = each.value
-  proxied  = false
-  ttl      = 1
-}
-
-resource "cloudflare_record" "www_cname" {
-  zone_id = var.zone_id
-  name    = "www"
-  type    = "CNAME"
+# 2. Configure DNS for GitHub Pages.
+# Apex uses CNAME flattening (proxied) so Cloudflare serves the user-facing TLS
+# and forwards to GitHub Pages' edge. Origin TLS (CF → GH Pages) uses GH's own
+# Let's Encrypt cert + zone setting `ssl = full`.
+resource "cloudflare_dns_record" "apex" {
+  zone_id = data.cloudflare_zone.main.id
+  name    = "@"
   content = "${var.github_pages_user}.github.io"
-  proxied = false
+  type    = "CNAME"
+  proxied = true
   ttl     = 1
+}
+
+resource "cloudflare_dns_record" "www" {
+  zone_id = data.cloudflare_zone.main.id
+  name    = "www"
+  content = var.domain_name
+  type    = "CNAME"
+  proxied = true
+  ttl     = 1
+}
+
+# 3. HTTPS settings.
+resource "cloudflare_zone_setting" "ssl" {
+  zone_id    = data.cloudflare_zone.main.id
+  setting_id = "ssl"
+  value      = "full"
+}
+
+resource "cloudflare_zone_setting" "always_use_https" {
+  zone_id    = data.cloudflare_zone.main.id
+  setting_id = "always_use_https"
+  value      = "on"
+}
+
+resource "cloudflare_zone_setting" "min_tls_version" {
+  zone_id    = data.cloudflare_zone.main.id
+  setting_id = "min_tls_version"
+  value      = "1.2"
 }

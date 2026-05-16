@@ -1,16 +1,17 @@
 variable "cloudflare_api_token" {
+  description = "Cloudflare API token with Zone:DNS:Edit + Zone:Settings:Edit on walksheds.xyz."
   type        = string
   sensitive   = true
-  description = "Cloudflare API token with Zone:DNS:Edit on walksheds.xyz."
 }
 
-variable "zone_id" {
+variable "domain_name" {
+  description = "The domain name registered in Cloudflare."
   type        = string
-  description = "Cloudflare zone ID for walksheds.xyz (from CF dashboard sidebar)."
+  default     = "walksheds.xyz"
 }
 
 variable "github_pages_user" {
+  description = "Owner of the GitHub Pages repo; used as <user>.github.io target for the apex CNAME."
   type        = string
   default     = "tommyroar"
-  description = "Owner of the GitHub Pages repo; used as <user>.github.io target for the www CNAME."
 }
