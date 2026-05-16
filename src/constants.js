@@ -51,6 +51,7 @@ export const POI_CATEGORIES = {
   guest_house:     { color: '#2980B9', group: 'lodging', label: 'Guest House' },
   supermarket:     { color: '#16A085', group: 'shopping', label: 'Supermarket' },
   convenience:     { color: '#16A085', group: 'shopping', label: 'Convenience Store' },
+  cannabis:        { color: '#558B2F', group: 'dispensary', label: 'Dispensary' },
   pharmacy:        { color: '#E74C3C', group: 'healthcare', label: 'Pharmacy' },
   hospital:        { color: '#E74C3C', group: 'healthcare', label: 'Hospital' },
   clinic:          { color: '#E74C3C', group: 'healthcare', label: 'Clinic' },
@@ -68,6 +69,7 @@ export const POI_GROUP_COLORS = {
   parks: '#27AE60',
   lodging: '#2980B9',
   shopping: '#16A085',
+  dispensary: '#558B2F',
   healthcare: '#E74C3C',
   services: '#F1C40F',
   fitness: '#E91E63',
@@ -75,7 +77,7 @@ export const POI_GROUP_COLORS = {
 
 export const POI_FILES = [
   'restaurants', 'attractions', 'parks',
-  'lodging', 'shopping', 'healthcare', 'services', 'fitness',
+  'lodging', 'shopping', 'dispensary', 'healthcare', 'services', 'fitness',
 ]
 
 // Always-visible main category toggles. Each pill matches POIs by raw OSM

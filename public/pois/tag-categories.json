@@ -1,6 +1,6 @@
 {
   "filter_schema": {
-    "hash": "014d7ed6",
+    "hash": "d412650b",
     "main_categories": [
       "restaurants",
       "bars",
@@ -60,6 +60,7 @@
       "cajun",
       "cake",
       "cambodian",
+      "cannabis",
       "cantonese",
       "caribbean",
       "cat",
@@ -428,6 +429,7 @@
     "cajun": "cuisine",
     "cake": "cuisine",
     "cambodian": "cuisine",
+    "cannabis": "type",
     "cantonese": "cuisine",
     "caribbean": "cuisine",
     "cat": "cuisine",
