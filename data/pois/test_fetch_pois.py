@@ -686,7 +686,7 @@ class TestCategories:
         assert "attractions" in CATEGORIES
         assert "parks" in CATEGORIES
         assert "lodging" in CATEGORIES
-        assert "shopping" in CATEGORIES
+        assert "shops" in CATEGORIES
         assert "healthcare" in CATEGORIES
         assert "services" in CATEGORIES
         assert "fitness" in CATEGORIES
