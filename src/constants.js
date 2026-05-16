@@ -108,7 +108,19 @@ export const POI_FILES = [
 // `properties.category` value and/or by `properties.tags` membership.
 // Order is driven by `mainCategories.json` (shared with the Python pipeline so
 // the filter-schema hash stays in sync).
+//
+// `EVERYTHING_CATEGORY_ID` is a sentinel: when present in the enabled set,
+// `filterByMainCategoriesAndTags` short-circuits and returns every feature
+// regardless of other pill / tag state.
+export const EVERYTHING_CATEGORY_ID = 'everything'
+
 const MAIN_POI_CATEGORY_DEFS = {
+  everything: {
+    label: 'everything',
+    color: '#5a6c7d',
+    matchCategories: [],
+    matchTags: [],
+  },
   restaurants: {
     label: 'restaurants',
     color: '#E67E22',

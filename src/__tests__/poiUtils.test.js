@@ -214,6 +214,7 @@ describe('filterByMainCategoriesAndTags', () => {
     makeFeature(0, 0, { category: 'museum',     tags: ['art'] }),
   ]
   const mainCategoriesById = {
+    everything:  { matchCategories: [], matchTags: [] },
     restaurants: { matchCategories: ['restaurant', 'fast_food', 'ice_cream', 'bakery'], matchTags: [] },
     bars:        { matchCategories: ['bar', 'pub'], matchTags: ['brewery', 'winery', 'distillery', 'has-bar'] },
     coffee:      { matchCategories: ['cafe'], matchTags: ['coffee', 'coffee-shop', 'coffee-roaster'] },
@@ -278,6 +279,27 @@ describe('filterByMainCategoriesAndTags', () => {
       features, new Set(['restaurants']), new Set(), mainCategoriesById,
     )
     expect(result.every(f => ['restaurant', 'fast_food'].includes(f.properties.category))).toBe(true)
+  })
+
+  it('"everything" sentinel returns every feature', () => {
+    const result = filterByMainCategoriesAndTags(
+      features, new Set(['everything']), new Set(), mainCategoriesById,
+    )
+    expect(result).toHaveLength(features.length)
+  })
+
+  it('"everything" overrides other enabled pills (they become inert)', () => {
+    const result = filterByMainCategoriesAndTags(
+      features, new Set(['everything', 'parks']), new Set(), mainCategoriesById,
+    )
+    expect(result).toHaveLength(features.length)
+  })
+
+  it('"everything" overrides active tag filters (tags become inert)', () => {
+    const result = filterByMainCategoriesAndTags(
+      features, new Set(['everything']), new Set(['wifi']), mainCategoriesById,
+    )
+    expect(result).toHaveLength(features.length)
   })
 })
 

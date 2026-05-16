@@ -2,6 +2,8 @@
  * POI filtering utilities — point-in-polygon, tag aggregation, and filter logic.
  */
 
+import { EVERYTHING_CATEGORY_ID } from './constants'
+
 /**
  * Ray-casting point-in-polygon test.
  * @param {[number, number]} point - [lng, lat]
@@ -87,6 +89,9 @@ export function filterByTags(features, activeTags) {
  * in the active tag filters. With nothing enabled and no active filters,
  * returns an empty array (additive default).
  *
+ * The `everything` sentinel id (see EVERYTHING_CATEGORY_ID in constants)
+ * short-circuits when present in enabledMainIds — all features pass.
+ *
  * @param {Array} features - GeoJSON features
  * @param {Set<string>} enabledMainIds - main-category ids the user has activated
  * @param {Set<string>} activeTags - explicit tag filters
@@ -94,6 +99,7 @@ export function filterByTags(features, activeTags) {
  * @returns {Array} filtered features
  */
 export function filterByMainCategoriesAndTags(features, enabledMainIds, activeTags, mainCategoriesById) {
+  if (enabledMainIds && enabledMainIds.has(EVERYTHING_CATEGORY_ID)) return features
   const hasMain = enabledMainIds && enabledMainIds.size > 0
   const hasTags = activeTags && activeTags.size > 0
   if (!hasMain && !hasTags) return []
