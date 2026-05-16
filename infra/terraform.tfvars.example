@@ -1,0 +1,2 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+cloudflare_api_token = "REDACTED — create at https://dash.cloudflare.com/profile/api-tokens with Zone:DNS:Edit + Zone:Settings:Edit on walksheds.xyz"

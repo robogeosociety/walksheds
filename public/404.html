@@ -8,7 +8,7 @@
       var path = window.location.pathname;
       var search = window.location.search;
       window.location.replace(
-        '/walksheds/?p=' + encodeURIComponent(path) +
+        '/?p=' + encodeURIComponent(path) +
         (search ? '&' + search.slice(1) : '')
       );
     </script>
