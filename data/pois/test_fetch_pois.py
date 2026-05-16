@@ -15,6 +15,7 @@ from fetch_pois import (
     filter_elements,
     extract_tags,
     format_address,
+    is_closed_or_denied,
     normalize_element,
     build_category,
     build_filter_schema,
@@ -28,6 +29,7 @@ from fetch_pois import (
     BOOL_TAG_FIELDS,
     CATEGORIES,
     DEFAULT_TAG_CATEGORY,
+    DENY_OSM_IDS,
     EXPLICIT_TAG_CATEGORIES,
     MAIN_CATEGORIES_JSON,
     RAW_KEYS,
@@ -686,7 +688,7 @@ class TestCategories:
         assert "attractions" in CATEGORIES
         assert "parks" in CATEGORIES
         assert "lodging" in CATEGORIES
-        assert "shopping" in CATEGORIES
+        assert "shops" in CATEGORIES
         assert "healthcare" in CATEGORIES
         assert "services" in CATEGORIES
         assert "fitness" in CATEGORIES
@@ -751,3 +753,83 @@ class TestBuildCategory:
         monkeypatch.setitem(fetch_pois.CATEGORIES, "_bogus", ("highway", ["bus_stop"]))
         with pytest.raises(ValueError, match="not in the raw dump"):
             build_category([], "_bogus")
+
+    def test_drops_denied_osm_id(self, monkeypatch):
+        import fetch_pois
+        monkeypatch.setattr(fetch_pois, "DENY_OSM_IDS", {99})
+        elements = [
+            _make_node(1, "Active Place", amenity="restaurant"),
+            _make_node(99, "Defunct Place", amenity="restaurant"),
+        ]
+        fc = build_category(elements, "restaurants")
+        names = {f["properties"]["name"] for f in fc["features"]}
+        assert names == {"Active Place"}
+
+    def test_drops_closure_phrase_in_name(self):
+        elements = [
+            _make_node(1, "Active Place", amenity="restaurant"),
+            _make_node(2, "Bent Burger (Permanently Closed)", amenity="restaurant"),
+            _make_node(3, "Old Diner (Closed)", amenity="restaurant"),
+        ]
+        fc = build_category(elements, "restaurants")
+        names = {f["properties"]["name"] for f in fc["features"]}
+        assert names == {"Active Place"}
+
+    def test_drops_closure_phrase_in_note_or_fixme(self):
+        elements = [
+            _make_node(1, "Active Place", amenity="restaurant"),
+            _make_node(2, "Fire Victim", amenity="restaurant",
+                       extra_tags={"note": "Closed due to fire 2023-10-13"}),
+            _make_node(3, "Old Shop", amenity="restaurant",
+                       extra_tags={"note": "Closed April 2017"}),
+            _make_node(4, "Maybe Open", amenity="restaurant",
+                       extra_tags={"fixme": "Has this business closed?"}),
+        ]
+        fc = build_category(elements, "restaurants")
+        names = {f["properties"]["name"] for f in fc["features"]}
+        assert names == {"Active Place"}
+
+    def test_keeps_weekly_schedule_closed(self):
+        """opening_hours like 'Su closed' must not trigger the closure filter."""
+        elements = [
+            _make_node(1, "Weekend Off", amenity="restaurant",
+                       extra_tags={"opening_hours": "Mo-Sa 11:00-22:00; Su closed"}),
+        ]
+        fc = build_category(elements, "restaurants")
+        assert len(fc["features"]) == 1
+
+
+class TestIsClosedOrDenied:
+    def test_clean_element_passes(self):
+        assert not is_closed_or_denied(_make_node(1, "Clean", amenity="restaurant"))
+
+    def test_deny_list_match(self, monkeypatch):
+        import fetch_pois
+        monkeypatch.setattr(fetch_pois, "DENY_OSM_IDS", {42})
+        assert is_closed_or_denied(_make_node(42, "Whatever", amenity="restaurant"))
+
+    def test_name_parens_closed(self):
+        assert is_closed_or_denied(_make_node(1, "Foo (Permanently Closed)"))
+        assert is_closed_or_denied(_make_node(1, "Foo (Closed)"))
+
+    def test_note_closure_phrases(self):
+        for phrase in [
+            "Closed due to fire 2023-10-13",
+            "Closed according to their website.",
+            "Closed April 2017",
+            "Closed in 2019",
+            "No longer in business",
+        ]:
+            el = _make_node(1, "Foo", extra_tags={"note": phrase})
+            assert is_closed_or_denied(el), f"missed: {phrase}"
+
+    def test_fixme_closure_question(self):
+        el = _make_node(1, "Foo", extra_tags={"fixme": "Has this business closed?"})
+        assert is_closed_or_denied(el)
+
+    def test_weekly_schedule_is_not_a_signal(self):
+        el = _make_node(1, "Foo", extra_tags={"opening_hours": "Su closed; Mo-Sa 09:00-17:00"})
+        assert not is_closed_or_denied(el)
+
+    def test_dispensary_of_seattle_leafb_is_denied(self):
+        assert 6246048863 in DENY_OSM_IDS

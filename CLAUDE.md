@@ -68,6 +68,20 @@ Per-feature properties on output GeoJSON: `id` (OSM node/way id), `name`, `categ
 
 React SPA deployed to GitHub Pages via `.github/workflows/deploy.yml` on push to main.
 
+### Pointing the live site at a PR branch
+
+To preview a branch on the live Pages URL (overrides main until the next main push), add a per-branch workflow file:
+
+1. Sanitize the branch name: `/` → `-`, strip anything outside `[a-zA-Z0-9._-]`.
+2. Create `.github/workflows/deploy-preview-<sanitized>.yml` on the branch, modeled on existing previews (e.g. `deploy-preview-claude-add-dispensary-category-MYKXl.yml`). Key bits:
+   - `on.push.branches: ['<exact-branch-name>']` + `workflow_dispatch:`
+   - `concurrency.group: pages` (shared with `deploy.yml` so they serialize — latest finished deploy wins)
+   - Same build + `actions/upload-pages-artifact@v3` + `actions/deploy-pages@v4` jobs as `deploy.yml`
+3. Commit + push to the branch — auto-fires and replaces the live site.
+4. `cleanup-merged-preview.yml` on main deletes the file on PR merge, so previews don't accumulate.
+
+The next push to `main` will re-deploy main's build via `deploy.yml` and overwrite the preview.
+
 ## Testing
 
 - **JS unit tests**: Vitest + jsdom + React Testing Library (`src/__tests__/`)

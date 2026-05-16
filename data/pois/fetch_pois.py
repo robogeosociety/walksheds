@@ -27,6 +27,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import sys
 import time
 import unicodedata
@@ -55,7 +56,13 @@ CATEGORIES = {
     "attractions": ("tourism", ["museum", "gallery", "attraction", "artwork", "viewpoint"]),
     "parks": ("leisure", ["park", "playground", "garden"]),
     "lodging": ("tourism", ["hotel", "hostel", "motel", "guest_house"]),
-    "shopping": ("shop", ["supermarket", "convenience"]),
+    "shops": ("shop", [
+        "supermarket", "convenience", "cannabis", "alcohol", "tobacco", "wine",
+        "deli", "department_store", "variety_store", "books", "gift", "clothes",
+        "shoes", "hardware", "electronics", "florist", "jewelry", "sports",
+        "toys", "music", "art", "pet", "mobile_phone", "cosmetics", "furniture",
+        "doityourself", "outdoor", "bicycle",
+    ]),
     "healthcare": ("amenity", ["pharmacy", "hospital", "clinic"]),
     "services": ("amenity", ["library", "bank", "post_office"]),
     "fitness": ("leisure", ["fitness_centre", "sports_centre", "swimming_pool"]),
@@ -65,6 +72,50 @@ CATEGORIES = {
 VALID_CATEGORIES = set()
 for _key, values in CATEGORIES.values():
     VALID_CATEGORIES.update(values)
+
+
+# Closure filter. OSM frequently lags reality, so the build script drops
+# elements that announce defunctness in any of three ways:
+#   1. The OSM id is in DENY_OSM_IDS (manual override for businesses we know
+#      are closed but OSM hasn't been updated).
+#   2. name / note / fixme contains a phrase from CLOSURE_PATTERNS.
+# Lifecycle-prefixed entries (disused:shop=*, abandoned:*) are already
+# excluded by the Overpass query — it matches the unprefixed key only.
+
+DENY_OSM_IDS = {
+    6246048863,  # "Dispensary of Seattle Leafb" — defunct; name reads like a Leafly truncation
+}
+
+CLOSURE_PATTERNS = [
+    r"\(.*\bclosed\b.*\)",                            # name like "Bent Burger (Permanently Closed)"
+    r"\bpermanently closed\b",
+    r"\bout of business\b",
+    r"\bno longer (open|in business|operating)\b",
+    r"\bhas this business closed\b",                  # fixme question
+    r"\bclosed due to\b",                             # "Closed due to fire 2023-..."
+    r"\bclosed according to\b",                       # "Closed according to their website"
+    r"\bclosed (in|since|on) \d",                     # "closed in 2017"
+    r"\bclosed (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",  # "Closed April 2017"
+]
+CLOSURE_RE = re.compile("|".join(CLOSURE_PATTERNS), re.IGNORECASE)
+CLOSURE_FIELDS = ("name", "note", "fixme")
+
+
+def is_closed_or_denied(element):
+    """Return True if the element is on the deny list or matches a closure phrase.
+
+    Checked fields are name / note / fixme — opening_hours is intentionally
+    skipped because weekly schedules like 'Su closed' are almost always
+    legitimate businesses.
+    """
+    if element.get("id") in DENY_OSM_IDS:
+        return True
+    tags = element.get("tags", {})
+    for field in CLOSURE_FIELDS:
+        value = tags.get(field, "")
+        if value and CLOSURE_RE.search(value):
+            return True
+    return False
 
 
 def load_station_index():
@@ -285,7 +336,11 @@ EXPLICIT_TAG_CATEGORIES = {
             "museum", "gallery", "attraction", "artwork", "viewpoint",
             "park", "playground", "garden",
             "hotel", "hostel", "motel", "guest-house",
-            "supermarket", "convenience",
+            "supermarket", "convenience", "cannabis", "alcohol", "tobacco",
+            "deli", "department-store", "variety-store", "books", "gift",
+            "clothes", "shoes", "hardware", "electronics", "florist", "jewelry",
+            "sports", "toys", "music", "art", "pet", "mobile-phone", "cosmetics",
+            "furniture", "doityourself", "outdoor", "bicycle",
             "pharmacy", "hospital", "clinic",
             "library", "bank", "post-office",
             "fitness-centre", "sports-centre", "swimming-pool",
@@ -594,9 +649,14 @@ def build_category(elements, category_name, normalize=True):
     matched = filter_elements(elements, osm_key, osm_values)
     print(f"  {category_name}: {len(matched)} raw elements match {osm_key} in {osm_values}")
 
+    kept = [el for el in matched if not is_closed_or_denied(el)]
+    dropped = len(matched) - len(kept)
+    if dropped:
+        print(f"    dropped {dropped} via closure filter / deny list")
+
     features = []
     seen_ids = set()
-    for el in matched:
+    for el in kept:
         feat = normalize_element(el, osm_key, normalize=normalize)
         if feat and feat["properties"]["id"] not in seen_ids:
             seen_ids.add(feat["properties"]["id"])
