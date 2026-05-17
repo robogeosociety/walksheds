@@ -253,18 +253,6 @@ export default function POISearch({
                   color: present ? '#fff' : color,
                 }}
               >
-                <span
-                  className="poi-cat-pill-text"
-                  onClick={(e) => handleTagTextClick(tag, e)}
-                >
-                  {tag}
-                </span>
-                <span
-                  className="poi-cat-pill-count"
-                  onClick={(e) => handleTagTextClick(tag, e)}
-                >
-                  {count}
-                </span>
                 {present && (
                   <span
                     className="poi-cat-pill-chevron"
@@ -284,6 +272,18 @@ export default function POISearch({
                     </svg>
                   </span>
                 )}
+                <span
+                  className="poi-cat-pill-text"
+                  onClick={(e) => handleTagTextClick(tag, e)}
+                >
+                  {tag}
+                </span>
+                <span
+                  className="poi-cat-pill-count"
+                  onClick={(e) => handleTagTextClick(tag, e)}
+                >
+                  {count}
+                </span>
                 <span
                   className="poi-cat-pill-remove"
                   onClick={(e) => handleRemoveTag(tag, e)}
