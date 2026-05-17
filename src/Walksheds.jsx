@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { buildGraph, isJunction, getJunctionHints } from './routeGraph'
+import { buildGraph, isJunction, getJunctionHints, getTerminusInfo } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
 import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
@@ -69,6 +69,7 @@ export default function Walksheds() {
   })
   const [currentLine, setCurrentLine] = useState(null)
   const [junctionHints, setJunctionHints] = useState([])
+  const [terminusInfo, setTerminusInfo] = useState(null)
   const [darkMode, setDarkMode] = useState(() => {
     try { return window.localStorage.getItem('walksheds_dark_mode') === '1' } catch { return false }
   })
@@ -186,8 +187,10 @@ export default function Walksheds() {
 
     if (graphRef.current && isJunction(graphRef.current, name)) {
       setJunctionHints(getJunctionHints(graphRef.current, name))
+      setTerminusInfo(null)
     } else {
       setJunctionHints([])
+      setTerminusInfo(graphRef.current ? getTerminusInfo(graphRef.current, name) : null)
     }
 
     const results = {}
@@ -399,6 +402,7 @@ export default function Walksheds() {
     setWalksheds({})
     setCurrentLine(null)
     setJunctionHints([])
+    setTerminusInfo(null)
     setPoiPopup(null)
     setAutoCollapsed(false)
     setLegendPosition('bottom-left')
@@ -498,6 +502,7 @@ export default function Walksheds() {
         enabledWalksheds={enabledWalksheds}
         popup={popup}
         junctionHints={junctionHints}
+        terminusInfo={terminusInfo}
         line1Data={line1Data}
         line2Data={line2Data}
         stationsData={stationsData}

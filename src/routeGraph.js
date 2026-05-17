@@ -144,6 +144,43 @@ export function isJunction(graph, stationName) {
   return stationName === JUNCTION_STATION
 }
 
+// Reference for terminus direction. Bearing from this central station to a
+// terminus picks the cardinal that matches the user's mental map of which
+// "end" of the system the line runs off toward — instead of the local
+// bearing over the last segment, which is noisy (e.g. Downtown Redmond
+// sits slightly north of Marymoor Village even though Line 2 runs east).
+const TERMINUS_REFERENCE = 'Westlake Station'
+
+/**
+ * If `stationName` is the start or end of either line order, return the
+ * cardinal direction the line "points off the map" in (as the arrow key
+ * the user can no longer travel) and which lines terminate here.
+ * Returns null for non-terminus stations.
+ */
+export function getTerminusInfo(graph, stationName) {
+  const node = graph.get(stationName)
+  if (!node || node.neighbors.length === 0) return null
+
+  const lines = []
+  if (LINE_1_ORDER[0] === stationName || LINE_1_ORDER[LINE_1_ORDER.length - 1] === stationName) lines.push('1-line')
+  if (LINE_2_ORDER[0] === stationName || LINE_2_ORDER[LINE_2_ORDER.length - 1] === stationName) lines.push('2-line')
+  if (lines.length === 0) return null
+
+  const reference = graph.get(TERMINUS_REFERENCE) || node.neighbors[0]
+  const b = bearing(reference.coords[0], reference.coords[1], node.coords[0], node.coords[1])
+  let bestKey = null
+  let bestDiff = Infinity
+  for (const [arrow, target] of Object.entries(ARROW_BEARINGS)) {
+    const diff = angleDiff(b, target)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      bestKey = arrow
+    }
+  }
+
+  return { arrowKey: bestKey, lines }
+}
+
 /**
  * Get directional hints for a junction station.
  * Returns hints for the diverging directions only (not the shared north direction).

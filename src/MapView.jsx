@@ -14,6 +14,7 @@ const MapView = forwardRef(function MapView({
   enabledWalksheds,
   popup,
   junctionHints,
+  terminusInfo,
   line1Data,
   line2Data,
   stationsData,
@@ -243,6 +244,7 @@ const MapView = forwardRef(function MapView({
           stopCode={popup.stopCode}
           name={popup.name}
           junctionHints={junctionHints}
+          terminusInfo={terminusInfo}
         />
       )}
     </Map>

@@ -529,16 +529,30 @@ body,
   color: #ddd;
 }
 
-.pill-hints {
+/* Junction (Chinatown) and terminus badges sit to the right of the pill
+ * name, separated by the same divider as the legacy pill-hints chips.
+ * Junction layout: switch SVG + kbd row. Terminus: SVG only. */
+.pill-badge {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
   margin-left: 2px;
   padding-left: 6px;
   border-left: 1px solid #ddd;
 }
 
-.app.dark .pill-hints {
+.app.dark .pill-badge {
   border-left-color: rgba(255, 255, 255, 0.15);
+}
+
+.pill-badge-svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.pill-badge-keys {
+  display: flex;
+  gap: 4px;
 }
 
 .pill-hint {

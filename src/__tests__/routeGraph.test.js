@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { buildGraph, getNextStation, isJunction, getJunctionHints } from '../routeGraph'
+import { buildGraph, getNextStation, isJunction, getJunctionHints, getTerminusInfo } from '../routeGraph'
 
 const mockStations = {
   type: 'FeatureCollection',
   features: [
+    // North terminus (Lynnwood) and southbound neighbor — both lines share these.
+    { type: 'Feature', properties: { name: 'Lynnwood City Center Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.2948, 47.8156] } },
+    { type: 'Feature', properties: { name: 'Lynnwood City Center Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.2948, 47.8156] } },
+    { type: 'Feature', properties: { name: 'Mountlake Terrace Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3148, 47.785] } },
+    { type: 'Feature', properties: { name: 'Mountlake Terrace Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3148, 47.785] } },
     // Shared stations (both lines)
     { type: 'Feature', properties: { name: 'Capitol Hill Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3202, 47.6191] } },
     { type: 'Feature', properties: { name: 'Capitol Hill Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3202, 47.6191] } },
@@ -13,12 +18,16 @@ const mockStations = {
     { type: 'Feature', properties: { name: 'Pioneer Square Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3312, 47.6026] } },
     { type: 'Feature', properties: { name: 'International District Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3280, 47.5984] } },
     { type: 'Feature', properties: { name: 'International District Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3280, 47.5984] } },
-    // Line 1 only (south of junction)
+    // Line 1 only (south of junction); Federal Way is the south terminus.
     { type: 'Feature', properties: { name: 'Stadium Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3272, 47.5911] } },
     { type: 'Feature', properties: { name: 'SODO Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3274, 47.5811] } },
-    // Line 2 only (east of junction)
+    { type: 'Feature', properties: { name: 'Star Lake Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.293, 47.394] } },
+    { type: 'Feature', properties: { name: 'Federal Way Downtown Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.312, 47.317] } },
+    // Line 2 only (east of junction); Downtown Redmond is the east terminus.
     { type: 'Feature', properties: { name: 'Judkins Park Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3045, 47.5903] } },
     { type: 'Feature', properties: { name: 'Mercer Island Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.2332, 47.5882] } },
+    { type: 'Feature', properties: { name: 'Marymoor Village Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.118, 47.662] } },
+    { type: 'Feature', properties: { name: 'Downtown Redmond Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.1248, 47.6732] } },
   ],
 }
 
@@ -26,8 +35,8 @@ describe('routeGraph', () => {
   const graph = buildGraph(mockStations)
 
   it('builds graph with unique station entries', () => {
-    // 8 unique station names
-    expect(graph.size).toBe(8)
+    // 14 unique station names (8 originals + 2 north termini + 2 south Line 1 + 2 east Line 2)
+    expect(graph.size).toBe(14)
   })
 
   it('shared stations belong to both lines', () => {
@@ -89,6 +98,33 @@ describe('routeGraph', () => {
     it('returns null for non-arrow key', () => {
       const result = getNextStation(graph, 'Westlake Station', 'Enter', '1-line')
       expect(result).toBeNull()
+    })
+  })
+
+  describe('getTerminusInfo', () => {
+    it('Lynnwood is the north terminus of both lines', () => {
+      const info = getTerminusInfo(graph, 'Lynnwood City Center Station')
+      expect(info).toEqual({ arrowKey: 'ArrowUp', lines: ['1-line', '2-line'] })
+    })
+
+    it('Federal Way is the south terminus of Line 1 only', () => {
+      const info = getTerminusInfo(graph, 'Federal Way Downtown Station')
+      expect(info).toEqual({ arrowKey: 'ArrowDown', lines: ['1-line'] })
+    })
+
+    it('Downtown Redmond is the east terminus of Line 2 only', () => {
+      const info = getTerminusInfo(graph, 'Downtown Redmond Station')
+      expect(info).toEqual({ arrowKey: 'ArrowRight', lines: ['2-line'] })
+    })
+
+    it('non-terminus stations return null', () => {
+      expect(getTerminusInfo(graph, 'Capitol Hill Station')).toBeNull()
+      expect(getTerminusInfo(graph, 'Westlake Station')).toBeNull()
+      expect(getTerminusInfo(graph, 'International District Station')).toBeNull()
+    })
+
+    it('unknown stations return null', () => {
+      expect(getTerminusInfo(graph, 'Not A Station')).toBeNull()
     })
   })
 })
