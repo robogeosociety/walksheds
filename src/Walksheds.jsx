@@ -293,9 +293,16 @@ export default function Walksheds() {
     fitToWalkshed()
   }, [fitToWalkshed])
 
+  // Single POI click path: whether the user tapped a dot on the map or
+  // picked a place from the per-tag list, fly to it, open the popup, and
+  // collapse the list so the popup is the foreground focus.
   const handlePoiClick = useCallback((feature) => {
     const props = feature.properties
     const [lng, lat] = feature.geometry.coordinates
+    const map = mapViewRef.current?.getMap()
+    if (map) {
+      map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16), duration: 800 })
+    }
     setPoiPopup({
       longitude: lng,
       latitude: lat,
@@ -305,20 +312,12 @@ export default function Walksheds() {
       website: props.website,
       address: props.address,
     })
+    setExpandedPoiTag(null)
   }, [])
 
-  const handlePoiSelect = useCallback((feature) => {
-    const [lng, lat] = feature.geometry.coordinates
-    const map = mapViewRef.current?.getMap()
-    if (map) {
-      map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16), duration: 800 })
-    }
-    handlePoiClick(feature)
-    // Collapse the per-tag POI list so the popup is the visible focus.
-    setExpandedPoiTag(null)
-  }, [handlePoiClick])
-
-  const handlePoiClose = useCallback(() => setPoiPopup(null), [])
+  // Closing the popup re-frames the walkshed at its original padding so the
+  // user lands back in "station view" instead of stuck zoomed on the POI.
+  const handlePoiClose = useCallback(() => fitToWalkshed(), [fitToWalkshed])
 
   // Hand keyboard focus from the search box back to the map canvas so the
   // user can pan/zoom with arrow keys right after committing a selection.
@@ -445,7 +444,7 @@ export default function Walksheds() {
           onAddFilter={handleAddPoiFilter}
           onRemoveFilter={handleRemovePoiFilter}
           onClearFilters={handleClearPoiFilters}
-          onPoiSelect={handlePoiSelect}
+          onPoiSelect={handlePoiClick}
           mainCategories={MAIN_POI_CATEGORIES}
           enabledCategories={enabledCategories}
           onToggleCategory={handleToggleCategory}

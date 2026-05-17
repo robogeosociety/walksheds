@@ -1,4 +1,5 @@
 import { MAPBOX_TOKEN } from './constants'
+import { pointInPolygon } from './poiUtils'
 
 const walkshedCache = new Map()
 
@@ -26,6 +27,24 @@ export function polygonToLine(geojson) {
       geometry: { type: 'LineString', coordinates: f.geometry.coordinates[0] },
     })),
   }
+}
+
+/**
+ * Compute where the map should snap back to after a user pan, or null if it
+ * should be left alone. Returns the POI coords when a popup is open
+ * (every popup goes through a flyTo, so popup-exists ⇔ POI-is-centered),
+ * the station coords when no popup is open, and null when the current map
+ * center is outside every enabled walkshed (user deliberately panned away).
+ */
+export function computeSnapTarget({ mapCenter, walksheds, enabledWalksheds, popup, poiPopup }) {
+  if (!popup) return null
+  const inside = [...enabledWalksheds].some(min => {
+    const ring = walksheds[min]?.features?.[0]?.geometry?.coordinates?.[0]
+    return ring && pointInPolygon(mapCenter, ring)
+  })
+  if (!inside) return null
+  if (poiPopup) return [poiPopup.longitude, poiPopup.latitude]
+  return [popup.longitude, popup.latitude]
 }
 
 export function getLargestEnabledBounds(walksheds, enabledWalksheds) {

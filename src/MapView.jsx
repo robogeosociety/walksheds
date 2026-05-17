@@ -3,6 +3,7 @@ import Map, { Source, Layer } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { registerStationIcons } from './stationIcons'
 import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
+import { computeSnapTarget } from './mapbox'
 import WalkshedLayers from './WalkshedLayers'
 import POILayer from './POILayer'
 import StationPill from './StationPill'
@@ -76,7 +77,26 @@ const MapView = forwardRef(function MapView({
   }, [hasWalksheds, mapLoaded])
 
   const handleDragStart = useCallback(() => { isDraggingRef.current = true }, [])
-  const handleDragEnd = useCallback(() => { isDraggingRef.current = false }, [])
+  const handleDragEnd = useCallback(() => {
+    isDraggingRef.current = false
+    // Snap the map back to the active context (POI if a popup is centered,
+    // otherwise the station) when the user's pan ended inside the walkshed.
+    // dragend is user-only — programmatic flyTo / fitBounds don't fire it,
+    // so no recursion guard is needed.
+    const map = mapRef.current?.getMap?.()
+    if (!map) return
+    const center = map.getCenter()
+    const target = computeSnapTarget({
+      mapCenter: [center.lng, center.lat],
+      walksheds,
+      enabledWalksheds,
+      popup,
+      poiPopup,
+    })
+    if (target) {
+      map.easeTo({ center: target, duration: 250 })
+    }
+  }, [walksheds, enabledWalksheds, popup, poiPopup])
 
   const handleMapClick = useCallback((e) => {
     if (isDraggingRef.current) {

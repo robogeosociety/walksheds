@@ -1,6 +1,14 @@
 import { useCallback, useEffect } from 'react'
 import { getNextStation } from './routeGraph'
 
+// Overlays whose interior touch/wheel events drive their own scrolling or
+// gesture handlers — never the global station-transition navigation.
+const NAV_EXEMPT_SELECTOR = '.poi-search, .mapboxgl-popup-content, .line-legend, .intro-overlay'
+
+function isInsideExemptOverlay(target) {
+  return !!(target && typeof target.closest === 'function' && target.closest(NAV_EXEMPT_SELECTOR))
+}
+
 export function useNavigation({ graphRef, selectedStationRef, currentLine, selectStation }) {
   const navigateDirection = useCallback((arrowKey) => {
     if (!graphRef.current || !selectedStationRef.current) return false
@@ -32,6 +40,7 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
 
     const handleWheel = (e) => {
       if (!selectedStationRef.current) return
+      if (isInsideExemptOverlay(e.target)) return
 
       accumX += e.deltaX
       accumY += e.deltaY
@@ -69,6 +78,10 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
 
     const handleTouchStart = (e) => {
       if (!selectedStationRef.current) return
+      if (isInsideExemptOverlay(e.target)) {
+        tracking = false
+        return
+      }
       if (e.touches.length !== 1) {
         tracking = false
         return
