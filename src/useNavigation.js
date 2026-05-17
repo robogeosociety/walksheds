@@ -9,7 +9,13 @@ function isInsideExemptOverlay(target) {
   return !!(target && typeof target.closest === 'function' && target.closest(NAV_EXEMPT_SELECTOR))
 }
 
-export function useNavigation({ graphRef, selectedStationRef, currentLine, selectStation }) {
+export function useNavigation({
+  graphRef,
+  selectedStationRef,
+  currentLine,
+  selectStation,
+  onBeforeScrollNavigate,
+}) {
   const navigateDirection = useCallback((arrowKey) => {
     if (!graphRef.current || !selectedStationRef.current) return false
     const result = getNextStation(graphRef.current, selectedStationRef.current.name, arrowKey, currentLine)
@@ -55,7 +61,21 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
         else if (accumX > SCROLL_THRESHOLD) arrowKey = 'ArrowRight'
       }
 
-      if (arrowKey && navigateDirection(arrowKey)) {
+      if (!arrowKey) return
+
+      // Defer to the host: if it returns false, the scroll was consumed
+      // by a popup-dismiss / snap-to-station gesture and shouldn't also
+      // transition to an adjacent station.
+      if (onBeforeScrollNavigate && !onBeforeScrollNavigate()) {
+        e.preventDefault()
+        accumX = 0
+        accumY = 0
+        cooldown = true
+        setTimeout(() => { cooldown = false }, 400)
+        return
+      }
+
+      if (navigateDirection(arrowKey)) {
         e.preventDefault()
         accumX = 0
         accumY = 0
@@ -66,7 +86,7 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
 
     window.addEventListener('wheel', handleWheel, { passive: false })
     return () => window.removeEventListener('wheel', handleWheel)
-  }, [navigateDirection, selectedStationRef])
+  }, [navigateDirection, selectedStationRef, onBeforeScrollNavigate])
 
   // Touch swipe navigation (mobile)
   // Only respond to single-finger swipes; ignore multi-touch (pinch-to-zoom)
