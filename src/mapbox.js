@@ -29,22 +29,22 @@ export function polygonToLine(geojson) {
   }
 }
 
-// Fixed boundary used as the magnet zone for snap-back, regardless of which
-// walksheds are toggled on for display. The 10-min ring strikes a balance:
-// wide enough that small drifts and trackpad nudges land inside it, but
-// bounded enough that a deliberate pan away clearly exits it.
-const SNAP_WALKSHED_MINUTES = 10
-
 /**
  * Compute where the map should snap back to after a user pan, or null if it
  * should be left alone. Returns the POI coords when a popup is open
  * (every popup goes through a flyTo, so popup-exists ⇔ POI-is-centered),
  * the station coords when no popup is open, and null when the current map
- * center is outside the 10-min walkshed ring (user deliberately panned away).
+ * center is outside the largest enabled walkshed ring (user deliberately
+ * panned away).
  */
-export function computeSnapTarget({ mapCenter, walksheds, popup, poiPopup }) {
+export function computeSnapTarget({ mapCenter, walksheds, enabledWalksheds, popup, poiPopup }) {
   if (!popup) return null
-  const ring = walksheds[SNAP_WALKSHED_MINUTES]?.features?.[0]?.geometry?.coordinates?.[0]
+  const sorted = [...enabledWalksheds].sort((a, b) => b - a)
+  let ring = null
+  for (const min of sorted) {
+    const candidate = walksheds[min]?.features?.[0]?.geometry?.coordinates?.[0]
+    if (candidate) { ring = candidate; break }
+  }
   if (!ring || !pointInPolygon(mapCenter, ring)) return null
   if (poiPopup) return [poiPopup.longitude, poiPopup.latitude]
   return [popup.longitude, popup.latitude]

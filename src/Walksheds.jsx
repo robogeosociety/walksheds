@@ -340,6 +340,7 @@ export default function Walksheds() {
     const target = computeSnapTarget({
       mapCenter: [center.lng, center.lat],
       walksheds,
+      enabledWalksheds,
       popup,
       poiPopup: null,
     })
@@ -350,7 +351,7 @@ export default function Walksheds() {
       map.easeTo({ center: target, duration: 250 })
     }
     return false
-  }, [walksheds, popup, poiPopup, fitToWalkshed])
+  }, [walksheds, enabledWalksheds, popup, poiPopup, fitToWalkshed])
 
   const handleDeselect = useCallback(() => {
     selectedStationRef.current = null
