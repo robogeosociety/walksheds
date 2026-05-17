@@ -1069,6 +1069,144 @@ body,
   color: #5bb8f0;
 }
 
+/* ── Nearest-stations section in POI popup ── */
+
+.poi-popup-stations {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.app.dark .poi-popup-stations {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.poi-popup-stations-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 2px;
+}
+
+.app.dark .poi-popup-stations-label {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.poi-popup-station-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.poi-popup-station-row:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.app.dark .poi-popup-station-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.poi-popup-station-row .station-pill.inline {
+  position: static;
+  transform: none;
+  box-shadow: none;
+  padding: 2px 6px 2px 2px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 999px;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.app.dark .poi-popup-station-row .station-pill.inline {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.poi-popup-station-row .station-pill.inline .pill-name {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.poi-popup-station-row .station-pill.inline .pill-circle {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.poi-popup-station-row .station-pill.inline .pill-code {
+  font-size: 10px;
+}
+
+.poi-popup-station-dist {
+  font-size: 11px;
+  color: #555;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.app.dark .poi-popup-station-dist {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* ── Units toggle (m/ft) in the legend ── */
+
+.legend-units-toggle,
+.legend-units-toggle-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.legend-units-toggle:hover,
+.legend-units-toggle-inline:hover {
+  color: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.app.dark .legend-units-toggle,
+.app.dark .legend-units-toggle-inline {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.app.dark .legend-units-toggle:hover,
+.app.dark .legend-units-toggle-inline:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.legend-units-text {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
 /* ── POI category pills (sit under the search input) ── */
 
 .poi-cat-pills {

@@ -72,6 +72,12 @@ export default function Walksheds() {
   const [darkMode, setDarkMode] = useState(() => {
     try { return window.localStorage.getItem('walksheds_dark_mode') === '1' } catch { return false }
   })
+  const [units, setUnits] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem('walksheds_units')
+      return stored === 'imperial' ? 'imperial' : 'metric'
+    } catch { return 'metric' }
+  })
   const [line1Data, setLine1Data] = useState(null)
   const [line2Data, setLine2Data] = useState(null)
   const [stationsData, setStationsData] = useState(null)
@@ -98,6 +104,10 @@ export default function Walksheds() {
   useEffect(() => {
     try { window.localStorage.setItem('walksheds_dark_mode', darkMode ? '1' : '0') } catch { /* private mode */ }
   }, [darkMode])
+
+  useEffect(() => {
+    try { window.localStorage.setItem('walksheds_units', units) } catch { /* private mode */ }
+  }, [units])
 
   const [legendPosition, setLegendPosition] = useState('bottom-left')
   const [introVisible, setIntroVisible] = useState(() => shouldShowIntro())
@@ -311,9 +321,21 @@ export default function Walksheds() {
       tags: typeof props.tags === 'string' ? JSON.parse(props.tags) : props.tags,
       website: props.website,
       address: props.address,
+      stations: typeof props.stations === 'string' ? JSON.parse(props.stations) : props.stations,
     })
     setExpandedPoiTag(null)
   }, [])
+
+  // Click handler for a station row inside a POI popup: jump to that station.
+  const handlePopupStationClick = useCallback((s) => {
+    if (!stationsData) return
+    const feat = stationsData.features.find(f =>
+      f.properties.stopCode === s.stopCode && (f.properties.lines || '').trim() === (s.lines || '').trim()
+    )
+    if (!feat) return
+    const [lng, lat] = feat.geometry.coordinates
+    selectStation(feat.properties.name, lng, lat, feat.properties.line)
+  }, [stationsData, selectStation])
 
   // Closing the popup re-frames the walkshed at its original padding so the
   // user lands back in "station view" instead of stuck zoomed on the POI.
@@ -424,6 +446,7 @@ export default function Walksheds() {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
       if (e.key === 'd') setDarkMode(d => !d)
       else if (e.key === 'l') toggleLegendCollapsed()
+      else if (e.key === 'u') setUnits(u => u === 'imperial' ? 'metric' : 'imperial')
       else if (WALKSHED_KEYS[e.key]) handleWalkshedToggle(WALKSHED_KEYS[e.key])
     }
     window.addEventListener('keydown', handleKey)
@@ -466,6 +489,8 @@ export default function Walksheds() {
         onPoiClick={handlePoiClick}
         onPoiClose={handlePoiClose}
         onPoiTagClick={handleAddPoiFilter}
+        onPopupStationClick={handlePopupStationClick}
+        units={units}
       />
 
       {Object.keys(poiData).length > 0 && (
@@ -494,6 +519,8 @@ export default function Walksheds() {
         onWalkshedToggle={handleWalkshedToggle}
         darkMode={darkMode}
         onDarkModeToggle={() => setDarkMode(d => !d)}
+        units={units}
+        onUnitsToggle={() => setUnits(u => u === 'imperial' ? 'metric' : 'imperial')}
         collapsed={legendCollapsed}
         onToggleCollapse={() => toggleLegendCollapsed()}
         position={legendPosition}

@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import { Source, Layer, Popup } from 'react-map-gl'
 import { POI_CATEGORIES } from './constants'
+import { StationPillBody } from './StationPill'
+import { formatWalk } from './formatDistance'
 
 const CATEGORY_KEYS = Object.keys(POI_CATEGORIES)
 
-export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, darkMode }) {
+export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, onStationClick, darkMode, units }) {
   const colorMatch = useMemo(() => [
     'match', ['get', 'category'],
     ...CATEGORY_KEYS.flatMap(k => [k, POI_CATEGORIES[k].color]),
@@ -93,6 +95,24 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, da
               >
                 Website
               </a>
+            )}
+            {Array.isArray(poiPopup.stations) && poiPopup.stations.length > 0 && (
+              <div className="poi-popup-stations">
+                <div className="poi-popup-stations-label">Stations within a 15 min walk</div>
+                {poiPopup.stations.map(s => (
+                  <button
+                    key={`${s.lines}-${s.stopCode}`}
+                    className="poi-popup-station-row"
+                    onClick={() => onStationClick?.(s)}
+                    aria-label={`${s.name}, ${formatWalk(s.walkingMeters, s.walkingSeconds, units)}`}
+                  >
+                    <StationPillBody lines={s.lines} stopCode={s.stopCode} name={s.name} className="inline" />
+                    <span className="poi-popup-station-dist">
+                      {formatWalk(s.walkingMeters, s.walkingSeconds, units)}
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </Popup>
