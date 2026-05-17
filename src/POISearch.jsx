@@ -14,6 +14,7 @@ export default function POISearch({
   enabledCategories,
   onToggleCategory,
   tagAliases,
+  onCommit,
 }) {
   const [query, setQuery] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -88,8 +89,16 @@ export default function POISearch({
     setQuery('')
     setShowDropdown(false)
     setHighlightIdx(0)
-    inputRef.current?.focus()
-  }, [onAddFilter])
+    // Release the search input so keyboard focus can move to the map
+    // (the caller handles where exactly focus lands).
+    inputRef.current?.blur()
+    onCommit?.()
+  }, [onAddFilter, onCommit])
+
+  const handleCategoryToggle = useCallback((catId) => {
+    onToggleCategory?.(catId)
+    onCommit?.()
+  }, [onToggleCategory, onCommit])
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
@@ -222,7 +231,7 @@ export default function POISearch({
                   background: enabled ? color : color + '40',
                   color: enabled ? '#fff' : color,
                 }}
-                onClick={() => onToggleCategory?.(id)}
+                onClick={() => handleCategoryToggle(id)}
               >
                 {label}
               </button>

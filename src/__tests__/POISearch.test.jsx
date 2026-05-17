@@ -73,6 +73,30 @@ describe('POISearch alias-aware matching', () => {
     expect(onAddFilter).toHaveBeenCalledWith('cannabis')
   })
 
+  it('selecting a search result calls onCommit so focus can move to the map', () => {
+    const onCommit = vi.fn()
+    renderSearch({ onCommit })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: 'pizz' },
+    })
+    fireEvent.mouseDown(document.querySelector('.poi-search-option'))
+    expect(onCommit).toHaveBeenCalledTimes(1)
+  })
+
+  it('toggling a category pill calls onCommit so focus can move to the map', () => {
+    const onCommit = vi.fn()
+    const onToggleCategory = vi.fn()
+    renderSearch({
+      onCommit,
+      onToggleCategory,
+      mainCategories: [{ id: 'restaurants', label: 'Restaurants', color: '#E67E22' }],
+      enabledCategories: new Set(),
+    })
+    fireEvent.click(screen.getByText('Restaurants'))
+    expect(onToggleCategory).toHaveBeenCalledWith('restaurants')
+    expect(onCommit).toHaveBeenCalledTimes(1)
+  })
+
   it('prefers the canonical name when both the tag and an alias would match', () => {
     // Contrived: an alias whose key also contains "ann" (matches "cannabis").
     renderSearch({

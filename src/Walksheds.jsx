@@ -316,6 +316,12 @@ export default function Walksheds() {
 
   const handlePoiClose = useCallback(() => setPoiPopup(null), [])
 
+  // Hand keyboard focus from the search box back to the map canvas so the
+  // user can pan/zoom with arrow keys right after committing a selection.
+  const focusMap = useCallback(() => {
+    mapViewRef.current?.getMap()?.getCanvas()?.focus()
+  }, [])
+
   const handleDeselect = useCallback(() => {
     selectedStationRef.current = null
     setPopup(null)
@@ -441,6 +447,7 @@ export default function Walksheds() {
           enabledCategories={enabledCategories}
           onToggleCategory={handleToggleCategory}
           tagAliases={tagCategories?.filter_schema?.aliases}
+          onCommit={focusMap}
         />
       )}
 
