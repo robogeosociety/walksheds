@@ -33,6 +33,10 @@ ISOCHRONE_URL = "https://api.mapbox.com/isochrone/v1/mapbox/walking"
 CONTOURS = (5, 10, 15)
 REQUEST_TIMEOUT = 30
 SLEEP_BETWEEN_REQUESTS = 0.2  # ~300 req/min ceiling on Mapbox free tier
+# Mapbox URL-restricted tokens reject requests without a matching Referer.
+# Setting one here lets the production token (restricted to walksheds.xyz) be
+# reused by the build scripts without minting a separate unrestricted token.
+REFERER = "https://walksheds.xyz/"
 
 
 def station_key(station):
@@ -54,7 +58,10 @@ def fetch_one(station, token):
         "access_token": token,
     })
     url = f"{ISOCHRONE_URL}/{station['lng']},{station['lat']}?{query}"
-    req = urllib.request.Request(url, headers={"User-Agent": "walksheds-walkshed-fetcher/1.0"})
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "walksheds-walkshed-fetcher/1.0",
+        "Referer": REFERER,
+    })
     for attempt in range(3):
         try:
             with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:

@@ -49,6 +49,9 @@ MATRIX_URL = "https://api.mapbox.com/directions-matrix/v1/mapbox/walking"
 MATRIX_MAX_DESTS = 24  # Mapbox walking matrix caps at 25 coords; 1 source + 24 destinations.
 REQUEST_TIMEOUT = 60
 SLEEP_BETWEEN_REQUESTS = 0.2  # ≤ 300 req/min
+# Match the Referer that the URL-restricted production token expects (see
+# fetch_walksheds.REFERER for the rationale).
+REFERER = "https://walksheds.xyz/"
 
 
 # ── Geometry ──
@@ -156,18 +159,26 @@ def compute_membership(stations, walkshed_payload, pois):
 # ── Mapbox Matrix ──
 
 def fetch_matrix(source, destinations, token):
-    """One Matrix call: 1 source + up to 24 destinations. Returns (distances, durations) for each dest."""
+    """One Matrix call: 1 source + up to 24 destinations. Returns the full Mapbox response.
+
+    Uses `sources=0` (no `destinations` param) so Mapbox returns a 1×N row.
+    Setting `destinations=1,2,...` alongside `sources=0` trips up Mapbox's
+    request validator with a misleading "minimum matrix elements is 2" 422
+    even when the math is clearly satisfied (1 × 24 = 24). The first column
+    of the response is source→source (always 0) — callers must skip it.
+    """
     coords = [source] + destinations
     coord_str = ";".join(f"{lng},{lat}" for lng, lat in coords)
-    dest_indices = ",".join(str(i) for i in range(1, len(coords)))
     query = urllib.parse.urlencode({
         "sources": "0",
-        "destinations": dest_indices,
         "annotations": "distance,duration",
         "access_token": token,
     })
     url = f"{MATRIX_URL}/{coord_str}?{query}"
-    req = urllib.request.Request(url, headers={"User-Agent": "walksheds-distance-fetcher/1.0"})
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "walksheds-distance-fetcher/1.0",
+        "Referer": REFERER,
+    })
     for attempt in range(3):
         try:
             with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
@@ -221,8 +232,9 @@ def refresh_pairs(pairs, walkshed_version, token, existing=None, dry_run=False):
             chunk = missing[chunk_start:chunk_start + MATRIX_MAX_DESTS]
             destinations = [(f["geometry"]["coordinates"][0], f["geometry"]["coordinates"][1]) for _, _, f in chunk]
             response = fetch_matrix(source, destinations, token)
-            distances = (response.get("distances") or [[None] * len(chunk)])[0]
-            durations = (response.get("durations") or [[None] * len(chunk)])[0]
+            # Response row layout: [source→source, source→dest_1, ..., source→dest_N]. Skip index 0.
+            distances = (response.get("distances") or [[None] * (len(chunk) + 1)])[0][1:]
+            durations = (response.get("durations") or [[None] * (len(chunk) + 1)])[0][1:]
             for (poi_id, band, _), meters, seconds in zip(chunk, distances, durations):
                 if meters is None or seconds is None:
                     # POI is in the polygon but Matrix couldn't route to it (off-network).
