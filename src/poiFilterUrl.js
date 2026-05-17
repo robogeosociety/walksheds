@@ -24,6 +24,10 @@
 
 const VERSION = '1'
 const SEP = '~'
+// Selections at or below this count emit the human-readable comma-separated
+// form (e.g. ?pois=coffee,parks,pizza). Beyond it, switch to the compact
+// canonical form — CSV gets unwieldy fast and the savings start to matter.
+const CSV_MAX_ITEMS = 3
 
 function sameMembers(setLike, iterable) {
   const other = iterable instanceof Set ? iterable : new Set(iterable)
@@ -77,17 +81,21 @@ function base64UrlToBytes(str) {
   return out
 }
 
-function encodeIds(names, nameToId) {
-  const ids = []
+function sortNamesByRegistryId(names, nameToId) {
+  const known = []
   for (const name of names) {
     const id = nameToId[name]
-    if (typeof id === 'number') ids.push(id)
+    if (typeof id === 'number') known.push([id, name])
   }
-  if (ids.length === 0) return ''
-  ids.sort((a, b) => a - b)
+  known.sort((a, b) => a[0] - b[0])
+  return known
+}
+
+function encodeIds(idNamePairs) {
+  if (idNamePairs.length === 0) return ''
   const bytes = []
   let prev = 0
-  for (const id of ids) {
+  for (const [id] of idNamePairs) {
     encodeVarint(id - prev, bytes)
     prev = id
   }
@@ -120,8 +128,15 @@ function invertMap(nameToId) {
 
 /**
  * Build a `?pois=...` query string fragment for the given filter state.
- * Returns '' when no filters are active OR when the state matches the caller-
- * supplied defaults — so default views and "no filter" links stay clean.
+ *
+ * Small selections (≤ CSV_MAX_ITEMS total) emit the human-readable
+ * comma-separated form (e.g. ?pois=coffee,parks,pizza), which is friendlier
+ * to type and recognize. Larger selections switch to the canonical compact
+ * form (e.g. ?pois=1AwE~hAI) to keep URLs short.
+ *
+ * Returns '' when no filters are active OR when the state matches the
+ * caller-supplied defaults — so default views and "no filter" links stay
+ * clean.
  */
 export function buildPoiFilterParam(enabledCategories, poiFilters, schema, defaultMainCategories = null) {
   if (!schema || schema.version !== 1) return ''
@@ -133,10 +148,20 @@ export function buildPoiFilterParam(enabledCategories, poiFilters, schema, defau
     return ''
   }
 
-  const catPayload = encodeIds(enabledCategories, schema.cat || {})
-  const tagPayload = encodeIds(poiFilters, schema.tag || {})
-  if (!catPayload && !tagPayload) return ''
+  const catPairs = sortNamesByRegistryId(enabledCategories, schema.cat || {})
+  const tagPairs = sortNamesByRegistryId(poiFilters, schema.tag || {})
+  const total = catPairs.length + tagPairs.length
+  if (total === 0) return ''
 
+  if (total <= CSV_MAX_ITEMS) {
+    // Categories first (top-level toggles), tags after — each in registry-ID
+    // order so the URL is deterministic regardless of insertion order.
+    const names = [...catPairs.map(p => p[1]), ...tagPairs.map(p => p[1])]
+    return `?pois=${names.join(',')}`
+  }
+
+  const catPayload = encodeIds(catPairs)
+  const tagPayload = encodeIds(tagPairs)
   const body = tagPayload ? `${catPayload}${SEP}${tagPayload}` : catPayload
   return `?pois=${VERSION}${body}`
 }

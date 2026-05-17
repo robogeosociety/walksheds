@@ -24,29 +24,45 @@ describe('buildPoiFilterParam', () => {
     expect(buildPoiFilterParam(new Set(['restaurants']), new Set(['pizza']), { version: 99 })).toBe('')
   })
 
-  it('emits the version prefix', () => {
-    const out = buildPoiFilterParam(new Set(['restaurants']), new Set(), SCHEMA)
+  it('emits the human CSV form for ≤3 total selections', () => {
+    expect(buildPoiFilterParam(new Set(['restaurants']), new Set(), SCHEMA))
+      .toBe('?pois=restaurants')
+    expect(buildPoiFilterParam(new Set(['restaurants', 'bars']), new Set(), SCHEMA))
+      .toBe('?pois=restaurants,bars')
+    expect(buildPoiFilterParam(new Set(['restaurants']), new Set(['pizza', 'vegan']), SCHEMA))
+      .toBe('?pois=restaurants,pizza,vegan')
+  })
+
+  it('flips to canonical compact form once total selections exceed 3', () => {
+    const out = buildPoiFilterParam(
+      new Set(['restaurants', 'bars']),
+      new Set(['pizza', 'vegan']),
+      SCHEMA,
+    )
     expect(out.startsWith('?pois=1')).toBe(true)
+    expect(out.includes(',')).toBe(false)
   })
 
-  it('omits the tag separator when only categories are selected', () => {
-    const out = buildPoiFilterParam(new Set(['restaurants', 'bars']), new Set(), SCHEMA)
-    expect(out.includes('~')).toBe(false)
+  it('CSV order is categories-then-tags by registry ID, regardless of insertion order', () => {
+    const a = buildPoiFilterParam(new Set(['parks', 'restaurants']), new Set(['vegan']), SCHEMA)
+    const b = buildPoiFilterParam(new Set(['restaurants', 'parks']), new Set(['vegan']), SCHEMA)
+    expect(a).toBe(b)
+    expect(a).toBe('?pois=restaurants,parks,vegan')
   })
 
-  it('emits an empty cat payload when only tags are selected', () => {
-    const out = buildPoiFilterParam(new Set(), new Set(['pizza']), SCHEMA)
-    // Format: ?pois=1<empty-cat>~<tag-payload>
-    expect(out.startsWith('?pois=1~')).toBe(true)
-  })
-
-  it('uses only URL-unreserved characters', () => {
+  it('canonical form uses only URL-unreserved characters', () => {
     const out = buildPoiFilterParam(
       new Set(['restaurants', 'bars', 'coffee', 'parks']),
       new Set(['coffee-shop', 'pizza', 'vegan', 'wheelchair-accessible']),
       SCHEMA,
     )
+    expect(out.startsWith('?pois=1')).toBe(true)
     expect(out.slice('?pois='.length)).toMatch(/^[A-Za-z0-9_~-]+$/)
+  })
+
+  it('CSV form uses only URL-safe characters', () => {
+    const out = buildPoiFilterParam(new Set(['restaurants']), new Set(['wheelchair-accessible']), SCHEMA)
+    expect(out.slice('?pois='.length)).toMatch(/^[a-z0-9,-]+$/)
   })
 
   it('returns empty string when state matches the supplied defaults', () => {
@@ -64,8 +80,8 @@ describe('buildPoiFilterParam', () => {
   it('encodes when defaults are present but tags are also selected', () => {
     const defaults = ['parks', 'coffee']
     const out = buildPoiFilterParam(new Set(['parks', 'coffee']), new Set(['pizza']), SCHEMA, defaults)
-    expect(out).not.toBe('')
-    expect(out.includes('~')).toBe(true)
+    // 3 total selections → CSV form, not canonical.
+    expect(out).toBe('?pois=coffee,parks,pizza')
   })
 
   it('drops names not in the schema', () => {
@@ -80,10 +96,14 @@ describe('buildPoiFilterParam', () => {
     expect(parsed.tags).toEqual(new Set(['pizza']))
   })
 
-  it('produces compact URLs', () => {
-    // 1 cat + 1 tag with small IDs should fit in well under the old format's 39 chars.
-    const out = buildPoiFilterParam(new Set(['coffee']), new Set(['pizza']), SCHEMA)
-    expect(out.length).toBeLessThan(15)
+  it('produces compact URLs even for the worst case (all selections enabled)', () => {
+    const out = buildPoiFilterParam(
+      new Set(['restaurants', 'bars', 'coffee', 'parks']),
+      new Set(['coffee-shop', 'pizza', 'vegan', 'wheelchair-accessible']),
+      SCHEMA,
+    )
+    // 8 items → canonical form. Old format was 39+ chars for far less.
+    expect(out.length).toBeLessThan(25)
   })
 })
 
@@ -126,7 +146,7 @@ describe('parsePoiFilterParam', () => {
     expect(parsed.tags).toEqual(new Set(['pizza', 'vegan']))
   })
 
-  it('round-trips combined state', () => {
+  it('round-trips combined state (canonical form, >3 items)', () => {
     const cats = ['restaurants', 'parks']
     const tags = ['pizza', 'wheelchair-accessible']
     const parsed = roundTrip(cats, tags)
@@ -134,10 +154,28 @@ describe('parsePoiFilterParam', () => {
     expect(parsed.tags).toEqual(new Set(tags))
   })
 
-  it('insertion order does not affect output', () => {
-    const a = buildPoiFilterParam(new Set(['parks', 'restaurants']), new Set(['vegan', 'pizza']), SCHEMA)
-    const b = buildPoiFilterParam(new Set(['restaurants', 'parks']), new Set(['pizza', 'vegan']), SCHEMA)
+  it('round-trips combined state (CSV form, ≤3 items)', () => {
+    const cats = ['restaurants']
+    const tags = ['pizza', 'vegan']
+    const parsed = roundTrip(cats, tags)
+    expect(parsed.categories).toEqual(new Set(cats))
+    expect(parsed.tags).toEqual(new Set(tags))
+  })
+
+  it('insertion order does not affect output (canonical form)', () => {
+    // 4 selections → canonical form; ordering still must be stable.
+    const a = buildPoiFilterParam(
+      new Set(['parks', 'restaurants']),
+      new Set(['vegan', 'pizza']),
+      SCHEMA,
+    )
+    const b = buildPoiFilterParam(
+      new Set(['restaurants', 'parks']),
+      new Set(['pizza', 'vegan']),
+      SCHEMA,
+    )
     expect(a).toBe(b)
+    expect(a.startsWith('?pois=1')).toBe(true)
   })
 
   it('drops unknown IDs silently when the schema has shrunk', () => {
