@@ -1,17 +1,24 @@
 /**
  * Deep linking utilities for station URLs.
  *
- * URL format: /walksheds/{line}/{stopCode}?walkshed=5&walkshed=10
- * Example:    /walksheds/1/50  →  Westlake Station on Line 1
+ * URL format: /{system}/{line}/{stopCode}?walkshed=5&walkshed=10
+ * Example:    /seattle/1/50  →  Westlake Station on Line 1
+ *
+ * The {system} segment scopes the path to a transit system, leaving room for
+ * future additions (e.g. /portland/…, /bart/…). Legacy two-segment paths
+ * (/1/50) still parse — they're treated as Seattle and auto-rewritten to the
+ * new form on the next history.replaceState.
  */
 
 import { WALKSHED_OPTIONS } from './constants'
 
 const VALID_LINES = new Set(['1', '2'])
+export const SUPPORTED_SYSTEMS = new Set(['seattle'])
+export const DEFAULT_SYSTEM = 'seattle'
 
 /**
- * Parse a station path into line and stop code.
- * Returns { line, stopCode } or null if the path doesn't match.
+ * Parse a station path into system, line, and stop code.
+ * Returns { system, line, stopCode } or null if the path doesn't match.
  */
 export function parseStationPath(pathname, basePath) {
   let rel = pathname
@@ -22,23 +29,35 @@ export function parseStationPath(pathname, basePath) {
   if (!rel) return null
 
   const parts = rel.split('/')
-  if (parts.length !== 2) return null
+  let system, line, codeStr
+  if (parts.length === 3) {
+    [system, line, codeStr] = parts
+    if (!SUPPORTED_SYSTEMS.has(system)) return null
+  } else if (parts.length === 2) {
+    // Legacy /{line}/{stopCode} — default to the only system that existed
+    // when those URLs were minted.
+    system = DEFAULT_SYSTEM
+    ;[line, codeStr] = parts
+  } else {
+    return null
+  }
 
-  const [line, codeStr] = parts
   if (!VALID_LINES.has(line)) return null
 
   const stopCode = parseInt(codeStr, 10)
   if (isNaN(stopCode)) return null
 
-  return { line, stopCode }
+  return { system, line, stopCode }
 }
 
 /**
- * Build a station URL path.
+ * Build a station URL path. `system` defaults to DEFAULT_SYSTEM ('seattle')
+ * since that's currently the only one — pass it explicitly when more systems
+ * are added.
  */
-export function buildStationPath(line, stopCode, basePath) {
+export function buildStationPath(line, stopCode, basePath, system = DEFAULT_SYSTEM) {
   const base = basePath.endsWith('/') ? basePath : basePath + '/'
-  return `${base}${line}/${stopCode}`
+  return `${base}${system}/${line}/${stopCode}`
 }
 
 /**

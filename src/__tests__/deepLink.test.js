@@ -12,47 +12,67 @@ const BASE = '/walksheds/'
 
 describe('parseStationPath', () => {
   it('parses valid line 1 path', () => {
-    expect(parseStationPath('/walksheds/1/50', BASE)).toEqual({ line: '1', stopCode: 50 })
+    expect(parseStationPath('/walksheds/seattle/1/50', BASE))
+      .toEqual({ system: 'seattle', line: '1', stopCode: 50 })
   })
 
   it('parses valid line 2 path', () => {
-    expect(parseStationPath('/walksheds/2/54', BASE)).toEqual({ line: '2', stopCode: 54 })
+    expect(parseStationPath('/walksheds/seattle/2/54', BASE))
+      .toEqual({ system: 'seattle', line: '2', stopCode: 54 })
   })
 
   it('handles trailing slash', () => {
-    expect(parseStationPath('/walksheds/1/50/', BASE)).toEqual({ line: '1', stopCode: 50 })
+    expect(parseStationPath('/walksheds/seattle/1/50/', BASE))
+      .toEqual({ system: 'seattle', line: '1', stopCode: 50 })
+  })
+
+  it('returns null for unknown system', () => {
+    expect(parseStationPath('/walksheds/portland/1/50', BASE)).toBeNull()
   })
 
   it('returns null for invalid line', () => {
-    expect(parseStationPath('/walksheds/3/50', BASE)).toBeNull()
+    expect(parseStationPath('/walksheds/seattle/3/50', BASE)).toBeNull()
   })
 
   it('returns null for non-numeric stop code', () => {
-    expect(parseStationPath('/walksheds/1/abc', BASE)).toBeNull()
+    expect(parseStationPath('/walksheds/seattle/1/abc', BASE)).toBeNull()
   })
 
   it('returns null for too few segments', () => {
     expect(parseStationPath('/walksheds/', BASE)).toBeNull()
-    expect(parseStationPath('/walksheds/1', BASE)).toBeNull()
+    expect(parseStationPath('/walksheds/seattle', BASE)).toBeNull()
   })
 
   it('returns null for too many segments', () => {
-    expect(parseStationPath('/walksheds/1/50/extra', BASE)).toBeNull()
+    expect(parseStationPath('/walksheds/seattle/1/50/extra', BASE)).toBeNull()
   })
 
   it('returns null for root path', () => {
     expect(parseStationPath('/walksheds/', BASE)).toBeNull()
   })
+
+  it('accepts the legacy /{line}/{stopCode} form, defaulting to seattle', () => {
+    // Shared URLs minted before the /seattle prefix existed should still
+    // resolve. The app rewrites them to the new form on next replaceState.
+    expect(parseStationPath('/walksheds/1/50', BASE))
+      .toEqual({ system: 'seattle', line: '1', stopCode: 50 })
+    expect(parseStationPath('/walksheds/2/54', BASE))
+      .toEqual({ system: 'seattle', line: '2', stopCode: 54 })
+  })
 })
 
 describe('buildStationPath', () => {
-  it('builds correct path', () => {
-    expect(buildStationPath('1', 50, BASE)).toBe('/walksheds/1/50')
+  it('builds the new /{system}/{line}/{stopCode} path', () => {
+    expect(buildStationPath('1', 50, BASE)).toBe('/walksheds/seattle/1/50')
   })
 
   it('round-trips with parseStationPath', () => {
     const path = buildStationPath('2', 63, BASE)
-    expect(parseStationPath(path, BASE)).toEqual({ line: '2', stopCode: 63 })
+    expect(parseStationPath(path, BASE)).toEqual({ system: 'seattle', line: '2', stopCode: 63 })
+  })
+
+  it('accepts an explicit system identifier', () => {
+    expect(buildStationPath('1', 50, BASE, 'seattle')).toBe('/walksheds/seattle/1/50')
   })
 })
 
