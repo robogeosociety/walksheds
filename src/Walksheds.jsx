@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints } from './routeGraph'
-import { fetchWalkshed, getLargestEnabledBounds } from './mapbox'
+import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
 import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
@@ -325,6 +325,32 @@ export default function Walksheds() {
     mapViewRef.current?.getMap()?.getCanvas()?.focus()
   }, [])
 
+  // Trackpad / wheel scroll within the walkshed snaps back to the station
+  // instead of transitioning to an adjacent one — mirroring the pan-snap on
+  // dragend so wheel input feels the same as drag input. A POI popup, if
+  // open, is dismissed along the way (the scroll gesture reads as "back to
+  // station view"). Outside the walkshed, scroll-to-navigate behaves as
+  // before so users can still flick through stations from an overview.
+  const handleScrollNavigationAttempt = useCallback(() => {
+    const map = mapViewRef.current?.getMap()
+    if (!map) return true
+    const center = map.getCenter()
+    const insideWalkshed = !!computeSnapTarget({
+      mapCenter: [center.lng, center.lat],
+      walksheds,
+      enabledWalksheds,
+      popup,
+      poiPopup: null,
+    })
+    if (!insideWalkshed) return true
+    if (poiPopup) {
+      fitToWalkshed()
+    } else if (popup) {
+      map.easeTo({ center: [popup.longitude, popup.latitude], duration: 250 })
+    }
+    return false
+  }, [walksheds, enabledWalksheds, popup, poiPopup, fitToWalkshed])
+
   const handleDeselect = useCallback(() => {
     selectedStationRef.current = null
     setPopup(null)
@@ -381,7 +407,13 @@ export default function Walksheds() {
     })
   }, [tagCategories])
 
-  useNavigation({ graphRef, selectedStationRef, currentLine, selectStation })
+  useNavigation({
+    graphRef,
+    selectedStationRef,
+    currentLine,
+    selectStation,
+    onBeforeScrollNavigate: handleScrollNavigationAttempt,
+  })
 
   // Keyboard shortcuts
   useEffect(() => {
