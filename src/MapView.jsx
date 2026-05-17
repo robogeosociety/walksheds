@@ -117,10 +117,13 @@ const MapView = forwardRef(function MapView({
         return
       }
     }
-    // Empty-map clicks are intentionally a no-op once a station is selected:
-    // the walkshed stays open until the user explicitly picks another station.
-    // The POI popup, if open, dismisses itself via the Popup's closeOnClick.
-  }, [onStationClick, onPoiClick])
+    // Empty-map click: keep the station/walkshed (walkshed stays open until
+    // the user picks another station) but dismiss any open POI popup so the
+    // user gets back to station view. Doing this here rather than via the
+    // Popup's closeOnClick avoids a race where a fresh POI click would both
+    // open a new popup AND immediately close it.
+    onPoiClose?.()
+  }, [onStationClick, onPoiClick, onPoiClose])
 
   const handleMouseEnter = useCallback(() => {
     const map = mapRef.current
