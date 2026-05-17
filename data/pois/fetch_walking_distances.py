@@ -48,7 +48,9 @@ DUMP = os.path.join(ROOT, "data", "pois", "raw", "walking-distances.json.gz")
 MATRIX_URL = "https://api.mapbox.com/directions-matrix/v1/mapbox/walking"
 MATRIX_MAX_DESTS = 24  # Mapbox walking matrix caps at 25 coords; 1 source + 24 destinations.
 REQUEST_TIMEOUT = 60
-SLEEP_BETWEEN_REQUESTS = 0.2  # ≤ 300 req/min
+# Mapbox walking Matrix is 60 req/min on the standard tier. Sleep ~1.2s
+# between calls (50/min) to stay clear of 429s with some headroom.
+SLEEP_BETWEEN_REQUESTS = 1.2
 # Match the Referer that the URL-restricted production token expects (see
 # fetch_walksheds.REFERER for the rationale).
 REFERER = "https://walksheds.xyz/"
@@ -179,13 +181,15 @@ def fetch_matrix(source, destinations, token):
         "User-Agent": "walksheds-distance-fetcher/1.0",
         "Referer": REFERER,
     })
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
-            if attempt < 2:
-                wait = 2 ** (attempt + 1)
+            if attempt < 4:
+                # 429 needs a long cool-off; other errors use shorter exponential backoff.
+                is_429 = isinstance(e, urllib.error.HTTPError) and e.code == 429
+                wait = (10, 30, 60, 90)[attempt] if is_429 else 2 ** (attempt + 1)
                 print(f"    Retry in {wait}s after error: {e}")
                 time.sleep(wait)
             else:
@@ -244,6 +248,9 @@ def refresh_pairs(pairs, walkshed_version, token, existing=None, dry_run=False):
             call_count += 1
             fetched += len(chunk)
             time.sleep(SLEEP_BETWEEN_REQUESTS)
+        # Persist after each station so a mid-refresh crash doesn't wipe progress.
+        # Subsequent re-runs skip already-cached pairs.
+        write_dump(cache, walkshed_version)
     print(f"  Fetched {fetched:,} entries across {call_count} Matrix calls")
     return cache
 
