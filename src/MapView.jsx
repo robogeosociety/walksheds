@@ -89,14 +89,13 @@ const MapView = forwardRef(function MapView({
     const target = computeSnapTarget({
       mapCenter: [center.lng, center.lat],
       walksheds,
-      enabledWalksheds,
       popup,
       poiPopup,
     })
     if (target) {
       map.easeTo({ center: target, duration: 250 })
     }
-  }, [walksheds, enabledWalksheds, popup, poiPopup])
+  }, [walksheds, popup, poiPopup])
 
   const handleMapClick = useCallback((e) => {
     if (isDraggingRef.current) {

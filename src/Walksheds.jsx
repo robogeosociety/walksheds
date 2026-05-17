@@ -335,21 +335,22 @@ export default function Walksheds() {
     const map = mapViewRef.current?.getMap()
     if (!map) return true
     const center = map.getCenter()
-    const insideWalkshed = !!computeSnapTarget({
+    // Use the helper with poiPopup omitted so the target is always station
+    // coords — the wheel snap goes to station regardless of popup state.
+    const target = computeSnapTarget({
       mapCenter: [center.lng, center.lat],
       walksheds,
-      enabledWalksheds,
       popup,
       poiPopup: null,
     })
-    if (!insideWalkshed) return true
+    if (!target) return true
     if (poiPopup) {
       fitToWalkshed()
-    } else if (popup) {
-      map.easeTo({ center: [popup.longitude, popup.latitude], duration: 250 })
+    } else {
+      map.easeTo({ center: target, duration: 250 })
     }
     return false
-  }, [walksheds, enabledWalksheds, popup, poiPopup, fitToWalkshed])
+  }, [walksheds, popup, poiPopup, fitToWalkshed])
 
   const handleDeselect = useCallback(() => {
     selectedStationRef.current = null
