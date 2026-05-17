@@ -101,10 +101,17 @@ describe('parsePoiFilterParam', () => {
     expect(parsePoiFilterParam('?pois=1Aw', { version: 99 })).toBeNull()
   })
 
-  it('returns null when the version prefix is unknown', () => {
+  it('returns null when the input is neither canonical nor a known name', () => {
     expect(parsePoiFilterParam('?pois=9deadbeef', SCHEMA)).toBeNull()
-    // Legacy format: hash-then-tilde — first char is hex, not "1".
+    // Legacy ?pois= format (hash + tilde-delimited names). All names absent
+    // from SCHEMA, so the CSV fallback also yields nothing.
     expect(parsePoiFilterParam('?pois=a3f2c1b9~c.restaurants', SCHEMA)).toBeNull()
+  })
+
+  it('falls back to by-name when a tag name happens to start with the version byte', () => {
+    const schema = { version: 1, cat: {}, tag: { '1-star': 7, pizza: 0 } }
+    const parsed = parsePoiFilterParam('?pois=1-star', schema)
+    expect(parsed.tags).toEqual(new Set(['1-star']))
   })
 
   it('round-trips categories only', () => {
@@ -154,5 +161,58 @@ describe('parsePoiFilterParam', () => {
     const url = buildPoiFilterParam(new Set(), new Set(['big-id', 'bigger-id']), wideSchema)
     const parsed = parsePoiFilterParam(url, wideSchema)
     expect(parsed.tags).toEqual(new Set(['big-id', 'bigger-id']))
+  })
+})
+
+describe('parsePoiFilterParam — comma-separated names (human-typed)', () => {
+  it('reads a single tag name', () => {
+    const parsed = parsePoiFilterParam('?pois=pizza', SCHEMA)
+    expect(parsed.tags).toEqual(new Set(['pizza']))
+    expect(parsed.categories.size).toBe(0)
+  })
+
+  it('reads multiple tag names separated by commas', () => {
+    const parsed = parsePoiFilterParam('?pois=pizza,vegan,wheelchair-accessible', SCHEMA)
+    expect(parsed.tags).toEqual(new Set(['pizza', 'vegan', 'wheelchair-accessible']))
+  })
+
+  it('routes category names to the categories set', () => {
+    const parsed = parsePoiFilterParam('?pois=restaurants,parks', SCHEMA)
+    expect(parsed.categories).toEqual(new Set(['restaurants', 'parks']))
+    expect(parsed.tags.size).toBe(0)
+  })
+
+  it('mixes categories and tags by name', () => {
+    const parsed = parsePoiFilterParam('?pois=restaurants,pizza,parks', SCHEMA)
+    expect(parsed.categories).toEqual(new Set(['restaurants', 'parks']))
+    expect(parsed.tags).toEqual(new Set(['pizza']))
+  })
+
+  it('resolves overlapping names to the tag namespace (pills win)', () => {
+    // Pills surface tag names; if a user types a name present in both
+    // namespaces, the tag should light up — that's what they see on screen.
+    const ambiguous = {
+      version: 1,
+      cat: { coffee: 0, parks: 1 },
+      tag: { coffee: 0, pizza: 1 },
+    }
+    const parsed = parsePoiFilterParam('?pois=coffee', ambiguous)
+    expect(parsed.tags).toEqual(new Set(['coffee']))
+    expect(parsed.categories.size).toBe(0)
+  })
+
+  it('tolerates whitespace around names', () => {
+    const parsed = parsePoiFilterParam('?pois= pizza , vegan ', SCHEMA)
+    expect(parsed.tags).toEqual(new Set(['pizza', 'vegan']))
+  })
+
+  it('drops unknown names silently', () => {
+    const parsed = parsePoiFilterParam('?pois=pizza,not-a-real-tag', SCHEMA)
+    expect(parsed.tags).toEqual(new Set(['pizza']))
+  })
+
+  it('returns null when no names resolve', () => {
+    expect(parsePoiFilterParam('?pois=not-a-real-tag', SCHEMA)).toBeNull()
+    expect(parsePoiFilterParam('?pois=,,,', SCHEMA)).toBeNull()
   })
 })

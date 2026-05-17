@@ -1,7 +1,7 @@
 /**
  * Encode/decode active POI filters as a single compact ?pois= query parameter.
  *
- * Format: ?pois=1<cat-payload>[~<tag-payload>]
+ * Canonical (machine-emitted) format: ?pois=1<cat-payload>[~<tag-payload>]
  *   - Leading "1" pins the encoding version, leaving room for future schemes.
  *   - Each payload is a delta-encoded varint stream of stable IDs from the
  *     build-time filter registry, base64url-packed without padding.
@@ -9,12 +9,17 @@
  *     category and a "coffee" tag never collide). The `~` separator is
  *     omitted when the tag side is empty.
  *
+ * Human-typed fallback: ?pois=<name>[,<name>...]
+ *   - Comma-separated list of pill names (e.g. ?pois=pizza,vegan,coffee).
+ *   - Each name is looked up in the tag namespace first, then the category
+ *     namespace — matching what the user sees on screen. Unknown names drop
+ *     silently. The app re-emits canonical form on the next URL update.
+ *
  * The IDs are append-only: data/pois/filter-registry.json grows monotonically,
  * so URLs minted today decode against tomorrow's schema even if names get
- * added or removed. Unknown IDs are dropped silently — same forgiving
- * behavior as the previous by-name decoder.
+ * added or removed.
  *
- * All output chars are URL-unreserved (base64url alphabet + `~` + digit).
+ * All canonical-output chars are URL-unreserved (base64url alphabet + `~` + digit).
  */
 
 const VERSION = '1'
@@ -136,18 +141,7 @@ export function buildPoiFilterParam(enabledCategories, poiFilters, schema, defau
   return `?pois=${VERSION}${body}`
 }
 
-/**
- * Parse a query string into `{ categories, tags }` Sets, or null if the
- * `pois` param is absent, malformed, or yields nothing usable.
- *
- * IDs absent from the current schema are dropped silently.
- */
-export function parsePoiFilterParam(search, schema) {
-  if (!schema || schema.version !== 1) return null
-  const params = new URLSearchParams(search)
-  const raw = params.get('pois')
-  if (!raw || raw[0] !== VERSION) return null
-
+function parseCanonical(raw, schema) {
   const body = raw.slice(1)
   const sepIdx = body.indexOf(SEP)
   const catPart = sepIdx === -1 ? body : body.slice(0, sepIdx)
@@ -156,6 +150,47 @@ export function parsePoiFilterParam(search, schema) {
   const categories = decodeIds(catPart, invertMap(schema.cat))
   const tags = decodeIds(tagPart, invertMap(schema.tag))
   if (!categories || !tags) return null
-  if (categories.size === 0 && tags.size === 0) return null
   return { categories, tags }
+}
+
+function parseCsvNames(raw, schema) {
+  const cats = new Set()
+  const tags = new Set()
+  const knownCats = schema.cat || {}
+  const knownTags = schema.tag || {}
+  for (const part of raw.split(',')) {
+    const name = part.trim()
+    if (!name) continue
+    // Pills show tag names, so resolve tags first; fall back to a category
+    // name (e.g. "restaurants", "parks") for users sharing top-level toggles.
+    if (name in knownTags) tags.add(name)
+    else if (name in knownCats) cats.add(name)
+  }
+  return { categories: cats, tags }
+}
+
+/**
+ * Parse a query string into `{ categories, tags }` Sets, or null if the
+ * `pois` param is absent, malformed, or yields nothing usable.
+ *
+ * Accepts two formats: the canonical compact form (starts with "1") and a
+ * comma-separated list of pill names (any other input). Names or IDs absent
+ * from the current schema are dropped silently.
+ */
+export function parsePoiFilterParam(search, schema) {
+  if (!schema || schema.version !== 1) return null
+  const params = new URLSearchParams(search)
+  const raw = params.get('pois')
+  if (!raw) return null
+
+  // Try canonical first when the version byte matches; if it yields nothing
+  // (malformed payload, or input that happens to start with "1" but is really
+  // a comma-separated name like "1-star"), fall back to the by-name parser.
+  let parsed = raw[0] === VERSION ? parseCanonical(raw, schema) : null
+  if (!parsed || (parsed.categories.size === 0 && parsed.tags.size === 0)) {
+    parsed = parseCsvNames(raw, schema)
+  }
+  if (!parsed) return null
+  if (parsed.categories.size === 0 && parsed.tags.size === 0) return null
+  return parsed
 }
