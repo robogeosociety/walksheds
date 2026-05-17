@@ -23,7 +23,6 @@ Usage:
 
 import argparse
 import gzip
-import hashlib
 import json
 import math
 import os
@@ -35,11 +34,14 @@ import urllib.parse
 import urllib.request
 import urllib.error
 
+from aliases import load_tag_aliases
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STATION_INDEX = os.path.join(ROOT, "data", "station-index.json")
 OUTPUT_DIR = os.path.join(ROOT, "public", "pois")
 RAW_DUMP = os.path.join(ROOT, "data", "pois", "raw", "osm-seattle.json.gz")
 MAIN_CATEGORIES_JSON = os.path.join(ROOT, "src", "mainCategories.json")
+FILTER_REGISTRY_JSON = os.path.join(ROOT, "data", "pois", "filter-registry.json")
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 OVERPASS_TIMEOUT = 180
@@ -288,41 +290,12 @@ MULTI_VALUE_FIELDS = ("cuisine", "sport")
 # Fields whose value itself becomes a normalized tag (e.g. craft=brewery → "brewery").
 VALUE_AS_TAG_FIELDS = ("craft",)
 
-# Synonyms / typos / romanization variants → canonical tag.
-# Applied AFTER _normalize, so keys must already be in lowercase-hyphen form.
-# Set normalize=False at extraction time to skip this step.
-TAG_ALIASES = {
-    # Singular ↔ plural — keep the dominant variant
-    "noodle":         "noodles",
-    "dumpling":       "dumplings",
-    "cookie":         "cookies",
-    "gyro":           "gyros",
-    "chicken-wings":  "wings",
-
-    # Romanization / variant spellings
-    "kabob":          "kebab",
-    "szechuan":       "sichuan",
-    "dimsum":         "dim-sum",
-    "bengalurean":    "bangalorean",
-    "hot-pot":        "hotpot",
-    "boba":           "bubble-tea",
-    "boba-tea":       "bubble-tea",
-
-    # Compound → general (improves filter usefulness)
-    "sushi-restaurant": "sushi",
-    "italian-pizza":    "pizza",
-
-    # Region grouping (conservative — only obvious overlaps)
-    "arab":            "arabic",
-    "latin":           "latin-american",
-    "latino":          "latin-american",
-    "oriental":        "asian",
-
-    # Typos
-    "marshal-arts":  "martial-arts",
-    "guros":         "gyros",
-    "desert":        "dessert",
-}
+# Synonyms / typos / romanization variants → canonical tag, loaded from
+# data/pois/tag-aliases.toml. Same map drives ingestion-time normalization
+# (via _canonicalize below) AND the URL/search alias entries surfaced to the
+# frontend in filter_schema.aliases (see build_tag_categories_manifest).
+# Keys must already be in lowercase-hyphen form (post-_normalize).
+TAG_ALIASES = load_tag_aliases()
 
 # Tag → category bucket assignment, with a color per category. Categories drive
 # the legend chip coloring and the small color key shown in the legend.
@@ -463,19 +436,68 @@ def load_main_category_ids():
         return list(json.load(f))
 
 
-def build_filter_schema(main_category_ids, sorted_tags):
-    """Build the filter_schema block: an ordered fingerprint of POI filter dimensions.
+def load_filter_registry():
+    """Load the append-only stable-ID registry, seeding an empty one if absent."""
+    if not os.path.exists(FILTER_REGISTRY_JSON):
+        return {"version": 1, "cat": [], "tag": []}
+    with open(FILTER_REGISTRY_JSON) as f:
+        registry = json.load(f)
+    # Defensive: tolerate missing arrays so the first build after a manual edit
+    # doesn't crash. Position-in-array IS the stable ID — never reorder.
+    registry.setdefault("version", 1)
+    registry.setdefault("cat", [])
+    registry.setdefault("tag", [])
+    return registry
 
-    The 8-char hash lets the frontend detect URLs generated against a different
-    schema (e.g. tags added/removed by --refresh). Decoding stays best-effort by
-    name, so the hash is a signal — not a decoder key.
+
+def save_filter_registry(registry):
+    """Write the registry back. Trailing newline keeps git diffs clean."""
+    with open(FILTER_REGISTRY_JSON, "w") as f:
+        json.dump(registry, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def update_filter_registry(registry, main_category_ids, sorted_tags):
+    """Append any names not already in the registry. IDs (positions) never change.
+
+    Removed names keep their slot — URLs encoded against an older schema that
+    referenced them will simply drop the unknown ID on decode.
     """
-    main_list = list(main_category_ids)
-    tag_list = list(sorted_tags)
-    payload = {"v": 1, "main": main_list, "tags": tag_list}
-    blob = json.dumps(payload, separators=(",", ":"))
-    digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()[:8]
-    return {"hash": digest, "main_categories": main_list, "tags": tag_list}
+    existing_cat = set(registry["cat"])
+    for name in main_category_ids:
+        if name not in existing_cat:
+            registry["cat"].append(name)
+            existing_cat.add(name)
+    existing_tag = set(registry["tag"])
+    for name in sorted_tags:
+        if name not in existing_tag:
+            registry["tag"].append(name)
+            existing_tag.add(name)
+    return registry
+
+
+def build_filter_schema(main_category_ids, sorted_tags, aliases=None):
+    """Build the v1 filter schema block from the stable-ID registry.
+
+    Side effect: loads, updates, and writes data/pois/filter-registry.json so
+    any new categories/tags get a permanent ID. URLs encode IDs (not names)
+    via this map, making them compact and schema-opaque.
+
+    When `aliases` is non-empty, it's attached as `schema["aliases"]` — a flat
+    {alias: canonical} map used by the frontend URL parser and search box.
+    """
+    registry = load_filter_registry()
+    update_filter_registry(registry, main_category_ids, sorted_tags)
+    save_filter_registry(registry)
+
+    main_set = set(main_category_ids)
+    tag_set = set(sorted_tags)
+    cat_map = {name: i for i, name in enumerate(registry["cat"]) if name in main_set}
+    tag_map = {name: i for i, name in enumerate(registry["tag"]) if name in tag_set}
+    schema = {"version": 1, "cat": cat_map, "tag": tag_map}
+    if aliases:
+        schema["aliases"] = aliases
+    return schema
 
 
 def build_tag_categories_manifest(all_tags, tag_index, main_category_ids=None):
@@ -496,10 +518,24 @@ def build_tag_categories_manifest(all_tags, tag_index, main_category_ids=None):
             categories[cat_id] = {"label": cat["label"], "color": cat["color"]}
 
     sorted_tag_to_category = dict(sorted(tag_to_category.items()))
+    main_ids = main_category_ids if main_category_ids is not None else load_main_category_ids()
+    main_set = set(main_ids)
+    tag_set = set(sorted_tag_to_category.keys())
+    # Expose only aliases whose canonical lands in this build's tag/cat
+    # namespace, and reject chains (alias value that's itself an alias key).
+    # Ingestion-only aliases whose canonical doesn't appear in any OSM POI
+    # this build are silently dropped from the URL map.
+    url_aliases = {
+        alias: canonical
+        for alias, canonical in TAG_ALIASES.items()
+        if (canonical in tag_set or canonical in main_set)
+        and canonical not in TAG_ALIASES
+    }
     manifest = {
         "filter_schema": build_filter_schema(
-            main_category_ids if main_category_ids is not None else load_main_category_ids(),
+            main_ids,
             sorted_tag_to_category.keys(),
+            aliases=url_aliases,
         ),
         "categories": categories,
         "tag_to_category": sorted_tag_to_category,
@@ -823,7 +859,7 @@ def write_tag_categories_manifest(all_fcs, dry_run=False):
         with open(path, "w") as f:
             json.dump(manifest, f, indent=2, ensure_ascii=False)
         print(f"  Wrote {path}")
-    print(f"  filter_schema hash: {schema['hash']} ({len(schema['main_categories'])} main + {len(schema['tags'])} tags)")
+    print(f"  filter_schema v{schema['version']}: {len(schema['cat'])} cat + {len(schema['tag'])} tag IDs")
 
     by_category = {}
     for tag, cat_id in manifest["tag_to_category"].items():

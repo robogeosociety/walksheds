@@ -3,7 +3,7 @@ import Map, { Source, Layer } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { registerStationIcons } from './stationIcons'
 import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
-import { pointInPolygon } from './poiUtils'
+import { computeSnapTarget } from './mapbox'
 import WalkshedLayers from './WalkshedLayers'
 import POILayer from './POILayer'
 import StationPill from './StationPill'
@@ -18,7 +18,6 @@ const MapView = forwardRef(function MapView({
   line2Data,
   stationsData,
   onStationClick,
-  onDeselect,
   visiblePois,
   poiPopup,
   onPoiClick,
@@ -78,7 +77,26 @@ const MapView = forwardRef(function MapView({
   }, [hasWalksheds, mapLoaded])
 
   const handleDragStart = useCallback(() => { isDraggingRef.current = true }, [])
-  const handleDragEnd = useCallback(() => { isDraggingRef.current = false }, [])
+  const handleDragEnd = useCallback(() => {
+    isDraggingRef.current = false
+    // Snap the map back to the active context (POI if a popup is centered,
+    // otherwise the station) when the user's pan ended inside the walkshed.
+    // dragend is user-only — programmatic flyTo / fitBounds don't fire it,
+    // so no recursion guard is needed.
+    const map = mapRef.current?.getMap?.()
+    if (!map) return
+    const center = map.getCenter()
+    const target = computeSnapTarget({
+      mapCenter: [center.lng, center.lat],
+      walksheds,
+      enabledWalksheds,
+      popup,
+      poiPopup,
+    })
+    if (target) {
+      map.easeTo({ center: target, duration: 250 })
+    }
+  }, [walksheds, enabledWalksheds, popup, poiPopup])
 
   const handleMapClick = useCallback((e) => {
     if (isDraggingRef.current) {
@@ -99,14 +117,13 @@ const MapView = forwardRef(function MapView({
         return
       }
     }
-    // Don't deselect if click is inside any enabled walkshed
-    const clickPt = [e.lngLat.lng, e.lngLat.lat]
-    for (const min of enabledWalksheds) {
-      const ring = walksheds[min]?.features?.[0]?.geometry?.coordinates?.[0]
-      if (ring && pointInPolygon(clickPt, ring)) return
-    }
-    onDeselect()
-  }, [onStationClick, onDeselect, onPoiClick, walksheds, enabledWalksheds])
+    // Empty-map click: keep the station/walkshed (walkshed stays open until
+    // the user picks another station) but dismiss any open POI popup so the
+    // user gets back to station view. Doing this here rather than via the
+    // Popup's closeOnClick avoids a race where a fresh POI click would both
+    // open a new popup AND immediately close it.
+    onPoiClose?.()
+  }, [onStationClick, onPoiClick, onPoiClose])
 
   const handleMouseEnter = useCallback(() => {
     const map = mapRef.current

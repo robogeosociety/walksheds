@@ -1,7 +1,21 @@
 import { useCallback, useEffect } from 'react'
 import { getNextStation } from './routeGraph'
 
-export function useNavigation({ graphRef, selectedStationRef, currentLine, selectStation }) {
+// Overlays whose interior touch/wheel events drive their own scrolling or
+// gesture handlers — never the global station-transition navigation.
+const NAV_EXEMPT_SELECTOR = '.poi-search, .mapboxgl-popup-content, .line-legend, .intro-overlay'
+
+function isInsideExemptOverlay(target) {
+  return !!(target && typeof target.closest === 'function' && target.closest(NAV_EXEMPT_SELECTOR))
+}
+
+export function useNavigation({
+  graphRef,
+  selectedStationRef,
+  currentLine,
+  selectStation,
+  onBeforeNavigate,
+}) {
   const navigateDirection = useCallback((arrowKey) => {
     if (!graphRef.current || !selectedStationRef.current) return false
     const result = getNextStation(graphRef.current, selectedStationRef.current.name, arrowKey, currentLine)
@@ -32,6 +46,7 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
 
     const handleWheel = (e) => {
       if (!selectedStationRef.current) return
+      if (isInsideExemptOverlay(e.target)) return
 
       accumX += e.deltaX
       accumY += e.deltaY
@@ -46,7 +61,21 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
         else if (accumX > SCROLL_THRESHOLD) arrowKey = 'ArrowRight'
       }
 
-      if (arrowKey && navigateDirection(arrowKey)) {
+      if (!arrowKey) return
+
+      // Defer to the host: when it returns false the gesture was consumed
+      // by a snap-back / popup-dismiss and shouldn't also transition to an
+      // adjacent station.
+      if (onBeforeNavigate && !onBeforeNavigate()) {
+        e.preventDefault()
+        accumX = 0
+        accumY = 0
+        cooldown = true
+        setTimeout(() => { cooldown = false }, 400)
+        return
+      }
+
+      if (navigateDirection(arrowKey)) {
         e.preventDefault()
         accumX = 0
         accumY = 0
@@ -57,7 +86,7 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
 
     window.addEventListener('wheel', handleWheel, { passive: false })
     return () => window.removeEventListener('wheel', handleWheel)
-  }, [navigateDirection, selectedStationRef])
+  }, [navigateDirection, selectedStationRef, onBeforeNavigate])
 
   // Touch swipe navigation (mobile)
   // Only respond to single-finger swipes; ignore multi-touch (pinch-to-zoom)
@@ -69,6 +98,10 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
 
     const handleTouchStart = (e) => {
       if (!selectedStationRef.current) return
+      if (isInsideExemptOverlay(e.target)) {
+        tracking = false
+        return
+      }
       if (e.touches.length !== 1) {
         tracking = false
         return
@@ -93,6 +126,11 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
         arrowKey = dx < 0 ? 'ArrowRight' : 'ArrowLeft'
       }
 
+      // Same host guard as the wheel handler: if the gesture should be
+      // consumed as a snap-back / popup-dismiss inside the walkshed, skip
+      // the station transition.
+      if (onBeforeNavigate && !onBeforeNavigate()) return
+
       navigateDirection(arrowKey)
     }
 
@@ -102,5 +140,5 @@ export function useNavigation({ graphRef, selectedStationRef, currentLine, selec
       window.removeEventListener('touchstart', handleTouchStart)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [navigateDirection, selectedStationRef])
+  }, [navigateDirection, selectedStationRef, onBeforeNavigate])
 }

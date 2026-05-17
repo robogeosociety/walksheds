@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints } from './routeGraph'
-import { fetchWalkshed, getLargestEnabledBounds } from './mapbox'
+import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
 import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
@@ -155,6 +155,8 @@ export default function Walksheds() {
     setPopup({ longitude: lng, latitude: lat, name, line, stopCode, lines })
     setCurrentLine(line)
     setWalksheds({})
+    // Any in-flight POI popup belongs to the previous station — drop it.
+    setPoiPopup(null)
 
     // Sync URL
     if (stopCode != null) {
@@ -291,9 +293,16 @@ export default function Walksheds() {
     fitToWalkshed()
   }, [fitToWalkshed])
 
+  // Single POI click path: whether the user tapped a dot on the map or
+  // picked a place from the per-tag list, fly to it, open the popup, and
+  // collapse the list so the popup is the foreground focus.
   const handlePoiClick = useCallback((feature) => {
     const props = feature.properties
     const [lng, lat] = feature.geometry.coordinates
+    const map = mapViewRef.current?.getMap()
+    if (map) {
+      map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16), duration: 800 })
+    }
     setPoiPopup({
       longitude: lng,
       latitude: lat,
@@ -303,18 +312,46 @@ export default function Walksheds() {
       website: props.website,
       address: props.address,
     })
+    setExpandedPoiTag(null)
   }, [])
 
-  const handlePoiSelect = useCallback((feature) => {
-    const [lng, lat] = feature.geometry.coordinates
-    const map = mapViewRef.current?.getMap()
-    if (map) {
-      map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16), duration: 800 })
-    }
-    handlePoiClick(feature)
-  }, [handlePoiClick])
+  // Closing the popup re-frames the walkshed at its original padding so the
+  // user lands back in "station view" instead of stuck zoomed on the POI.
+  const handlePoiClose = useCallback(() => fitToWalkshed(), [fitToWalkshed])
 
-  const handlePoiClose = useCallback(() => setPoiPopup(null), [])
+  // Hand keyboard focus from the search box back to the map canvas so the
+  // user can pan/zoom with arrow keys right after committing a selection.
+  const focusMap = useCallback(() => {
+    mapViewRef.current?.getMap()?.getCanvas()?.focus()
+  }, [])
+
+  // Trackpad / wheel scroll within the walkshed snaps back to the station
+  // instead of transitioning to an adjacent one — mirroring the pan-snap on
+  // dragend so wheel input feels the same as drag input. A POI popup, if
+  // open, is dismissed along the way (the scroll gesture reads as "back to
+  // station view"). Outside the walkshed, scroll-to-navigate behaves as
+  // before so users can still flick through stations from an overview.
+  const handleScrollNavigationAttempt = useCallback(() => {
+    const map = mapViewRef.current?.getMap()
+    if (!map) return true
+    const center = map.getCenter()
+    // Use the helper with poiPopup omitted so the target is always station
+    // coords — the wheel snap goes to station regardless of popup state.
+    const target = computeSnapTarget({
+      mapCenter: [center.lng, center.lat],
+      walksheds,
+      enabledWalksheds,
+      popup,
+      poiPopup: null,
+    })
+    if (!target) return true
+    if (poiPopup) {
+      fitToWalkshed()
+    } else {
+      map.easeTo({ center: target, duration: 250 })
+    }
+    return false
+  }, [walksheds, enabledWalksheds, popup, poiPopup, fitToWalkshed])
 
   const handleDeselect = useCallback(() => {
     selectedStationRef.current = null
@@ -372,7 +409,13 @@ export default function Walksheds() {
     })
   }, [tagCategories])
 
-  useNavigation({ graphRef, selectedStationRef, currentLine, selectStation })
+  useNavigation({
+    graphRef,
+    selectedStationRef,
+    currentLine,
+    selectStation,
+    onBeforeNavigate: handleScrollNavigationAttempt,
+  })
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -418,7 +461,6 @@ export default function Walksheds() {
         line2Data={line2Data}
         stationsData={stationsData}
         onStationClick={selectStation}
-        onDeselect={handleDeselect}
         visiblePois={visiblePois}
         poiPopup={poiPopup}
         onPoiClick={handlePoiClick}
@@ -436,10 +478,12 @@ export default function Walksheds() {
           onAddFilter={handleAddPoiFilter}
           onRemoveFilter={handleRemovePoiFilter}
           onClearFilters={handleClearPoiFilters}
-          onPoiSelect={handlePoiSelect}
+          onPoiSelect={handlePoiClick}
           mainCategories={MAIN_POI_CATEGORIES}
           enabledCategories={enabledCategories}
           onToggleCategory={handleToggleCategory}
+          tagAliases={tagCategories?.filter_schema?.aliases}
+          onCommit={focusMap}
         />
       )}
 
@@ -453,11 +497,6 @@ export default function Walksheds() {
         collapsed={legendCollapsed}
         onToggleCollapse={() => toggleLegendCollapsed()}
         position={legendPosition}
-        poiFilters={poiFilters}
-        poiTagColors={availableTags}
-        onRemovePoiFilter={handleRemovePoiFilter}
-        onClearPoiFilters={handleClearPoiFilters}
-        onTagSelect={setExpandedPoiTag}
       />
 
       {introVisible && stationsData && (

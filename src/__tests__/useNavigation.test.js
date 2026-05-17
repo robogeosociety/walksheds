@@ -83,6 +83,126 @@ describe('useNavigation wheel handler', () => {
     expect(selectStation).toHaveBeenCalled()
   })
 
+  it('skips navigation when onBeforeNavigate returns false', () => {
+    const onBeforeNavigate = vi.fn(() => false)
+    renderHook(() => useNavigation({
+      graphRef,
+      selectedStationRef,
+      currentLine: '1-line',
+      selectStation,
+      onBeforeNavigate,
+    }))
+
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaX: 150,
+      deltaY: 0,
+      bubbles: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(wheelEvent)
+
+    expect(onBeforeNavigate).toHaveBeenCalled()
+    expect(selectStation).not.toHaveBeenCalled()
+  })
+
+  it('proceeds with navigation when onBeforeNavigate returns true', () => {
+    const onBeforeNavigate = vi.fn(() => true)
+    renderHook(() => useNavigation({
+      graphRef,
+      selectedStationRef,
+      currentLine: '1-line',
+      selectStation,
+      onBeforeNavigate,
+    }))
+
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaX: 150,
+      deltaY: 0,
+      bubbles: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(wheelEvent)
+
+    expect(onBeforeNavigate).toHaveBeenCalled()
+    expect(selectStation).toHaveBeenCalled()
+  })
+
+  it('does not call onBeforeNavigate when the wheel direction would not navigate', () => {
+    // Vertical-only scroll never produces an arrow key; the guard shouldn't fire.
+    const onBeforeNavigate = vi.fn(() => true)
+    renderHook(() => useNavigation({
+      graphRef,
+      selectedStationRef,
+      currentLine: '1-line',
+      selectStation,
+      onBeforeNavigate,
+    }))
+
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaX: 0,
+      deltaY: 150,
+      bubbles: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(wheelEvent)
+
+    expect(onBeforeNavigate).not.toHaveBeenCalled()
+  })
+
+  it('skips touch-swipe navigation when onBeforeNavigate returns false', () => {
+    const onBeforeNavigate = vi.fn(() => false)
+    renderHook(() => useNavigation({
+      graphRef,
+      selectedStationRef,
+      currentLine: '1-line',
+      selectStation,
+      onBeforeNavigate,
+    }))
+
+    const start = new TouchEvent('touchstart', {
+      touches: [{ clientX: 200, clientY: 200 }],
+      bubbles: true,
+      cancelable: true,
+    })
+    const end = new TouchEvent('touchend', {
+      changedTouches: [{ clientX: 0, clientY: 200 }],
+      bubbles: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(start)
+    window.dispatchEvent(end)
+
+    expect(onBeforeNavigate).toHaveBeenCalled()
+    expect(selectStation).not.toHaveBeenCalled()
+  })
+
+  it('proceeds with touch-swipe navigation when onBeforeNavigate returns true', () => {
+    const onBeforeNavigate = vi.fn(() => true)
+    renderHook(() => useNavigation({
+      graphRef,
+      selectedStationRef,
+      currentLine: '1-line',
+      selectStation,
+      onBeforeNavigate,
+    }))
+
+    const start = new TouchEvent('touchstart', {
+      touches: [{ clientX: 200, clientY: 200 }],
+      bubbles: true,
+      cancelable: true,
+    })
+    const end = new TouchEvent('touchend', {
+      changedTouches: [{ clientX: 0, clientY: 200 }],
+      bubbles: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(start)
+    window.dispatchEvent(end)
+
+    expect(onBeforeNavigate).toHaveBeenCalled()
+    expect(selectStation).toHaveBeenCalled()
+  })
+
   it('does not navigate when no station is selected', () => {
     selectedStationRef.current = null
     renderHook(() => useNavigation({

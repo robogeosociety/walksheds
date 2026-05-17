@@ -13,6 +13,8 @@ export default function POISearch({
   mainCategories,
   enabledCategories,
   onToggleCategory,
+  tagAliases,
+  onCommit,
 }) {
   const [query, setQuery] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -46,21 +48,57 @@ export default function POISearch({
     items[poiHighlightIdx]?.scrollIntoView({ block: 'nearest' })
   }, [poiHighlightIdx])
 
+  // Inverse of tagAliases: canonical → [aliasKey, ...]. Lets the search box
+  // surface a canonical chip when the user types one of its aliases.
+  const canonicalToAliases = useMemo(() => {
+    const inv = {}
+    if (!tagAliases) return inv
+    for (const alias of Object.keys(tagAliases)) {
+      const canonical = tagAliases[alias]
+      if (!inv[canonical]) inv[canonical] = []
+      inv[canonical].push(alias)
+    }
+    return inv
+  }, [tagAliases])
+
   const matches = useMemo(() => {
     const filtered = availableTags.filter(({ tag }) => !activeFilters.has(tag))
-    if (!query.trim()) return filtered.slice(0, 8)
-    return filtered
-      .filter(({ tag }) => tag.includes(query.trim().toLowerCase()))
-      .slice(0, 8)
-  }, [query, availableTags, activeFilters])
+    if (!query.trim()) {
+      return filtered.slice(0, 8).map(t => ({ ...t, label: t.tag }))
+    }
+    const q = query.trim().toLowerCase()
+    const out = []
+    for (const t of filtered) {
+      // Direct hit on the canonical tag wins — show the tag itself.
+      if (t.tag.includes(q)) {
+        out.push({ ...t, label: t.tag })
+        continue
+      }
+      // Otherwise see if any alias for this canonical matches; if so, show
+      // the matched alias as the dropdown label so the user sees the term
+      // they typed. Selection still adds the canonical tag.
+      const aliases = canonicalToAliases[t.tag]
+      const hit = aliases?.find(a => a.includes(q))
+      if (hit) out.push({ ...t, label: hit })
+    }
+    return out.slice(0, 8)
+  }, [query, availableTags, activeFilters, canonicalToAliases])
 
   const handleSelect = useCallback((tag) => {
     onAddFilter(tag)
     setQuery('')
     setShowDropdown(false)
     setHighlightIdx(0)
-    inputRef.current?.focus()
-  }, [onAddFilter])
+    // Release the search input so keyboard focus can move to the map
+    // (the caller handles where exactly focus lands).
+    inputRef.current?.blur()
+    onCommit?.()
+  }, [onAddFilter, onCommit])
+
+  const handleCategoryToggle = useCallback((catId) => {
+    onToggleCategory?.(catId)
+    onCommit?.()
+  }, [onToggleCategory, onCommit])
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
@@ -164,7 +202,7 @@ export default function POISearch({
 
       {showDropdown && matches.length > 0 && (
         <div className="poi-search-dropdown">
-          {matches.map(({ tag, count, color }, i) => (
+          {matches.map(({ tag, label, count, color }, i) => (
             <button
               key={tag}
               className={`poi-search-option ${i === highlightIdx ? 'highlighted' : ''}`}
@@ -172,7 +210,7 @@ export default function POISearch({
               onMouseEnter={() => setHighlightIdx(i)}
             >
               {color && <span className="poi-search-option-dot" style={{ background: color }} />}
-              <span className="poi-search-option-tag">{tag}</span>
+              <span className="poi-search-option-tag">{label}</span>
               <span className="poi-search-option-count">{count}</span>
             </button>
           ))}
@@ -193,7 +231,7 @@ export default function POISearch({
                   background: enabled ? color : color + '40',
                   color: enabled ? '#fff' : color,
                 }}
-                onClick={() => onToggleCategory?.(id)}
+                onClick={() => handleCategoryToggle(id)}
               >
                 {label}
               </button>
@@ -215,6 +253,25 @@ export default function POISearch({
                   color: present ? '#fff' : color,
                 }}
               >
+                {present && (
+                  <span
+                    className="poi-cat-pill-chevron"
+                    onClick={(e) => handleTagTextClick(tag, e)}
+                    role="button"
+                    aria-label={expandedTag === tag ? `Collapse ${tag} list` : `Expand ${tag} list`}
+                  >
+                    <svg width="8" height="8" viewBox="0 0 8 8">
+                      <path
+                        d={expandedTag === tag ? 'M1.5 5l2.5-2.5 2.5 2.5' : 'M1.5 3l2.5 2.5 2.5-2.5'}
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
+                    </svg>
+                  </span>
+                )}
                 <span
                   className="poi-cat-pill-text"
                   onClick={(e) => handleTagTextClick(tag, e)}
