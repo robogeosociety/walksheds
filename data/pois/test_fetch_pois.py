@@ -9,6 +9,7 @@ import pytest
 # Add the pois directory to the path so we can import fetch_pois
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import fetch_pois
 from fetch_pois import (
     compute_bbox,
     build_raw_query,
@@ -23,7 +24,9 @@ from fetch_pois import (
     build_tag_index,
     categorize_tag,
     collect_tag_provenance,
+    load_filter_registry,
     load_main_category_ids,
+    update_filter_registry,
     validate_geojson,
     haversine_dist,
     BOOL_TAG_FIELDS,
@@ -38,6 +41,13 @@ from fetch_pois import (
     _canonicalize,
     _normalize,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_filter_registry(tmp_path, monkeypatch):
+    """Redirect filter-registry I/O to a per-test tmp file so build_filter_schema
+    doesn't mutate the committed data/pois/filter-registry.json during tests."""
+    monkeypatch.setattr(fetch_pois, "FILTER_REGISTRY_JSON", str(tmp_path / "filter-registry.json"))
 
 
 # ── Fixtures ──
@@ -453,38 +463,59 @@ class TestBuildTagCategoriesManifest:
 class TestFilterSchema:
     MAIN = ["restaurants", "bars", "coffee", "parks"]
 
-    def test_hash_is_8_hex_chars(self):
+    def test_schema_has_version_and_id_maps(self):
         schema = build_filter_schema(self.MAIN, ["pizza", "wifi"])
-        assert len(schema["hash"]) == 8
-        int(schema["hash"], 16)  # raises if not hex
+        assert schema["version"] == 1
+        assert set(schema["cat"].keys()) == set(self.MAIN)
+        assert set(schema["tag"].keys()) == {"pizza", "wifi"}
+        # IDs are non-negative integers, unique per namespace.
+        cat_ids = list(schema["cat"].values())
+        tag_ids = list(schema["tag"].values())
+        assert all(isinstance(i, int) and i >= 0 for i in cat_ids + tag_ids)
+        assert len(set(cat_ids)) == len(cat_ids)
+        assert len(set(tag_ids)) == len(tag_ids)
 
-    def test_hash_stable_across_calls(self):
+    def test_ids_stable_across_calls(self):
         a = build_filter_schema(self.MAIN, ["pizza", "wifi"])
         b = build_filter_schema(self.MAIN, ["pizza", "wifi"])
-        assert a["hash"] == b["hash"]
+        assert a == b
 
-    def test_hash_changes_when_tag_added(self):
+    def test_adding_a_tag_does_not_renumber_existing_tags(self):
         a = build_filter_schema(self.MAIN, ["pizza", "wifi"])
         b = build_filter_schema(self.MAIN, ["pizza", "wifi", "vegan"])
-        assert a["hash"] != b["hash"]
+        assert a["tag"]["pizza"] == b["tag"]["pizza"]
+        assert a["tag"]["wifi"] == b["tag"]["wifi"]
+        assert "vegan" in b["tag"]
+        assert b["tag"]["vegan"] not in {a["tag"]["pizza"], a["tag"]["wifi"]}
 
-    def test_hash_changes_when_tag_removed(self):
-        a = build_filter_schema(self.MAIN, ["pizza", "wifi"])
-        b = build_filter_schema(self.MAIN, ["pizza"])
-        assert a["hash"] != b["hash"]
+    def test_removed_tag_keeps_its_slot_in_the_registry(self):
+        build_filter_schema(self.MAIN, ["pizza", "wifi"])
+        registry_after_first = load_filter_registry()
+        build_filter_schema(self.MAIN, ["pizza"])  # wifi dropped from live schema
+        registry_after_second = load_filter_registry()
+        # Registry is append-only — wifi's slot stays even after removal.
+        assert registry_after_second["tag"] == registry_after_first["tag"]
+        # And re-adding wifi gives back the same ID.
+        schema = build_filter_schema(self.MAIN, ["pizza", "wifi"])
+        assert schema["tag"]["wifi"] == registry_after_first["tag"].index("wifi")
 
-    def test_hash_changes_when_main_categories_reordered(self):
+    def test_main_category_reorder_does_not_renumber(self):
         a = build_filter_schema(["restaurants", "bars"], ["pizza"])
         b = build_filter_schema(["bars", "restaurants"], ["pizza"])
-        assert a["hash"] != b["hash"]
+        # IDs are assigned by first-seen position; reordering inputs after the
+        # fact must not shuffle them.
+        assert a["cat"]["restaurants"] == b["cat"]["restaurants"]
+        assert a["cat"]["bars"] == b["cat"]["bars"]
 
-    def test_lists_preserve_input_order(self):
-        # Filter schema is a fingerprint of CALLER-provided order. Manifest call
-        # site is responsible for passing alphabetically-sorted tags; this test
-        # locks in that the schema does NOT silently re-sort.
-        schema = build_filter_schema(self.MAIN, ["zebra", "apple"])
-        assert schema["main_categories"] == self.MAIN
-        assert schema["tags"] == ["zebra", "apple"]
+    def test_categories_and_tags_have_separate_namespaces(self):
+        # A name appearing in both buckets gets its own ID per namespace
+        # (so "coffee" the category and "coffee" the tag never collide).
+        schema = build_filter_schema(["coffee"], ["coffee"])
+        assert "coffee" in schema["cat"]
+        assert "coffee" in schema["tag"]
+        # IDs are namespace-local, so both starting at 0 is fine.
+        assert schema["cat"]["coffee"] == 0
+        assert schema["tag"]["coffee"] == 0
 
     def test_manifest_embeds_filter_schema(self):
         index = build_tag_index()
@@ -493,14 +524,21 @@ class TestFilterSchema:
         )
         assert "filter_schema" in manifest
         schema = manifest["filter_schema"]
-        assert schema["main_categories"] == self.MAIN
-        assert schema["tags"] == ["pizza", "takeaway"]  # alphabetical from manifest
-        assert len(schema["hash"]) == 8
+        assert schema["version"] == 1
+        assert set(schema["cat"].keys()) == set(self.MAIN)
+        assert set(schema["tag"].keys()) == {"pizza", "takeaway"}
 
-    def test_manifest_uses_default_main_categories_when_unspecified(self):
-        index = build_tag_index()
-        manifest = build_tag_categories_manifest({"pizza"}, index)
-        assert manifest["filter_schema"]["main_categories"] == load_main_category_ids()
+    def test_registry_starts_empty_when_absent(self):
+        # Fixture wipes the registry path each test; first load returns a seed.
+        registry = load_filter_registry()
+        assert registry == {"version": 1, "cat": [], "tag": []}
+
+    def test_update_registry_is_append_only_idempotent(self):
+        registry = {"version": 1, "cat": [], "tag": []}
+        update_filter_registry(registry, ["a", "b"], ["x", "y"])
+        snapshot = json.loads(json.dumps(registry))
+        update_filter_registry(registry, ["a", "b"], ["x", "y"])
+        assert registry == snapshot
 
     def test_main_categories_json_matches_load_helper(self):
         with open(MAIN_CATEGORIES_JSON) as f:

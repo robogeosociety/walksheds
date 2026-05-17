@@ -23,7 +23,6 @@ Usage:
 
 import argparse
 import gzip
-import hashlib
 import json
 import math
 import os
@@ -40,6 +39,7 @@ STATION_INDEX = os.path.join(ROOT, "data", "station-index.json")
 OUTPUT_DIR = os.path.join(ROOT, "public", "pois")
 RAW_DUMP = os.path.join(ROOT, "data", "pois", "raw", "osm-seattle.json.gz")
 MAIN_CATEGORIES_JSON = os.path.join(ROOT, "src", "mainCategories.json")
+FILTER_REGISTRY_JSON = os.path.join(ROOT, "data", "pois", "filter-registry.json")
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 OVERPASS_TIMEOUT = 180
@@ -463,19 +463,62 @@ def load_main_category_ids():
         return list(json.load(f))
 
 
-def build_filter_schema(main_category_ids, sorted_tags):
-    """Build the filter_schema block: an ordered fingerprint of POI filter dimensions.
+def load_filter_registry():
+    """Load the append-only stable-ID registry, seeding an empty one if absent."""
+    if not os.path.exists(FILTER_REGISTRY_JSON):
+        return {"version": 1, "cat": [], "tag": []}
+    with open(FILTER_REGISTRY_JSON) as f:
+        registry = json.load(f)
+    # Defensive: tolerate missing arrays so the first build after a manual edit
+    # doesn't crash. Position-in-array IS the stable ID — never reorder.
+    registry.setdefault("version", 1)
+    registry.setdefault("cat", [])
+    registry.setdefault("tag", [])
+    return registry
 
-    The 8-char hash lets the frontend detect URLs generated against a different
-    schema (e.g. tags added/removed by --refresh). Decoding stays best-effort by
-    name, so the hash is a signal — not a decoder key.
+
+def save_filter_registry(registry):
+    """Write the registry back. Trailing newline keeps git diffs clean."""
+    with open(FILTER_REGISTRY_JSON, "w") as f:
+        json.dump(registry, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def update_filter_registry(registry, main_category_ids, sorted_tags):
+    """Append any names not already in the registry. IDs (positions) never change.
+
+    Removed names keep their slot — URLs encoded against an older schema that
+    referenced them will simply drop the unknown ID on decode.
     """
-    main_list = list(main_category_ids)
-    tag_list = list(sorted_tags)
-    payload = {"v": 1, "main": main_list, "tags": tag_list}
-    blob = json.dumps(payload, separators=(",", ":"))
-    digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()[:8]
-    return {"hash": digest, "main_categories": main_list, "tags": tag_list}
+    existing_cat = set(registry["cat"])
+    for name in main_category_ids:
+        if name not in existing_cat:
+            registry["cat"].append(name)
+            existing_cat.add(name)
+    existing_tag = set(registry["tag"])
+    for name in sorted_tags:
+        if name not in existing_tag:
+            registry["tag"].append(name)
+            existing_tag.add(name)
+    return registry
+
+
+def build_filter_schema(main_category_ids, sorted_tags):
+    """Build the v1 filter schema block from the stable-ID registry.
+
+    Side effect: loads, updates, and writes data/pois/filter-registry.json so
+    any new categories/tags get a permanent ID. URLs encode IDs (not names)
+    via this map, making them compact and schema-opaque.
+    """
+    registry = load_filter_registry()
+    update_filter_registry(registry, main_category_ids, sorted_tags)
+    save_filter_registry(registry)
+
+    main_set = set(main_category_ids)
+    tag_set = set(sorted_tags)
+    cat_map = {name: i for i, name in enumerate(registry["cat"]) if name in main_set}
+    tag_map = {name: i for i, name in enumerate(registry["tag"]) if name in tag_set}
+    return {"version": 1, "cat": cat_map, "tag": tag_map}
 
 
 def build_tag_categories_manifest(all_tags, tag_index, main_category_ids=None):
@@ -823,7 +866,7 @@ def write_tag_categories_manifest(all_fcs, dry_run=False):
         with open(path, "w") as f:
             json.dump(manifest, f, indent=2, ensure_ascii=False)
         print(f"  Wrote {path}")
-    print(f"  filter_schema hash: {schema['hash']} ({len(schema['main_categories'])} main + {len(schema['tags'])} tags)")
+    print(f"  filter_schema v{schema['version']}: {len(schema['cat'])} cat + {len(schema['tag'])} tag IDs")
 
     by_category = {}
     for tag, cat_id in manifest["tag_to_category"].items():

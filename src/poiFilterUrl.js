@@ -1,29 +1,24 @@
 /**
- * Encode/decode active POI filters as a single ?pois= query parameter.
+ * Encode/decode active POI filters as a single compact ?pois= query parameter.
  *
- * Format: ?pois=<hash>~c.<cat1>.<cat2>~t.<tag1>.<tag2>
- *   - <hash>: 8 hex chars from the pipeline's filter_schema fingerprint.
- *   - sections separated by `~`; section prefix `c.` = main categories, `t.` = tags.
- *   - empty section omitted; whole param omitted when no filters are active.
+ * Format: ?pois=1<cat-payload>[~<tag-payload>]
+ *   - Leading "1" pins the encoding version, leaving room for future schemes.
+ *   - Each payload is a delta-encoded varint stream of stable IDs from the
+ *     build-time filter registry, base64url-packed without padding.
+ *   - Categories and tags live in separate ID namespaces (so a "coffee"
+ *     category and a "coffee" tag never collide). The `~` separator is
+ *     omitted when the tag side is empty.
  *
- * Decoding is best-effort by NAME — names absent from the current schema are
- * dropped silently, and a hash mismatch only triggers a console.warn.
+ * The IDs are append-only: data/pois/filter-registry.json grows monotonically,
+ * so URLs minted today decode against tomorrow's schema even if names get
+ * added or removed. Unknown IDs are dropped silently — same forgiving
+ * behavior as the previous by-name decoder.
  *
- * All chars used (`a-z`, `0-9`, `-`, `.`, `~`) are URL-unreserved.
+ * All output chars are URL-unreserved (base64url alphabet + `~` + digit).
  */
 
-const SECTION_SEP = '~'
-const NAME_SEP = '.'
-const CAT_PREFIX = 'c.'
-const TAG_PREFIX = 't.'
-
-function orderedIntersect(orderedList, presentSet) {
-  const out = []
-  for (const name of orderedList) {
-    if (presentSet.has(name)) out.push(name)
-  }
-  return out
-}
+const VERSION = '1'
+const SEP = '~'
 
 function sameMembers(setLike, iterable) {
   const other = iterable instanceof Set ? iterable : new Set(iterable)
@@ -32,13 +27,99 @@ function sameMembers(setLike, iterable) {
   return true
 }
 
+function encodeVarint(value, out) {
+  let v = value >>> 0
+  while (v >= 0x80) {
+    out.push((v & 0x7f) | 0x80)
+    v >>>= 7
+  }
+  out.push(v & 0x7f)
+}
+
+function decodeVarints(bytes) {
+  const out = []
+  let i = 0
+  while (i < bytes.length) {
+    let v = 0
+    let shift = 0
+    while (true) {
+      if (i >= bytes.length) return null  // truncated
+      const b = bytes[i++]
+      v |= (b & 0x7f) << shift
+      if ((b & 0x80) === 0) break
+      shift += 7
+      if (shift > 28) return null  // overflow guard (IDs comfortably fit in 28 bits)
+    }
+    out.push(v >>> 0)
+  }
+  return out
+}
+
+function bytesToBase64Url(bytes) {
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function base64UrlToBytes(str) {
+  if (str === '') return new Uint8Array(0)
+  if (!/^[A-Za-z0-9_-]*$/.test(str)) return null
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4)
+  let bin
+  try { bin = atob(padded) } catch { return null }
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out
+}
+
+function encodeIds(names, nameToId) {
+  const ids = []
+  for (const name of names) {
+    const id = nameToId[name]
+    if (typeof id === 'number') ids.push(id)
+  }
+  if (ids.length === 0) return ''
+  ids.sort((a, b) => a - b)
+  const bytes = []
+  let prev = 0
+  for (const id of ids) {
+    encodeVarint(id - prev, bytes)
+    prev = id
+  }
+  return bytesToBase64Url(bytes)
+}
+
+function decodeIds(payload, idToName) {
+  const bytes = base64UrlToBytes(payload)
+  if (!bytes) return null
+  const deltas = decodeVarints(bytes)
+  if (!deltas) return null
+  const out = new Set()
+  let acc = 0
+  for (const d of deltas) {
+    acc += d
+    const name = idToName[acc]
+    if (name) out.add(name)
+  }
+  return out
+}
+
+function invertMap(nameToId) {
+  const out = {}
+  if (!nameToId) return out
+  for (const name of Object.keys(nameToId)) {
+    out[nameToId[name]] = name
+  }
+  return out
+}
+
 /**
  * Build a `?pois=...` query string fragment for the given filter state.
- * Returns '' when filter state matches the defaults (caller-supplied) or is
- * fully empty — so default views and shared "no filter" links stay clean.
+ * Returns '' when no filters are active OR when the state matches the caller-
+ * supplied defaults — so default views and "no filter" links stay clean.
  */
 export function buildPoiFilterParam(enabledCategories, poiFilters, schema, defaultMainCategories = null) {
-  if (!schema || !schema.hash) return ''
+  if (!schema || schema.version !== 1) return ''
   if (
     poiFilters.size === 0 &&
     defaultMainCategories &&
@@ -46,55 +127,35 @@ export function buildPoiFilterParam(enabledCategories, poiFilters, schema, defau
   ) {
     return ''
   }
-  const cats = orderedIntersect(schema.main_categories || [], enabledCategories)
-  const tags = orderedIntersect(schema.tags || [], poiFilters)
-  if (cats.length === 0 && tags.length === 0) return ''
 
-  const parts = [schema.hash]
-  if (cats.length) parts.push(CAT_PREFIX + cats.join(NAME_SEP))
-  if (tags.length) parts.push(TAG_PREFIX + tags.join(NAME_SEP))
-  return '?pois=' + parts.join(SECTION_SEP)
+  const catPayload = encodeIds(enabledCategories, schema.cat || {})
+  const tagPayload = encodeIds(poiFilters, schema.tag || {})
+  if (!catPayload && !tagPayload) return ''
+
+  const body = tagPayload ? `${catPayload}${SEP}${tagPayload}` : catPayload
+  return `?pois=${VERSION}${body}`
 }
 
 /**
  * Parse a query string into `{ categories, tags }` Sets, or null if the
- * `pois` param is absent or yields nothing usable.
+ * `pois` param is absent, malformed, or yields nothing usable.
  *
- * Tag names not present in `schema.tags` are dropped. A hash mismatch is
- * non-fatal — the function logs a warning and continues by name.
+ * IDs absent from the current schema are dropped silently.
  */
 export function parsePoiFilterParam(search, schema) {
-  if (!schema) return null
+  if (!schema || schema.version !== 1) return null
   const params = new URLSearchParams(search)
   const raw = params.get('pois')
-  if (!raw) return null
+  if (!raw || raw[0] !== VERSION) return null
 
-  const sections = raw.split(SECTION_SEP)
-  const hash = sections.shift()
-  if (hash !== schema.hash) {
-    console.warn(
-      `[poiFilterUrl] schema hash mismatch (url=${hash} current=${schema.hash}); decoding by name`,
-    )
-  }
+  const body = raw.slice(1)
+  const sepIdx = body.indexOf(SEP)
+  const catPart = sepIdx === -1 ? body : body.slice(0, sepIdx)
+  const tagPart = sepIdx === -1 ? '' : body.slice(sepIdx + 1)
 
-  const validCats = new Set(schema.main_categories || [])
-  const validTags = new Set(schema.tags || [])
-  const categories = new Set()
-  const tags = new Set()
-
-  for (const section of sections) {
-    if (!section) continue
-    if (section.startsWith(CAT_PREFIX)) {
-      for (const name of section.slice(CAT_PREFIX.length).split(NAME_SEP)) {
-        if (name && validCats.has(name)) categories.add(name)
-      }
-    } else if (section.startsWith(TAG_PREFIX)) {
-      for (const name of section.slice(TAG_PREFIX.length).split(NAME_SEP)) {
-        if (name && validTags.has(name)) tags.add(name)
-      }
-    }
-  }
-
+  const categories = decodeIds(catPart, invertMap(schema.cat))
+  const tags = decodeIds(tagPart, invertMap(schema.tag))
+  if (!categories || !tags) return null
   if (categories.size === 0 && tags.size === 0) return null
   return { categories, tags }
 }
