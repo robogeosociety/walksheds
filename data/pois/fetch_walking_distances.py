@@ -251,7 +251,7 @@ def write_dump(cache, walkshed_version, path=DUMP, dry_run=False):
 def main():
     parser = argparse.ArgumentParser(description="Precompute walking distances POI ↔ station")
     parser.add_argument("--refresh", action="store_true",
-                        help="Fetch missing pairs from Mapbox Matrix (needs MAPBOX_SECRET_TOKEN)")
+                        help="Fetch missing pairs from Mapbox Matrix (needs MAPBOX_TOKEN)")
     parser.add_argument("--dry-run", action="store_true", help="Plan only, don't write")
     args = parser.parse_args()
 
@@ -270,9 +270,10 @@ def main():
     existing = load_dump()
 
     if args.refresh:
-        token = os.environ.get("MAPBOX_SECRET_TOKEN") or os.environ.get("MAPBOX_ACCESS_TOKEN")
+        token = os.environ.get("MAPBOX_TOKEN") or os.environ.get("MAPBOX_ACCESS_TOKEN")
         if not token:
-            print("ERROR: --refresh requires MAPBOX_SECRET_TOKEN (or MAPBOX_ACCESS_TOKEN) env var.", file=sys.stderr)
+            print("ERROR: --refresh requires MAPBOX_TOKEN (or MAPBOX_ACCESS_TOKEN) env var.", file=sys.stderr)
+            print("  Any token with Matrix scope works (pk. or sk. — same capability).", file=sys.stderr)
             sys.exit(1)
         cache = refresh_pairs(pairs, walkshed_version, token, existing=existing, dry_run=args.dry_run)
         write_dump(cache, walkshed_version, dry_run=args.dry_run)

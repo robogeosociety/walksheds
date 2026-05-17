@@ -130,7 +130,7 @@ def load_dump(path=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch walkshed polygons from Mapbox Isochrone")
-    parser.add_argument("--refresh", action="store_true", help="Refetch from Mapbox (requires MAPBOX_SECRET_TOKEN)")
+    parser.add_argument("--refresh", action="store_true", help="Refetch from Mapbox (requires MAPBOX_TOKEN)")
     parser.add_argument("--dry-run", action="store_true", help="Print plan, don't write")
     args = parser.parse_args()
 
@@ -138,10 +138,12 @@ def main():
     print(f"Stations: {len(stations)}")
 
     if args.refresh:
-        token = os.environ.get("MAPBOX_SECRET_TOKEN") or os.environ.get("MAPBOX_ACCESS_TOKEN")
+        token = os.environ.get("MAPBOX_TOKEN") or os.environ.get("MAPBOX_ACCESS_TOKEN")
         if not token:
-            print("ERROR: --refresh requires MAPBOX_SECRET_TOKEN (or MAPBOX_ACCESS_TOKEN) env var.", file=sys.stderr)
-            print("  Use a token scoped to the Isochrone API.", file=sys.stderr)
+            print("ERROR: --refresh requires MAPBOX_TOKEN (or MAPBOX_ACCESS_TOKEN) env var.", file=sys.stderr)
+            print("  Any token with Isochrone scope works (pk. or sk. — same capability).", file=sys.stderr)
+            print("  If your browser-side token is URL-restricted to walksheds.xyz, mint a", file=sys.stderr)
+            print("  separate unrestricted one for build scripts.", file=sys.stderr)
             sys.exit(1)
         refresh_dump(stations, token, dry_run=args.dry_run)
         return

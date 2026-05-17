@@ -78,7 +78,7 @@ Two committed dumps power the "Nearest stations" section of POI popups:
 
 **Refresh order when POIs change:** `fetch_pois.py --refresh` → `fetch_walking_distances.py --refresh` (the latter re-fetches Matrix entries for any new POI ids inside a walkshed). `fetch_walksheds.py --refresh` is only needed when station coordinates change.
 
-**Mapbox token for refresh scripts:** set `MAPBOX_SECRET_TOKEN` (or `MAPBOX_ACCESS_TOKEN`) in the environment. Use a token scoped to Isochrone + Matrix APIs; do **not** reuse the public `VITE_MAPBOX_ACCESS_TOKEN` shipped to the browser.
+**Mapbox token for refresh scripts:** set `MAPBOX_TOKEN` (or `MAPBOX_ACCESS_TOKEN`) in the environment. Public (`pk.`) and secret (`sk.`) tokens have identical capability for Isochrone + Matrix (both are read endpoints); the practical reason for a build-only token is URL restrictions — if the browser-side `VITE_MAPBOX_ACCESS_TOKEN` is restricted to `walksheds.xyz`, calls from a Python script will fail the referrer check. Easiest fix: add the build host's URL (or leave unrestricted) on that token, or mint a separate token for the scripts.
 
 ## Deployment
 
