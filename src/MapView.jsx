@@ -188,6 +188,20 @@ const MapView = forwardRef(function MapView({
         </Source>
       )}
 
+      {mapLoaded && visiblePois && (
+        <POILayer
+          poiData={visiblePois}
+          poiPopup={poiPopup}
+          onPoiClick={onPoiClick}
+          onPoiClose={onPoiClose}
+          onTagClick={onPoiTagClick}
+          onStationClick={onPopupStationClick}
+          onPopupFocus={onPopupFocus}
+          darkMode={darkMode}
+          units={units}
+        />
+      )}
+
       {mapLoaded && iconsReady && stationsData && (
         <Source id="stations" type="geojson" data={stationsData}>
           <Layer
@@ -202,20 +216,6 @@ const MapView = forwardRef(function MapView({
             }}
           />
         </Source>
-      )}
-
-      {mapLoaded && visiblePois && (
-        <POILayer
-          poiData={visiblePois}
-          poiPopup={poiPopup}
-          onPoiClick={onPoiClick}
-          onPoiClose={onPoiClose}
-          onTagClick={onPoiTagClick}
-          onStationClick={onPopupStationClick}
-          onPopupFocus={onPopupFocus}
-          darkMode={darkMode}
-          units={units}
-        />
       )}
 
       {popup && (

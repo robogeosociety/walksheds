@@ -33,7 +33,9 @@ body,
   position: absolute;
   bottom: calc(32px + env(safe-area-inset-bottom, 0px));
   left: 16px;
-  z-index: 10;
+  /* Always-highest layer (above poi-popup z=20 and the chip-list-on-top
+   * search column at z=30; only the intro overlay at z=50 sits above). */
+  z-index: 40;
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 10px;
