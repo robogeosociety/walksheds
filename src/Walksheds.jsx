@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints } from './routeGraph'
-import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
+import { fetchWalkshed, getLargestEnabledBounds } from './mapbox'
 import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
@@ -325,29 +325,6 @@ export default function Walksheds() {
     mapViewRef.current?.getMap()?.getCanvas()?.focus()
   }, [])
 
-  // Called by useNavigation's wheel handler before it would transition to an
-  // adjacent station. When a POI popup is open and the map is still inside
-  // the walkshed, the scroll gesture is treated as "dismiss the POI" rather
-  // than "swipe to the next station": close the popup, re-fit the walkshed,
-  // and block the navigation. Outside the walkshed (or with no popup),
-  // scroll-to-navigate behaves as before.
-  const handleScrollNavigationAttempt = useCallback(() => {
-    if (!poiPopup) return true
-    const map = mapViewRef.current?.getMap()
-    if (!map) return true
-    const center = map.getCenter()
-    const insideWalkshed = !!computeSnapTarget({
-      mapCenter: [center.lng, center.lat],
-      walksheds,
-      enabledWalksheds,
-      popup,
-      poiPopup: null,
-    })
-    if (!insideWalkshed) return true
-    fitToWalkshed()
-    return false
-  }, [walksheds, enabledWalksheds, popup, poiPopup, fitToWalkshed])
-
   const handleDeselect = useCallback(() => {
     selectedStationRef.current = null
     setPopup(null)
@@ -404,13 +381,7 @@ export default function Walksheds() {
     })
   }, [tagCategories])
 
-  useNavigation({
-    graphRef,
-    selectedStationRef,
-    currentLine,
-    selectStation,
-    onBeforeScrollNavigate: handleScrollNavigationAttempt,
-  })
+  useNavigation({ graphRef, selectedStationRef, currentLine, selectStation })
 
   // Keyboard shortcuts
   useEffect(() => {
