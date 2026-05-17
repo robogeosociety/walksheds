@@ -428,7 +428,6 @@ export default function Walksheds() {
         line2Data={line2Data}
         stationsData={stationsData}
         onStationClick={selectStation}
-        onDeselect={handleDeselect}
         visiblePois={visiblePois}
         poiPopup={poiPopup}
         onPoiClick={handlePoiClick}

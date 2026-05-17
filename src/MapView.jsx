@@ -3,7 +3,6 @@ import Map, { Source, Layer } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { registerStationIcons } from './stationIcons'
 import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
-import { pointInPolygon } from './poiUtils'
 import WalkshedLayers from './WalkshedLayers'
 import POILayer from './POILayer'
 import StationPill from './StationPill'
@@ -18,7 +17,6 @@ const MapView = forwardRef(function MapView({
   line2Data,
   stationsData,
   onStationClick,
-  onDeselect,
   visiblePois,
   poiPopup,
   onPoiClick,
@@ -99,14 +97,10 @@ const MapView = forwardRef(function MapView({
         return
       }
     }
-    // Don't deselect if click is inside any enabled walkshed
-    const clickPt = [e.lngLat.lng, e.lngLat.lat]
-    for (const min of enabledWalksheds) {
-      const ring = walksheds[min]?.features?.[0]?.geometry?.coordinates?.[0]
-      if (ring && pointInPolygon(clickPt, ring)) return
-    }
-    onDeselect()
-  }, [onStationClick, onDeselect, onPoiClick, walksheds, enabledWalksheds])
+    // Empty-map clicks are intentionally a no-op once a station is selected:
+    // the walkshed stays open until the user explicitly picks another station.
+    // The POI popup, if open, dismisses itself via the Popup's closeOnClick.
+  }, [onStationClick, onPoiClick])
 
   const handleMouseEnter = useCallback(() => {
     const map = mapRef.current
