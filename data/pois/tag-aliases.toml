@@ -1,0 +1,51 @@
+# Synonyms / typos / romanization variants → canonical tag.
+#
+# Single source of truth, consumed at two stages:
+#   1. OSM ingestion (fetch_pois._canonicalize) — collapses raw OSM values
+#      (e.g. cuisine=boba) into canonical tags before the manifest is built.
+#   2. Frontend URL / search-box resolution — filter_schema.aliases in
+#      public/pois/tag-categories.json carries this map (filtered to entries
+#      whose canonical survived) so ?pois=dispensary and typing "disp" in
+#      the search box both resolve to the canonical tag.
+#
+# Keys must be in lowercase-hyphen form (post-_normalize: lowercased,
+# diacritics folded, spaces/underscores → hyphens). Set normalize=False on
+# extraction to skip ingestion-time alias resolution.
+
+[aliases]
+# Singular ↔ plural — keep the dominant variant
+noodle = "noodles"
+dumpling = "dumplings"
+cookie = "cookies"
+gyro = "gyros"
+chicken-wings = "wings"
+
+# Romanization / variant spellings
+kabob = "kebab"
+szechuan = "sichuan"
+dimsum = "dim-sum"
+bengalurean = "bangalorean"
+hot-pot = "hotpot"
+boba = "bubble-tea"
+boba-tea = "bubble-tea"
+
+# Compound → general (improves filter usefulness)
+sushi-restaurant = "sushi"
+italian-pizza = "pizza"
+
+# Region grouping (conservative — only obvious overlaps)
+arab = "arabic"
+latin = "latin-american"
+latino = "latin-american"
+oriental = "asian"
+
+# Typos
+marshal-arts = "martial-arts"
+guros = "gyros"
+desert = "dessert"
+
+# URL / search ergonomics — colloquial terms the user might type. OSM uses
+# shop=cannabis (not shop=dispensary), so these entries are dead weight at
+# ingestion but make ?pois=dispensary and the search box resolve correctly.
+dispensary = "cannabis"
+dispensaries = "cannabis"

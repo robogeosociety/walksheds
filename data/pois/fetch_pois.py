@@ -34,6 +34,8 @@ import urllib.parse
 import urllib.request
 import urllib.error
 
+from aliases import load_tag_aliases
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STATION_INDEX = os.path.join(ROOT, "data", "station-index.json")
 OUTPUT_DIR = os.path.join(ROOT, "public", "pois")
@@ -288,41 +290,12 @@ MULTI_VALUE_FIELDS = ("cuisine", "sport")
 # Fields whose value itself becomes a normalized tag (e.g. craft=brewery → "brewery").
 VALUE_AS_TAG_FIELDS = ("craft",)
 
-# Synonyms / typos / romanization variants → canonical tag.
-# Applied AFTER _normalize, so keys must already be in lowercase-hyphen form.
-# Set normalize=False at extraction time to skip this step.
-TAG_ALIASES = {
-    # Singular ↔ plural — keep the dominant variant
-    "noodle":         "noodles",
-    "dumpling":       "dumplings",
-    "cookie":         "cookies",
-    "gyro":           "gyros",
-    "chicken-wings":  "wings",
-
-    # Romanization / variant spellings
-    "kabob":          "kebab",
-    "szechuan":       "sichuan",
-    "dimsum":         "dim-sum",
-    "bengalurean":    "bangalorean",
-    "hot-pot":        "hotpot",
-    "boba":           "bubble-tea",
-    "boba-tea":       "bubble-tea",
-
-    # Compound → general (improves filter usefulness)
-    "sushi-restaurant": "sushi",
-    "italian-pizza":    "pizza",
-
-    # Region grouping (conservative — only obvious overlaps)
-    "arab":            "arabic",
-    "latin":           "latin-american",
-    "latino":          "latin-american",
-    "oriental":        "asian",
-
-    # Typos
-    "marshal-arts":  "martial-arts",
-    "guros":         "gyros",
-    "desert":        "dessert",
-}
+# Synonyms / typos / romanization variants → canonical tag, loaded from
+# data/pois/tag-aliases.toml. Same map drives ingestion-time normalization
+# (via _canonicalize below) AND the URL/search alias entries surfaced to the
+# frontend in filter_schema.aliases (see build_tag_categories_manifest).
+# Keys must already be in lowercase-hyphen form (post-_normalize).
+TAG_ALIASES = load_tag_aliases()
 
 # Tag → category bucket assignment, with a color per category. Categories drive
 # the legend chip coloring and the small color key shown in the legend.
@@ -503,12 +476,15 @@ def update_filter_registry(registry, main_category_ids, sorted_tags):
     return registry
 
 
-def build_filter_schema(main_category_ids, sorted_tags):
+def build_filter_schema(main_category_ids, sorted_tags, aliases=None):
     """Build the v1 filter schema block from the stable-ID registry.
 
     Side effect: loads, updates, and writes data/pois/filter-registry.json so
     any new categories/tags get a permanent ID. URLs encode IDs (not names)
     via this map, making them compact and schema-opaque.
+
+    When `aliases` is non-empty, it's attached as `schema["aliases"]` — a flat
+    {alias: canonical} map used by the frontend URL parser and search box.
     """
     registry = load_filter_registry()
     update_filter_registry(registry, main_category_ids, sorted_tags)
@@ -518,7 +494,10 @@ def build_filter_schema(main_category_ids, sorted_tags):
     tag_set = set(sorted_tags)
     cat_map = {name: i for i, name in enumerate(registry["cat"]) if name in main_set}
     tag_map = {name: i for i, name in enumerate(registry["tag"]) if name in tag_set}
-    return {"version": 1, "cat": cat_map, "tag": tag_map}
+    schema = {"version": 1, "cat": cat_map, "tag": tag_map}
+    if aliases:
+        schema["aliases"] = aliases
+    return schema
 
 
 def build_tag_categories_manifest(all_tags, tag_index, main_category_ids=None):
@@ -539,10 +518,24 @@ def build_tag_categories_manifest(all_tags, tag_index, main_category_ids=None):
             categories[cat_id] = {"label": cat["label"], "color": cat["color"]}
 
     sorted_tag_to_category = dict(sorted(tag_to_category.items()))
+    main_ids = main_category_ids if main_category_ids is not None else load_main_category_ids()
+    main_set = set(main_ids)
+    tag_set = set(sorted_tag_to_category.keys())
+    # Expose only aliases whose canonical lands in this build's tag/cat
+    # namespace, and reject chains (alias value that's itself an alias key).
+    # Ingestion-only aliases whose canonical doesn't appear in any OSM POI
+    # this build are silently dropped from the URL map.
+    url_aliases = {
+        alias: canonical
+        for alias, canonical in TAG_ALIASES.items()
+        if (canonical in tag_set or canonical in main_set)
+        and canonical not in TAG_ALIASES
+    }
     manifest = {
         "filter_schema": build_filter_schema(
-            main_category_ids if main_category_ids is not None else load_main_category_ids(),
+            main_ids,
             sorted_tag_to_category.keys(),
+            aliases=url_aliases,
         ),
         "categories": categories,
         "tag_to_category": sorted_tag_to_category,

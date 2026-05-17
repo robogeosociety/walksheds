@@ -440,6 +440,7 @@ export default function Walksheds() {
           mainCategories={MAIN_POI_CATEGORIES}
           enabledCategories={enabledCategories}
           onToggleCategory={handleToggleCategory}
+          tagAliases={tagCategories?.filter_schema?.aliases}
         />
       )}
 

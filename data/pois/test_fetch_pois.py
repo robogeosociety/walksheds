@@ -528,6 +528,17 @@ class TestFilterSchema:
         assert set(schema["cat"].keys()) == set(self.MAIN)
         assert set(schema["tag"].keys()) == {"pizza", "takeaway"}
 
+    def test_schema_accepts_aliases(self):
+        schema = build_filter_schema(self.MAIN, ["pizza"], aliases={"pies": "pizza"})
+        assert schema["aliases"] == {"pies": "pizza"}
+
+    def test_schema_omits_aliases_when_empty(self):
+        # An empty alias map shouldn't bloat the schema.
+        schema = build_filter_schema(self.MAIN, ["pizza"], aliases={})
+        assert "aliases" not in schema
+        schema_none = build_filter_schema(self.MAIN, ["pizza"], aliases=None)
+        assert "aliases" not in schema_none
+
     def test_registry_starts_empty_when_absent(self):
         # Fixture wipes the registry path each test; first load returns a seed.
         registry = load_filter_registry()
@@ -570,6 +581,76 @@ class TestCollectTagProvenance:
         prov = collect_tag_provenance(elements, normalize=False)
         assert "noodle" in prov
         assert "noodles" in prov
+
+
+class TestUrlAliasesInManifest:
+    """The published manifest's filter_schema.aliases mirrors TAG_ALIASES,
+    filtered to entries whose canonical lands in this build's tag/cat set."""
+
+    MAIN = ["restaurants", "bars"]
+
+    def test_alias_survives_when_canonical_is_in_tag_set(self, monkeypatch):
+        # Stub TAG_ALIASES to a known, small map so the test is hermetic.
+        monkeypatch.setattr(fetch_pois, "TAG_ALIASES", {"pies": "pizza"})
+        index = build_tag_index()
+        manifest = build_tag_categories_manifest(
+            {"pizza"}, index, main_category_ids=self.MAIN,
+        )
+        assert manifest["filter_schema"]["aliases"] == {"pies": "pizza"}
+
+    def test_alias_survives_when_canonical_is_a_main_category(self, monkeypatch):
+        monkeypatch.setattr(fetch_pois, "TAG_ALIASES", {"eateries": "restaurants"})
+        index = build_tag_index()
+        manifest = build_tag_categories_manifest(
+            {"pizza"}, index, main_category_ids=self.MAIN,
+        )
+        assert manifest["filter_schema"]["aliases"] == {"eateries": "restaurants"}
+
+    def test_alias_dropped_when_canonical_absent_from_build(self, monkeypatch):
+        # "vegan" isn't in the tag set this build, so the alias is filtered out.
+        monkeypatch.setattr(fetch_pois, "TAG_ALIASES", {"plant-based": "vegan"})
+        index = build_tag_index()
+        manifest = build_tag_categories_manifest(
+            {"pizza"}, index, main_category_ids=self.MAIN,
+        )
+        assert "aliases" not in manifest["filter_schema"]
+
+    def test_alias_chain_rejected_one_hop_guard(self, monkeypatch):
+        # `a → b` and `b → c` would chain; build keeps only entries whose value
+        # is NOT itself an alias key, even if the value is otherwise a valid tag.
+        monkeypatch.setattr(fetch_pois, "TAG_ALIASES", {"a": "b", "b": "pizza"})
+        index = build_tag_index()
+        manifest = build_tag_categories_manifest(
+            {"pizza"}, index, main_category_ids=self.MAIN,
+        )
+        # "b → pizza" survives (pizza is in the tag set and isn't an alias key).
+        # "a → b" is dropped (b IS an alias key, would chain).
+        assert manifest["filter_schema"]["aliases"] == {"b": "pizza"}
+
+    def test_dispensary_routes_to_cannabis(self):
+        # End-to-end with the real TAG_ALIASES + a tag set that contains cannabis.
+        index = build_tag_index()
+        manifest = build_tag_categories_manifest(
+            {"cannabis"}, index, main_category_ids=self.MAIN,
+        )
+        aliases = manifest["filter_schema"].get("aliases", {})
+        assert aliases.get("dispensary") == "cannabis"
+        assert aliases.get("dispensaries") == "cannabis"
+
+
+class TestLoadTagAliases:
+    def test_loader_returns_known_entries(self):
+        # The loader reads tag-aliases.toml at module init; current TAG_ALIASES
+        # binding must contain the seed entries.
+        from aliases import load_tag_aliases
+        loaded = load_tag_aliases()
+        assert loaded["kabob"] == "kebab"
+        assert loaded["dispensary"] == "cannabis"
+        assert loaded["dispensaries"] == "cannabis"
+
+    def test_module_level_binding_matches_loader(self):
+        from aliases import load_tag_aliases
+        assert fetch_pois.TAG_ALIASES == load_tag_aliases()
 
 
 class TestFormatAddress:

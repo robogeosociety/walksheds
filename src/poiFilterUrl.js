@@ -183,13 +183,19 @@ function parseCsvNames(raw, schema) {
   const tags = new Set()
   const knownCats = schema.cat || {}
   const knownTags = schema.tag || {}
+  const aliases = schema.aliases || {}
   for (const part of raw.split(',')) {
     const name = part.trim()
     if (!name) continue
+    // One-hop alias resolution before namespace lookup, so colloquial inputs
+    // like `dispensary` route to the canonical `cannabis` tag. The build
+    // guarantees alias values aren't themselves alias keys, so a single hop
+    // is enough.
+    const resolved = aliases[name] || name
     // Pills show tag names, so resolve tags first; fall back to a category
     // name (e.g. "restaurants", "parks") for users sharing top-level toggles.
-    if (name in knownTags) tags.add(name)
-    else if (name in knownCats) cats.add(name)
+    if (resolved in knownTags) tags.add(resolved)
+    else if (resolved in knownCats) cats.add(resolved)
   }
   return { categories: cats, tags }
 }

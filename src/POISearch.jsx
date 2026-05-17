@@ -13,6 +13,7 @@ export default function POISearch({
   mainCategories,
   enabledCategories,
   onToggleCategory,
+  tagAliases,
 }) {
   const [query, setQuery] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -46,13 +47,31 @@ export default function POISearch({
     items[poiHighlightIdx]?.scrollIntoView({ block: 'nearest' })
   }, [poiHighlightIdx])
 
+  // Inverse of tagAliases: canonical → [aliasKey, ...]. Lets the search box
+  // surface a canonical chip when the user types one of its aliases.
+  const canonicalToAliases = useMemo(() => {
+    const inv = {}
+    if (!tagAliases) return inv
+    for (const alias of Object.keys(tagAliases)) {
+      const canonical = tagAliases[alias]
+      if (!inv[canonical]) inv[canonical] = []
+      inv[canonical].push(alias)
+    }
+    return inv
+  }, [tagAliases])
+
   const matches = useMemo(() => {
     const filtered = availableTags.filter(({ tag }) => !activeFilters.has(tag))
     if (!query.trim()) return filtered.slice(0, 8)
+    const q = query.trim().toLowerCase()
     return filtered
-      .filter(({ tag }) => tag.includes(query.trim().toLowerCase()))
+      .filter(({ tag }) => {
+        if (tag.includes(q)) return true
+        const aliases = canonicalToAliases[tag]
+        return aliases ? aliases.some(a => a.includes(q)) : false
+      })
       .slice(0, 8)
-  }, [query, availableTags, activeFilters])
+  }, [query, availableTags, activeFilters, canonicalToAliases])
 
   const handleSelect = useCallback((tag) => {
     onAddFilter(tag)

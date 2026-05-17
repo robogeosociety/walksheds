@@ -360,6 +360,31 @@
       "wings": 348,
       "wrap": 349,
       "yoga": 350
+    },
+    "aliases": {
+      "noodle": "noodles",
+      "dumpling": "dumplings",
+      "cookie": "cookies",
+      "gyro": "gyros",
+      "chicken-wings": "wings",
+      "kabob": "kebab",
+      "szechuan": "sichuan",
+      "dimsum": "dim-sum",
+      "bengalurean": "bangalorean",
+      "hot-pot": "hotpot",
+      "boba": "bubble-tea",
+      "boba-tea": "bubble-tea",
+      "sushi-restaurant": "sushi",
+      "italian-pizza": "pizza",
+      "arab": "arabic",
+      "latin": "latin-american",
+      "latino": "latin-american",
+      "oriental": "asian",
+      "marshal-arts": "martial-arts",
+      "guros": "gyros",
+      "desert": "dessert",
+      "dispensary": "cannabis",
+      "dispensaries": "cannabis"
     }
   },
   "categories": {

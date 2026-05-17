@@ -254,3 +254,60 @@ describe('parsePoiFilterParam — comma-separated names (human-typed)', () => {
     expect(parsePoiFilterParam('?pois=,,,', SCHEMA)).toBeNull()
   })
 })
+
+describe('parsePoiFilterParam — aliases (filter_schema.aliases)', () => {
+  const ALIASED = {
+    ...SCHEMA,
+    aliases: {
+      dispensary: 'pizza',         // pretend alias mapping to a known tag
+      dispensaries: 'pizza',
+      eateries: 'restaurants',     // alias to a category
+    },
+  }
+
+  it('resolves an alias to its canonical tag', () => {
+    const parsed = parsePoiFilterParam('?pois=dispensary', ALIASED)
+    expect(parsed.tags).toEqual(new Set(['pizza']))
+    expect(parsed.categories.size).toBe(0)
+  })
+
+  it('resolves a plural alias to the same canonical tag', () => {
+    const parsed = parsePoiFilterParam('?pois=dispensaries', ALIASED)
+    expect(parsed.tags).toEqual(new Set(['pizza']))
+  })
+
+  it('resolves an alias whose canonical is a category name', () => {
+    const parsed = parsePoiFilterParam('?pois=eateries', ALIASED)
+    expect(parsed.categories).toEqual(new Set(['restaurants']))
+    expect(parsed.tags.size).toBe(0)
+  })
+
+  it('falls through to direct match when the name is not aliased', () => {
+    const parsed = parsePoiFilterParam('?pois=pizza', ALIASED)
+    expect(parsed.tags).toEqual(new Set(['pizza']))
+  })
+
+  it('drops aliases whose canonical is absent from the schema', () => {
+    // Defensive: even though the build filter ensures this can't happen in
+    // shipped manifests, the parser shouldn't crash or admit garbage.
+    const dangling = { ...SCHEMA, aliases: { dispensary: 'cannabis' } }
+    expect(parsePoiFilterParam('?pois=dispensary', dangling)).toBeNull()
+  })
+
+  it('does not chain-resolve: alias values are never themselves keys', () => {
+    // If someone hand-edited the manifest to add a chain A → B → C, the
+    // parser still only resolves one hop. Build-time validation prevents
+    // this in practice.
+    const chain = { ...SCHEMA, aliases: { a: 'b', b: 'pizza' } }
+    expect(parsePoiFilterParam('?pois=a', chain)).toBeNull()
+    expect(parsePoiFilterParam('?pois=b', chain)).toEqual(
+      expect.objectContaining({ tags: new Set(['pizza']) }),
+    )
+  })
+
+  it('mixes aliased and direct names in one query', () => {
+    const parsed = parsePoiFilterParam('?pois=dispensary,vegan,eateries', ALIASED)
+    expect(parsed.tags).toEqual(new Set(['pizza', 'vegan']))
+    expect(parsed.categories).toEqual(new Set(['restaurants']))
+  })
+})
