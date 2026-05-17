@@ -1123,6 +1123,30 @@ body,
   font-weight: 400;
 }
 
+.poi-cat-pill-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+  opacity: 0.55;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+
+.poi-cat-pill-chevron:hover {
+  opacity: 0.9;
+}
+
+.poi-cat-pill.enabled .poi-cat-pill-chevron {
+  opacity: 0.75;
+}
+
+.poi-cat-pill.enabled .poi-cat-pill-chevron:hover {
+  opacity: 1;
+}
+
 .poi-cat-pill-remove {
   display: inline-flex;
   align-items: center;

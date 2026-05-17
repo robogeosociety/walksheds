@@ -265,6 +265,25 @@ export default function POISearch({
                 >
                   {count}
                 </span>
+                {present && (
+                  <span
+                    className="poi-cat-pill-chevron"
+                    onClick={(e) => handleTagTextClick(tag, e)}
+                    role="button"
+                    aria-label={expandedTag === tag ? `Collapse ${tag} list` : `Expand ${tag} list`}
+                  >
+                    <svg width="8" height="8" viewBox="0 0 8 8">
+                      <path
+                        d={expandedTag === tag ? 'M1.5 5l2.5-2.5 2.5 2.5' : 'M1.5 3l2.5 2.5 2.5-2.5'}
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
+                    </svg>
+                  </span>
+                )}
                 <span
                   className="poi-cat-pill-remove"
                   onClick={(e) => handleRemoveTag(tag, e)}
