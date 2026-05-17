@@ -36,24 +36,54 @@ beforeEach(() => {
 })
 
 describe('POISearch alias-aware matching', () => {
-  it('surfaces a canonical chip when the query matches an alias key', () => {
+  it('shows the matched alias as the dropdown label, not the canonical', () => {
     renderSearch({
       tagAliases: { dispensary: 'cannabis', dispensaries: 'cannabis' },
     })
     fireEvent.change(screen.getByPlaceholderText(/Search places/), {
       target: { value: 'dispensary' },
     })
-    expect(dropdownTags()).toContain('cannabis')
+    expect(dropdownTags()).toContain('dispensary')
+    expect(dropdownTags()).not.toContain('cannabis')
   })
 
-  it('matches substrings of alias keys, not just exact', () => {
+  it('matches substrings of alias keys and shows the matching alias', () => {
     renderSearch({
       tagAliases: { dispensary: 'cannabis', dispensaries: 'cannabis' },
     })
     fireEvent.change(screen.getByPlaceholderText(/Search places/), {
       target: { value: 'disp' },
     })
+    // First alias matching the substring is shown; the canonical name is not.
+    expect(dropdownTags()).toContain('dispensary')
+    expect(dropdownTags()).not.toContain('cannabis')
+  })
+
+  it('selecting an alias result adds the canonical tag as a filter', () => {
+    const onAddFilter = vi.fn()
+    renderSearch({
+      tagAliases: { dispensary: 'cannabis', dispensaries: 'cannabis' },
+      onAddFilter,
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: 'dispensary' },
+    })
+    const button = document.querySelector('.poi-search-option')
+    fireEvent.mouseDown(button)
+    expect(onAddFilter).toHaveBeenCalledWith('cannabis')
+  })
+
+  it('prefers the canonical name when both the tag and an alias would match', () => {
+    // Contrived: an alias whose key also contains "ann" (matches "cannabis").
+    renderSearch({
+      tagAliases: { 'canna-shop': 'cannabis' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: 'canna' },
+    })
+    // Tag itself matched, so it wins; the alias is not surfaced.
     expect(dropdownTags()).toContain('cannabis')
+    expect(dropdownTags()).not.toContain('canna-shop')
   })
 
   it('still matches direct substrings of the tag itself', () => {
@@ -102,7 +132,7 @@ describe('POISearch alias-aware matching', () => {
     fireEvent.change(screen.getByPlaceholderText(/Search places/), {
       target: { value: 'disp' },
     })
-    const cannabisCount = dropdownTags().filter(t => t === 'cannabis').length
-    expect(cannabisCount).toBe(1)
+    // One row per canonical, regardless of how many of its aliases match.
+    expect(dropdownTags().length).toBe(1)
   })
 })

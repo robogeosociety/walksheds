@@ -62,15 +62,25 @@ export default function POISearch({
 
   const matches = useMemo(() => {
     const filtered = availableTags.filter(({ tag }) => !activeFilters.has(tag))
-    if (!query.trim()) return filtered.slice(0, 8)
+    if (!query.trim()) {
+      return filtered.slice(0, 8).map(t => ({ ...t, label: t.tag }))
+    }
     const q = query.trim().toLowerCase()
-    return filtered
-      .filter(({ tag }) => {
-        if (tag.includes(q)) return true
-        const aliases = canonicalToAliases[tag]
-        return aliases ? aliases.some(a => a.includes(q)) : false
-      })
-      .slice(0, 8)
+    const out = []
+    for (const t of filtered) {
+      // Direct hit on the canonical tag wins — show the tag itself.
+      if (t.tag.includes(q)) {
+        out.push({ ...t, label: t.tag })
+        continue
+      }
+      // Otherwise see if any alias for this canonical matches; if so, show
+      // the matched alias as the dropdown label so the user sees the term
+      // they typed. Selection still adds the canonical tag.
+      const aliases = canonicalToAliases[t.tag]
+      const hit = aliases?.find(a => a.includes(q))
+      if (hit) out.push({ ...t, label: hit })
+    }
+    return out.slice(0, 8)
   }, [query, availableTags, activeFilters, canonicalToAliases])
 
   const handleSelect = useCallback((tag) => {
@@ -183,7 +193,7 @@ export default function POISearch({
 
       {showDropdown && matches.length > 0 && (
         <div className="poi-search-dropdown">
-          {matches.map(({ tag, count, color }, i) => (
+          {matches.map(({ tag, label, count, color }, i) => (
             <button
               key={tag}
               className={`poi-search-option ${i === highlightIdx ? 'highlighted' : ''}`}
@@ -191,7 +201,7 @@ export default function POISearch({
               onMouseEnter={() => setHighlightIdx(i)}
             >
               {color && <span className="poi-search-option-dot" style={{ background: color }} />}
-              <span className="poi-search-option-tag">{tag}</span>
+              <span className="poi-search-option-tag">{label}</span>
               <span className="poi-search-option-count">{count}</span>
             </button>
           ))}
