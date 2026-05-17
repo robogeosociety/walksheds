@@ -117,6 +117,10 @@ export default function Walksheds() {
   const [enabledCategories, setEnabledCategories] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
   const [poiPopup, setPoiPopup] = useState(null)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
+  // Z-order toggle: when the user opens a chip's POI list, lift the search/list
+  // above any open popup; clicking the popup body or a POI dot puts the popup
+  // back on top. Default state is popup-on-top to match historical behavior.
+  const [listOnTop, setListOnTop] = useState(false)
   const mapViewRef = useRef(null)
   const selectedStationRef = useRef(null)
   const graphRef = useRef(null)
@@ -325,6 +329,7 @@ export default function Walksheds() {
       stations: typeof props.stations === 'string' ? JSON.parse(props.stations) : props.stations,
     })
     setExpandedPoiTag(null)
+    setListOnTop(false)
   }, [])
 
   // Click handler for a station row inside a POI popup: jump to that station.
@@ -341,6 +346,18 @@ export default function Walksheds() {
   // Closing the popup re-frames the walkshed at its original padding so the
   // user lands back in "station view" instead of stuck zoomed on the POI.
   const handlePoiClose = useCallback(() => fitToWalkshed(), [fitToWalkshed])
+
+  // Expanding a chip's POI list raises the list above any open popup. Passing
+  // null collapses the list; the z-order doesn't matter once the list is gone
+  // but we clear the flag to keep state tidy.
+  const handleExpandPoiTag = useCallback((tag) => {
+    setExpandedPoiTag(tag)
+    setListOnTop(tag != null)
+  }, [])
+
+  // Any click inside the popup (or the POI dot on the map) brings the popup
+  // back to the top. Wired into POILayer's popup container.
+  const handlePopupFocus = useCallback(() => setListOnTop(false), [])
 
   // Hand keyboard focus from the search box back to the map canvas so the
   // user can pan/zoom with arrow keys right after committing a selection.
@@ -473,7 +490,7 @@ export default function Walksheds() {
   }
 
   return (
-    <div className={`app ${darkMode ? 'dark' : ''}`}>
+    <div className={`app ${darkMode ? 'dark' : ''} ${listOnTop ? 'list-on-top' : ''}`}>
       <MapView
         ref={mapViewRef}
         darkMode={darkMode}
@@ -491,6 +508,7 @@ export default function Walksheds() {
         onPoiClose={handlePoiClose}
         onPoiTagClick={handleAddPoiFilter}
         onPopupStationClick={handlePopupStationClick}
+        onPopupFocus={handlePopupFocus}
         units={units}
       />
 
@@ -500,7 +518,7 @@ export default function Walksheds() {
           activeFilters={poiFilters}
           poiFeatures={walkshedPois.features}
           expandedTag={expandedPoiTag}
-          onExpandTag={setExpandedPoiTag}
+          onExpandTag={handleExpandPoiTag}
           onAddFilter={handleAddPoiFilter}
           onRemoveFilter={handleRemovePoiFilter}
           onClearFilters={handleClearPoiFilters}

@@ -908,10 +908,22 @@ body,
 
 /* ── POI Popup ── */
 
-/* Float above the search box (z-index 10) so it isn't obscured when
- * the popup anchors near the top-right of the viewport. */
+/* Default: popup floats above the search column (z-index 10) so it isn't
+ * obscured when anchored near the top-right of the viewport. When the user
+ * opens a chip's POI list (`.app.list-on-top`), we swap the two — the
+ * search container goes on top so the list is visible — until a click on
+ * the popup body or a POI dot puts the popup back on top. See `listOnTop`
+ * state + `handlePopupFocus` in src/Walksheds.jsx. */
 .poi-popup-container {
   z-index: 20;
+}
+
+.app.list-on-top .poi-search {
+  z-index: 30;
+}
+
+.app.list-on-top .poi-popup-container {
+  z-index: 10;
 }
 
 .poi-popup-container .mapboxgl-popup-content {

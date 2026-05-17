@@ -6,7 +6,7 @@ import { formatWalk } from './formatDistance'
 
 const CATEGORY_KEYS = Object.keys(POI_CATEGORIES)
 
-export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, onStationClick, darkMode, units }) {
+export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, onStationClick, onPopupFocus, darkMode, units }) {
   const colorMatch = useMemo(() => [
     'match', ['get', 'category'],
     ...CATEGORY_KEYS.flatMap(k => [k, POI_CATEGORIES[k].color]),
@@ -61,7 +61,7 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, on
           className="poi-popup-container"
           offset={12}
         >
-          <div className="poi-popup">
+          <div className="poi-popup" onMouseDown={onPopupFocus}>
             <div className="poi-popup-header">
               <div className="poi-popup-name">{poiPopup.name}</div>
               <span className="poi-popup-close" onClick={onPoiClose} role="button" aria-label="Close">

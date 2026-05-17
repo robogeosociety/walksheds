@@ -24,6 +24,7 @@ const MapView = forwardRef(function MapView({
   onPoiClose,
   onPoiTagClick,
   onPopupStationClick,
+  onPopupFocus,
   units,
 }, ref) {
   const mapRef = useRef(null)
@@ -211,6 +212,7 @@ const MapView = forwardRef(function MapView({
           onPoiClose={onPoiClose}
           onTagClick={onPoiTagClick}
           onStationClick={onPopupStationClick}
+          onPopupFocus={onPopupFocus}
           darkMode={darkMode}
           units={units}
         />
