@@ -18,22 +18,7 @@ export default function LineLegend({
   collapsed,
   onToggleCollapse,
   position,
-  poiFilters,
-  poiTagColors,
-  onRemovePoiFilter,
-  onClearPoiFilters,
-  onTagSelect,
 }) {
-  // Build tag → color and tag → count lookups
-  const tagColorMap = {}
-  const tagCountMap = {}
-  if (poiTagColors) {
-    for (const { tag, color, count } of poiTagColors) {
-      if (color) tagColorMap[tag] = color
-      tagCountMap[tag] = count
-    }
-  }
-
   const posClass = position === 'bottom-right' ? 'bottom-right' : ''
   const touchStartY = useRef(null)
 
@@ -96,29 +81,6 @@ export default function LineLegend({
               )
             })}
           </div>
-        {poiFilters && poiFilters.size > 0 && (
-          <>
-            <div className="legend-collapsed-divider" />
-            <div className="legend-collapsed-filters">
-              {[...poiFilters].map(tag => (
-                <div key={tag} className="legend-collapsed-filter-tag"
-                  style={tagColorMap[tag] ? { background: tagColorMap[tag] + '20', color: tagColorMap[tag] } : undefined}
-                >
-                  <span className="legend-collapsed-filter-text" onClick={() => onTagSelect?.(tag)}>{tag}</span>
-                  {tagCountMap[tag] != null && <span className="legend-collapsed-filter-count">{tagCountMap[tag]}</span>}
-                  <span className="legend-filter-remove" onClick={() => onRemovePoiFilter(tag)} role="button" aria-label={`Remove ${tag}`}>
-                    <svg width="8" height="8" viewBox="0 0 8 8">
-                      <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </span>
-                </div>
-              ))}
-              {poiFilters.size >= 2 && (
-                <button className="legend-collapsed-filter-clear" onClick={onClearPoiFilters}>clear</button>
-              )}
-            </div>
-          </>
-        )}
         <div className="legend-collapsed-divider" />
         <button className="legend-expand-btn" onClick={onToggleCollapse} aria-label="Expand legend">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -197,30 +159,6 @@ export default function LineLegend({
         })}
       </div>
 
-      {poiFilters && poiFilters.size > 0 && (
-        <>
-          <div className="legend-divider" />
-          <h3 className="legend-title">Places</h3>
-          <div className="legend-poi-filters">
-            {[...poiFilters].map(tag => (
-              <div key={tag} className="legend-collapsed-filter-tag"
-                style={tagColorMap[tag] ? { background: tagColorMap[tag] + '20', color: tagColorMap[tag] } : undefined}
-              >
-                <span className="legend-collapsed-filter-text" onClick={() => onTagSelect?.(tag)}>{tag}</span>
-                {tagCountMap[tag] != null && <span className="legend-collapsed-filter-count" onClick={() => onTagSelect?.(tag)}>{tagCountMap[tag]}</span>}
-                <span className="legend-filter-remove" onClick={() => onRemovePoiFilter(tag)} role="button" aria-label={`Remove ${tag}`}>
-                  <svg width="8" height="8" viewBox="0 0 8 8">
-                    <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </span>
-              </div>
-            ))}
-            {poiFilters.size >= 2 && (
-              <button className="legend-poi-clear" onClick={onClearPoiFilters}>clear all</button>
-            )}
-          </div>
-        </>
-      )}
     </div>
   )
 }

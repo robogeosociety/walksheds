@@ -454,11 +454,6 @@ export default function Walksheds() {
         collapsed={legendCollapsed}
         onToggleCollapse={() => toggleLegendCollapsed()}
         position={legendPosition}
-        poiFilters={poiFilters}
-        poiTagColors={availableTags}
-        onRemovePoiFilter={handleRemovePoiFilter}
-        onClearPoiFilters={handleClearPoiFilters}
-        onTagSelect={setExpandedPoiTag}
       />
 
       {introVisible && stationsData && (
