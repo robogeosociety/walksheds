@@ -55,7 +55,7 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, da
           anchor="bottom"
           onClose={onPoiClose}
           closeButton={false}
-          closeOnClick={false}
+          closeOnClick={true}
           className="poi-popup-container"
           offset={12}
         >

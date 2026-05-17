@@ -155,6 +155,8 @@ export default function Walksheds() {
     setPopup({ longitude: lng, latitude: lat, name, line, stopCode, lines })
     setCurrentLine(line)
     setWalksheds({})
+    // Any in-flight POI popup belongs to the previous station — drop it.
+    setPoiPopup(null)
 
     // Sync URL
     if (stopCode != null) {
