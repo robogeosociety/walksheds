@@ -300,6 +300,7 @@ export default function Walksheds() {
   const handleClearPoiFilters = useCallback(() => {
     setPoiFilters(new Set())
     setEnabledCategories(new Set())
+    setExpandedPoiTag(null)
     fitToWalkshed()
   }, [fitToWalkshed])
 
