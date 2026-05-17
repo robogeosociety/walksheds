@@ -14,7 +14,7 @@ export function useNavigation({
   selectedStationRef,
   currentLine,
   selectStation,
-  onBeforeScrollNavigate,
+  onBeforeNavigate,
 }) {
   const navigateDirection = useCallback((arrowKey) => {
     if (!graphRef.current || !selectedStationRef.current) return false
@@ -63,10 +63,10 @@ export function useNavigation({
 
       if (!arrowKey) return
 
-      // Defer to the host: when it returns false the scroll was consumed by
-      // a snap-back / popup-dismiss gesture and shouldn't also transition
-      // to an adjacent station.
-      if (onBeforeScrollNavigate && !onBeforeScrollNavigate()) {
+      // Defer to the host: when it returns false the gesture was consumed
+      // by a snap-back / popup-dismiss and shouldn't also transition to an
+      // adjacent station.
+      if (onBeforeNavigate && !onBeforeNavigate()) {
         e.preventDefault()
         accumX = 0
         accumY = 0
@@ -86,7 +86,7 @@ export function useNavigation({
 
     window.addEventListener('wheel', handleWheel, { passive: false })
     return () => window.removeEventListener('wheel', handleWheel)
-  }, [navigateDirection, selectedStationRef, onBeforeScrollNavigate])
+  }, [navigateDirection, selectedStationRef, onBeforeNavigate])
 
   // Touch swipe navigation (mobile)
   // Only respond to single-finger swipes; ignore multi-touch (pinch-to-zoom)
@@ -126,6 +126,11 @@ export function useNavigation({
         arrowKey = dx < 0 ? 'ArrowRight' : 'ArrowLeft'
       }
 
+      // Same host guard as the wheel handler: if the gesture should be
+      // consumed as a snap-back / popup-dismiss inside the walkshed, skip
+      // the station transition.
+      if (onBeforeNavigate && !onBeforeNavigate()) return
+
       navigateDirection(arrowKey)
     }
 
@@ -135,5 +140,5 @@ export function useNavigation({
       window.removeEventListener('touchstart', handleTouchStart)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [navigateDirection, selectedStationRef])
+  }, [navigateDirection, selectedStationRef, onBeforeNavigate])
 }

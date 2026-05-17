@@ -414,7 +414,7 @@ export default function Walksheds() {
     selectedStationRef,
     currentLine,
     selectStation,
-    onBeforeScrollNavigate: handleScrollNavigationAttempt,
+    onBeforeNavigate: handleScrollNavigationAttempt,
   })
 
   // Keyboard shortcuts
