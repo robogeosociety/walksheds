@@ -312,6 +312,8 @@ export default function Walksheds() {
       map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16), duration: 800 })
     }
     handlePoiClick(feature)
+    // Collapse the per-tag POI list so the popup is the visible focus.
+    setExpandedPoiTag(null)
   }, [handlePoiClick])
 
   const handlePoiClose = useCallback(() => setPoiPopup(null), [])

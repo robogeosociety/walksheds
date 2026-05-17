@@ -908,6 +908,12 @@ body,
 
 /* ── POI Popup ── */
 
+/* Float above the search box (z-index 10) so it isn't obscured when
+ * the popup anchors near the top-right of the viewport. */
+.poi-popup-container {
+  z-index: 20;
+}
+
 .poi-popup-container .mapboxgl-popup-content {
   padding: 0;
   border-radius: 10px;
