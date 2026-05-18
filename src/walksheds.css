@@ -530,10 +530,7 @@ body,
 }
 
 /* Junction (Chinatown) and terminus badges sit to the right of the pill
- * name, separated by the same divider as the legacy pill-hints chips.
- * The keyboard hints for junctions live inside the SVG itself
- * (.badge-kbd + .badge-kbd-text rects/texts) so the chip's position
- * pins it to the end of its branch instead of floating in a row below. */
+ * name, separated by a thin divider. Pure SVG glyph — no embedded labels. */
 .pill-badge {
   display: flex;
   align-items: center;
@@ -549,31 +546,6 @@ body,
 .pill-badge-svg {
   display: block;
   flex-shrink: 0;
-}
-
-.badge-kbd {
-  fill: #f5f5f5;
-  stroke: #ccc;
-  stroke-width: 0.8;
-}
-
-.badge-kbd-text {
-  fill: #333;
-  font-size: 9px;
-  font-weight: 600;
-  font-family: inherit;
-  text-anchor: middle;
-  dominant-baseline: middle;
-  pointer-events: none;
-}
-
-.app.dark .badge-kbd {
-  fill: rgba(255, 255, 255, 0.08);
-  stroke: rgba(255, 255, 255, 0.2);
-}
-
-.app.dark .badge-kbd-text {
-  fill: #ddd;
 }
 
 /* ── Intro walkthrough ── */
