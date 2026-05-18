@@ -34,28 +34,47 @@ export function StationPillBody({ lines, stopCode, name, className }) {
 }
 
 /**
- * Junction switch glyph: a vertical trunk in Line 1 (green) with an
- * eastward Line 2 (blue) branch — depicting the Chinatown split where
- * Line 1 continues south and Line 2 diverges east.
- *
- * Paired with a kbd row that surfaces the keyboard arrows the user can
- * press to follow each branch (e.g. `↓ 1`, `→ 2`).
+ * Junction switch glyph: a vertical Line 1 (green) trunk with a Line 2
+ * (blue) branch diverging east, depicting the Chinatown split. Each
+ * branch ends in a small in-SVG keyboard chip showing the arrow the
+ * user can press to follow that branch (e.g. ↓ at the bottom of the
+ * trunk for Line 1 south, → at the right of the branch for Line 2 east).
  */
 function SwitchBadge({ hints }) {
+  const hintFor = (line) => hints.find(h => h.line === line)
+  const h1 = hintFor('1-line')
+  const h2 = hintFor('2-line')
+
   return (
-    <div className="pill-badge pill-badge-junction" aria-hidden>
-      <svg className="pill-badge-svg" width="18" height="22" viewBox="0 0 18 22">
-        <line x1="5" y1="1" x2="5" y2="21" stroke={LINE_1_COLOR} strokeWidth="3" strokeLinecap="round" />
-        <line x1="5" y1="11" x2="17" y2="11" stroke={LINE_2_COLOR} strokeWidth="3" strokeLinecap="round" />
+    <div className="pill-badge pill-badge-junction">
+      <svg
+        className="pill-badge-svg"
+        width="42"
+        height="34"
+        viewBox="0 0 42 34"
+        role="img"
+        aria-label={
+          'Junction: ' +
+          [h1 && `${ARROW_SYMBOLS[h1.arrowKey]} for Line 1`, h2 && `${ARROW_SYMBOLS[h2.arrowKey]} for Line 2`]
+            .filter(Boolean)
+            .join(', ')
+        }
+      >
+        <line x1="8" y1="0" x2="8" y2="22" stroke={LINE_1_COLOR} strokeWidth="3" strokeLinecap="round" />
+        <line x1="8" y1="11" x2="26" y2="11" stroke={LINE_2_COLOR} strokeWidth="3" strokeLinecap="round" />
+        {h1 && (
+          <>
+            <rect className="badge-kbd" x="0.5" y="22.5" width="15" height="11" rx="2.5" />
+            <text className="badge-kbd-text" x="8" y="30.5">{ARROW_SYMBOLS[h1.arrowKey]}</text>
+          </>
+        )}
+        {h2 && (
+          <>
+            <rect className="badge-kbd" x="26" y="5.5" width="15" height="11" rx="2.5" />
+            <text className="badge-kbd-text" x="33.5" y="13.5">{ARROW_SYMBOLS[h2.arrowKey]}</text>
+          </>
+        )}
       </svg>
-      <div className="pill-badge-keys">
-        {hints.map(hint => (
-          <span key={hint.line} className="pill-hint">
-            <kbd>{ARROW_SYMBOLS[hint.arrowKey]}</kbd>
-            {hint.line === '1-line' ? '1' : '2'}
-          </span>
-        ))}
-      </div>
     </div>
   )
 }

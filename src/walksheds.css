@@ -531,11 +531,12 @@ body,
 
 /* Junction (Chinatown) and terminus badges sit to the right of the pill
  * name, separated by the same divider as the legacy pill-hints chips.
- * Junction layout: switch SVG + kbd row. Terminus: SVG only. */
+ * The keyboard hints for junctions live inside the SVG itself
+ * (.badge-kbd + .badge-kbd-text rects/texts) so the chip's position
+ * pins it to the end of its branch instead of floating in a row below. */
 .pill-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
   margin-left: 2px;
   padding-left: 6px;
   border-left: 1px solid #ddd;
@@ -550,42 +551,29 @@ body,
   flex-shrink: 0;
 }
 
-.pill-badge-keys {
-  display: flex;
-  gap: 4px;
+.badge-kbd {
+  fill: #f5f5f5;
+  stroke: #ccc;
+  stroke-width: 0.8;
 }
 
-.pill-hint {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 11px;
+.badge-kbd-text {
+  fill: #333;
+  font-size: 9px;
   font-weight: 600;
-  color: #666;
-}
-
-.app.dark .pill-hint {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.pill-hint kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  font-size: 11px;
   font-family: inherit;
-  color: #333;
-  background: #f5f5f5;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
 }
 
-.app.dark .pill-hint kbd {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #ddd;
-  background: rgba(255, 255, 255, 0.08);
+.app.dark .badge-kbd {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke: rgba(255, 255, 255, 0.2);
+}
+
+.app.dark .badge-kbd-text {
+  fill: #ddd;
 }
 
 /* ── Intro walkthrough ── */
