@@ -42,7 +42,10 @@ export function StationPillBody({ lines, stopCode, name, className }) {
   )
 }
 
-/** Chinatown junction: Line 2's south-then-east curve in blue. */
+/**
+ * Chinatown junction: a small Line-2 circle paired with the south-then-
+ * east branch arrow, so the badge explicitly says "Line 2 branches east".
+ */
 function SwitchBadge() {
   return (
     <span
@@ -50,6 +53,7 @@ function SwitchBadge() {
       role="img"
       aria-label="Junction: Line 2 branches east"
     >
+      <span className="pill-badge-line-circle" style={{ background: LINE_2_COLOR }}>2</span>
       <span className="pill-badge-glyph" style={{ color: LINE_2_COLOR }}>{SWITCH_GLYPH}</span>
     </span>
   )
