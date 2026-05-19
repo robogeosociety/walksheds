@@ -598,19 +598,17 @@ body,
 .hint {
   position: absolute;
   pointer-events: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .hint-label {
+  display: inline-block;
   font-family: 'Architects Daughter', 'Comic Sans MS', cursive;
   font-size: 18px;
   font-weight: 400;
-  line-height: 1.2;
-  max-width: 220px;
+  line-height: 1.4;
+  max-width: 240px;
   color: inherit;
-  padding: 6px 12px;
+  padding: 8px 14px;
   border: 1.5px dashed currentColor;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.82);
@@ -624,45 +622,40 @@ body,
 }
 
 /* kbd-styled glyph chip matching the junction-turn arrows on the station
-   pill (.pill-hint kbd), scaled up for the hint-overlay context. */
+   pill (.pill-hint kbd). Inlined at the end of each label so the arrow
+   flows with the text inside the card. */
 .hint-arrow {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
+  margin-inline-start: 6px;
+  vertical-align: -7px;
   border: 1.5px solid currentColor;
   border-radius: 6px;
   font-family: inherit;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
   color: inherit;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(2px);
-  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .app.dark .hint-arrow {
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.35);
 }
 
-/* Legend hint: label above, arrow below pointing DOWN at the legend. */
-.hint-legend {
-  flex-direction: column;
-  gap: 6px;
-}
-
+/* Legend hint: card above the legend, ⤵ glyph inside the label points
+   the user's eye down at the legend itself. */
 .hint-legend.bottom-left {
   bottom: 330px;
   left: 18px;
-  align-items: flex-start;
   text-align: left;
 }
 
 .hint-legend.bottom-right {
   bottom: 330px;
   right: 18px;
-  align-items: flex-end;
   text-align: right;
 }
 
@@ -674,7 +667,6 @@ body,
   left: 50%;
   right: auto;
   transform: translateX(-50%);
-  align-items: center;
   text-align: center;
 }
 
