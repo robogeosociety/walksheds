@@ -603,46 +603,27 @@ body,
 .hint-label {
   display: inline-block;
   font-family: 'Architects Daughter', 'Comic Sans MS', cursive;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 400;
   line-height: 1.4;
   max-width: 240px;
   color: inherit;
-  padding: 8px 14px;
-  border: 1.5px dashed currentColor;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(2px);
-  box-shadow: 0 2px 6px rgba(10, 37, 64, 0.12);
+  padding: 4px 10px;
+  border-radius: 10px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
-.app.dark .hint-label {
-  background: rgba(10, 20, 35, 0.72);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-}
-
-/* kbd-styled glyph chip matching the junction-turn arrows on the station
-   pill (.pill-hint kbd). Inlined at the end of each label so the arrow
-   flows with the text inside the card. */
+/* Inline glyph at the end of each label — no chrome, just the character
+   so it reads as the final token of the sentence on the same blurred
+   transparent layer as the text. */
 .hint-arrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  margin-inline-start: 6px;
-  vertical-align: -7px;
-  border: 1.5px solid currentColor;
-  border-radius: 6px;
   font-family: inherit;
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
   color: inherit;
-  background: rgba(255, 255, 255, 0.6);
-}
-
-.app.dark .hint-arrow {
-  background: rgba(0, 0, 0, 0.35);
+  margin-inline-start: 4px;
+  vertical-align: -3px;
 }
 
 /* Legend hint: card above the legend, ⤵ glyph inside the label points
