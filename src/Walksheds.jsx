@@ -626,6 +626,7 @@ export default function Walksheds() {
         <HintOverlay
           legendPosition={legendPosition}
           legendCollapsed={legendCollapsed}
+          hasActiveFilters={activeFilters.size > 0}
         />
       )}
     </div>
