@@ -8,40 +8,31 @@ circles (Line 1 green + Line 2 blue) centered at the station's projected
 coordinate. Light and dark variants use the actual Mapbox Standard basemap
 land tones (sampled from walksheds.xyz) for the background.
 
-Two phases, mirroring data/pois/fetch_pois.py:
-
-  1. Refresh (network): --refresh hits the Mapbox Isochrone API with all three
-     contours in a single request and writes data/icons/raw/uw-walksheds.geojson.
-  2. Build (no network, default): reads the committed raw GeoJSON, renders
-     two SVG variants, rasterizes to PNGs under public/.
+Reads from the canonical walksheds dump at data/pois/raw/walksheds.json.gz
+(maintained by data/pois/fetch_walksheds.py — refresh it there to pick up
+new Mapbox data). This script is build-only; no network.
 
 System requirement: cairosvg (and libcairo). Install via `pip install cairosvg`.
-The token for --refresh is read from VITE_MAPBOX_ACCESS_TOKEN in .env, or from
-the MAPBOX_TOKEN environment variable.
 
 Usage:
-  python3 data/icons/fetch_app_icon.py            # build from committed GeoJSON
-  python3 data/icons/fetch_app_icon.py --refresh  # refetch isochrones, then build
+  python3 data/icons/fetch_app_icon.py   # rebuild PNGs from the committed dump
 """
 
 import argparse
+import gzip
 import json
 import math
-import os
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 import cairosvg
 
 ROOT = Path(__file__).resolve().parents[2]
-RAW_PATH = ROOT / "data" / "icons" / "raw" / "uw-walksheds.geojson"
+WALKSHEDS_DUMP = ROOT / "data" / "pois" / "raw" / "walksheds.json.gz"
 OUT_DIR = ROOT / "public"
 
 # University of Washington Station — shared station 48, intersection of Lines 1
-# and 2. Coordinates match public/all-stations.geojson.
-STATION_LNG = -122.303763015652
-STATION_LAT = 47.6498150806149
+# and 2. Key in walksheds.json.gz disambiguates the two stopCode 54 stations.
+STATION_KEY = "1,2-48"
 MINUTES = [5, 10, 15]
 
 # Colors
@@ -75,68 +66,30 @@ DARK_RING_W_FRAC = 0.008      # white separator ring around circles in dark vari
 EXPORT_SIZES = [180, 512]     # iOS standard + high-DPI fallback
 
 
-def fetch_mapbox_isochrones(token: str) -> dict:
-    """Call the Mapbox Isochrone API (same URL as src/mapbox.js:11) with all contours."""
-    minutes_str = ",".join(str(m) for m in MINUTES)
-    url = (
-        "https://api.mapbox.com/isochrone/v1/mapbox/walking/"
-        f"{STATION_LNG},{STATION_LAT}"
-        f"?contours_minutes={minutes_str}&polygons=true"
-        f"&access_token={urllib.parse.quote(token, safe='')}"
-    )
-    # The shared public token is URL-restricted; send the production Referer so
-    # the request matches the deployed app's calling context.
-    req = urllib.request.Request(url, headers={"Referer": "https://walksheds.xyz/"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        if resp.status != 200:
-            raise SystemExit(f"Mapbox returned HTTP {resp.status}")
-        return json.loads(resp.read())
+def load_station_and_contours():
+    """Read UW's isochrones + station coords from the shared walksheds dump.
 
-
-def read_token() -> str:
-    tok = os.environ.get("MAPBOX_TOKEN") or os.environ.get("VITE_MAPBOX_ACCESS_TOKEN")
-    if tok:
-        return tok
-    env_path = ROOT / ".env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line.startswith("VITE_MAPBOX_ACCESS_TOKEN"):
-                _, _, val = line.partition("=")
-                return val.strip().strip('"').strip("'")
-    raise SystemExit(
-        "No Mapbox token found. Set MAPBOX_TOKEN env var, or put "
-        "VITE_MAPBOX_ACCESS_TOKEN=... in .env at the repo root."
-    )
-
-
-def refresh() -> None:
-    token = read_token()
-    geojson = fetch_mapbox_isochrones(token)
-    # Strip Mapbox's default styling props; keep only what identifies each contour.
-    for f in geojson.get("features", []):
-        props = f.get("properties") or {}
-        f["properties"] = {k: props[k] for k in ("contour", "metric") if k in props}
-    RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
-    RAW_PATH.write_text(json.dumps(geojson, separators=(",", ":")))
-    print(f"wrote {RAW_PATH.relative_to(ROOT)} ({RAW_PATH.stat().st_size} bytes)")
-
-
-def load_contours() -> dict[int, list[list[tuple[float, float]]]]:
-    """Return {minutes: [ring, ring, ...]} where each ring is (lng, lat) tuples."""
-    if not RAW_PATH.exists():
+    Returns (lng, lat, {minutes: [ring, ring, ...]}) where each ring is a list
+    of (lng, lat) tuples.
+    """
+    if not WALKSHEDS_DUMP.exists():
         raise SystemExit(
-            f"Missing {RAW_PATH.relative_to(ROOT)}. Run with --refresh first."
+            f"Missing {WALKSHEDS_DUMP.relative_to(ROOT)}. "
+            "Run `python3 data/pois/fetch_walksheds.py --refresh` first."
         )
-    data = json.loads(RAW_PATH.read_text())
+    with gzip.open(WALKSHEDS_DUMP) as f:
+        dump = json.load(f)
+    entry = dump["walksheds"].get(STATION_KEY)
+    if not entry:
+        raise SystemExit(f"Station key {STATION_KEY!r} not found in walksheds dump.")
+    station = entry["station"]
     contours: dict[int, list[list[tuple[float, float]]]] = {}
-    for f in data["features"]:
-        minutes = int(f["properties"]["contour"])
-        geom = f["geometry"]
+    for feat in entry["features"]:
+        minutes = int(feat["properties"]["contour"])
+        geom = feat["geometry"]
         if geom["type"] == "Polygon":
             rings = [[(c[0], c[1]) for c in ring] for ring in geom["coordinates"]]
         elif geom["type"] == "MultiPolygon":
-            # Pick the polygon with the largest outer ring.
             biggest = max(geom["coordinates"], key=lambda p: len(p[0]))
             rings = [[(c[0], c[1]) for c in ring] for ring in biggest]
         else:
@@ -144,8 +97,8 @@ def load_contours() -> dict[int, list[list[tuple[float, float]]]]:
         contours[minutes] = rings
     missing = [m for m in MINUTES if m not in contours]
     if missing:
-        raise SystemExit(f"Raw file is missing contours: {missing}")
-    return contours
+        raise SystemExit(f"Walksheds dump for {STATION_KEY} is missing contours: {missing}")
+    return station["lng"], station["lat"], contours
 
 
 def project(points, lat0):
@@ -161,11 +114,11 @@ def project(points, lat0):
 
 
 def build_svg(variant: str) -> str:
-    contours = load_contours()
+    station_lng, station_lat, contours = load_station_and_contours()
 
     # Fit everything to the outermost (15-min) bbox so it defines the icon framing.
     outer_flat = [pt for ring in contours[max(MINUTES)] for pt in ring]
-    projected_outer = project(outer_flat, STATION_LAT)
+    projected_outer = project(outer_flat, station_lat)
     xs = [p[0] for p in projected_outer]
     ys = [p[1] for p in projected_outer]
     bbox_w = max(xs) - min(xs)
@@ -182,7 +135,7 @@ def build_svg(variant: str) -> str:
 
     def project_rings_to_path(rings):
         flat = [pt for ring in rings for pt in ring]
-        projected = project(flat, STATION_LAT)
+        projected = project(flat, station_lat)
         parts = []
         idx = 0
         for ring in rings:
@@ -205,7 +158,7 @@ def build_svg(variant: str) -> str:
 
     # Two circles centered at the actual station coordinate (not bbox center —
     # walking-network asymmetry means the station isn't centered in its walkshed).
-    station_canvas = to_canvas(project([(STATION_LNG, STATION_LAT)], STATION_LAT)[0])
+    station_canvas = to_canvas(project([(station_lng, station_lat)], station_lat)[0])
     sx, sy = station_canvas
     r = CIRCLE_R_FRAC * CANVAS
     gap = CIRCLE_GAP_FRAC * CANVAS
@@ -269,11 +222,7 @@ def build() -> None:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--refresh", action="store_true",
-                    help="Refetch the isochrones from Mapbox before building.")
-    args = ap.parse_args()
-    if args.refresh:
-        refresh()
+    ap.parse_args()
     build()
 
 

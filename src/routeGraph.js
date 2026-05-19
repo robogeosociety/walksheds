@@ -145,6 +145,42 @@ export function isJunction(graph, stationName) {
 }
 
 /**
+ * If `stationName` is the start or end of either line order, return the
+ * cardinal direction the line "points off the map" in (as the arrow key
+ * the user can no longer travel) and which lines terminate here.
+ * Returns null for non-terminus stations.
+ *
+ * Direction is the bearing _from_ the only on-line neighbor _to_ the
+ * terminus station — i.e. the direction the train was moving as it
+ * pulled into the last stop. Local-segment-based so the orientation
+ * matches the actual rail approach (Marymoor Village → Downtown Redmond
+ * runs north, even though Line 2 "goes east" overall).
+ */
+export function getTerminusInfo(graph, stationName) {
+  const node = graph.get(stationName)
+  if (!node || node.neighbors.length === 0) return null
+
+  const lines = []
+  if (LINE_1_ORDER[0] === stationName || LINE_1_ORDER[LINE_1_ORDER.length - 1] === stationName) lines.push('1-line')
+  if (LINE_2_ORDER[0] === stationName || LINE_2_ORDER[LINE_2_ORDER.length - 1] === stationName) lines.push('2-line')
+  if (lines.length === 0) return null
+
+  const neighbor = node.neighbors[0]
+  const b = bearing(neighbor.coords[0], neighbor.coords[1], node.coords[0], node.coords[1])
+  let bestKey = null
+  let bestDiff = Infinity
+  for (const [arrow, target] of Object.entries(ARROW_BEARINGS)) {
+    const diff = angleDiff(b, target)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      bestKey = arrow
+    }
+  }
+
+  return { arrowKey: bestKey, lines }
+}
+
+/**
  * Get directional hints for a junction station.
  * Returns hints for the diverging directions only (not the shared north direction).
  */
@@ -191,36 +227,52 @@ export function getJunctionHints(graph, stationName) {
 }
 
 /**
- * Navigate to next station, preferring the current line.
- * Returns { name, line } or null.
+ * Bin a bearing (0–360°) to the nearest cardinal arrow key. Ties (e.g. 45°
+ * between Up and Right) resolve to whichever entry comes first in
+ * ARROW_BEARINGS, which is Up → Right → Down → Left.
+ */
+function nearestCardinal(b) {
+  let best = null
+  let bestDiff = Infinity
+  for (const [arrow, target] of Object.entries(ARROW_BEARINGS)) {
+    const diff = angleDiff(b, target)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = arrow
+    }
+  }
+  return best
+}
+
+/**
+ * Navigate to the next station in the direction of `arrowKey`.
+ *
+ * Only neighbors whose bearing's *nearest cardinal* matches `arrowKey`
+ * are eligible — so at Pioneer Square (north + south neighbors only) a
+ * left/right swipe returns null and the caller can let the gesture fall
+ * through to map panning. At Chinatown the same logic admits both south
+ * (Line 1 to Stadium) and east (Line 2 to Judkins Park) as separate
+ * arrow-key results, which is exactly the junction behavior we want.
+ *
+ * When multiple neighbors share the same cardinal (a shared-trunk
+ * station has duplicate up/down neighbors, one per line), prefer the
+ * one matching `currentLine`.
  */
 export function getNextStation(graph, currentStationName, arrowKey, currentLine) {
-  const targetBearing = ARROW_BEARINGS[arrowKey]
-  if (targetBearing === undefined) return null
-
+  if (ARROW_BEARINGS[arrowKey] === undefined) return null
   const current = graph.get(currentStationName)
   if (!current || current.neighbors.length === 0) return null
 
-  let bestName = null
-  let bestLine = null
+  let best = null
   let bestScore = Infinity
-
   for (const neighbor of current.neighbors) {
     const b = bearing(current.coords[0], current.coords[1], neighbor.coords[0], neighbor.coords[1])
-    const diff = angleDiff(b, targetBearing)
-    if (diff > 90) continue
-
-    // Prefer staying on current line
+    if (nearestCardinal(b) !== arrowKey) continue
     const lineBonus = (currentLine && neighbor.line === currentLine) ? -0.1 : 0
-    const score = diff + lineBonus
-
-    if (score < bestScore) {
-      bestScore = score
-      bestName = neighbor.name
-      bestLine = neighbor.line
+    if (lineBonus < bestScore) {
+      bestScore = lineBonus
+      best = { name: neighbor.name, line: neighbor.line }
     }
   }
-
-  if (!bestName) return null
-  return { name: bestName, line: bestLine }
+  return best
 }
