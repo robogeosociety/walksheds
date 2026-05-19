@@ -546,13 +546,6 @@ body,
   border-left-color: rgba(255, 255, 255, 0.15);
 }
 
-.pill-badge-glyph {
-  font-size: 16px;
-  line-height: 1;
-  font-weight: 700;
-  font-family: -apple-system, "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", system-ui, sans-serif;
-}
-
 .pill-badge-arrow {
   display: block;
   flex-shrink: 0;
