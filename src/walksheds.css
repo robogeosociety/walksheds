@@ -614,26 +614,22 @@ body,
   -webkit-backdrop-filter: blur(4px);
 }
 
-/* Inline glyph at the end of each label — no chrome, just the character
-   so it reads as the final token of the sentence on the same blurred
-   transparent layer as the text. */
+/* Hand-drawn SVG arrows inline with the label text. Sized to match the
+   cap-height of the surrounding sentence so they read as part of the
+   text flow on the same blurred transparent layer. */
 .hint-arrow {
   display: inline-block;
-  font-family: inherit;
-  font-size: 22px;
-  line-height: 1;
   color: inherit;
-  margin-inline-start: 4px;
   vertical-align: -3px;
 }
 
-/* Leading variant: arrow sits to the LEFT of the text and is flipped
-   horizontally so its tail comes from the right and the tip lands
-   bottom-left toward the (centered) collapsed legend pill below. */
-.hint-arrow-leading {
-  margin-inline-start: 0;
-  margin-inline-end: 4px;
-  transform: scaleX(-1);
+.hint-arrow-right {
+  margin-inline-start: 6px;
+}
+
+.hint-arrow-down {
+  margin-inline-start: 6px;
+  vertical-align: -10px;
 }
 
 /* Legend hint: card above the legend, ⤵ glyph inside the label points
@@ -661,61 +657,73 @@ body,
   text-align: center;
 }
 
-/* Search hint: label left, arrow right pointing RIGHT at the search box. */
+/* Right-column hints — each card sits to the LEFT of the search/pills/
+   filter column with an inline arrow pointing right at its target. The
+   .poi-search container is a fixed 220px wide (180px on phones), so the
+   `right` offset clears it on every viewport.
+
+   On wide screens the labels are wide enough to stay on a single line,
+   so the trailing arrow sits next to the label's own vertical center,
+   which keeps it aligned with the target row even when the rows are
+   stacked tightly. */
 .hint-search {
-  top: 12px;
-  right: 240px;
+  top: 18px;
+  right: 250px;
   text-align: right;
 }
 
 .hint-search .hint-label {
-  max-width: 220px;
+  max-width: 360px;
 }
 
-/* Pills hint: label left, arrow right pointing RIGHT at the pills row.
-   Sits well below the search hint to keep visual separation between
-   the four cards. */
 .hint-pills {
-  top: 96px;
-  right: 290px;
+  top: 58px;
+  right: 250px;
   text-align: right;
 }
 
 .hint-pills .hint-label {
-  max-width: 220px;
+  max-width: 380px;
 }
 
-/* Filter hint: label left, arrow right pointing RIGHT at the attribute
-   checkbox list (rendered below the pills row when activeFilters is
-   non-empty). */
 .hint-filters {
-  top: 180px;
-  right: 240px;
+  top: 122px;
+  right: 250px;
   text-align: right;
 }
 
 .hint-filters .hint-label {
-  max-width: 220px;
+  max-width: 440px;
 }
 
-@media (max-width: 900px) {
-  .hint-label { font-size: 16px; padding: 5px 10px; }
-  .hint-search  { right: 220px; top: 12px;  }
-  .hint-pills   { right: 260px; top: 86px;  }
-  .hint-filters { right: 220px; top: 162px; }
-  .hint-search .hint-label,
-  .hint-pills .hint-label,
-  .hint-filters .hint-label { max-width: 180px; }
+/* Tablet / phone-landscape (640–1024px): same fixed search-column
+   width and enough horizontal room to keep labels on a single line. */
+@media (max-width: 1024px) {
+  .hint-label { font-size: 16px; }
+  .hint-search  { top: 22px;  right: 250px; }
+  .hint-pills   { top: 60px;  right: 250px; }
+  .hint-filters { top: 122px; right: 250px; }
+  .hint-search .hint-label  { max-width: 320px; }
+  .hint-pills .hint-label   { max-width: 340px; }
+  .hint-filters .hint-label { max-width: 400px; }
   .hint-legend.bottom-left  { left: 14px; bottom: 300px; }
   .hint-legend.bottom-right { right: 14px; bottom: 300px; }
 }
 
+/* Phone portrait (< 540px): the search column shrinks to 180px and
+   leaves only ~200px to the left of it. Stack hints in that narrow
+   column with tightly-wrapped labels and small font. */
 @media (max-width: 540px) {
-  /* Narrow viewports: drop the side-by-side layout, stack the hints
-     centered with arrows still pointing right. */
-  .hint-search  { top: 12px;  right: 80px; }
-  .hint-pills   { top: 80px;  right: 80px; }
-  .hint-filters { top: 150px; right: 80px; }
+  .hint-label { font-size: 14px; line-height: 1.3; padding: 3px 8px; }
+  .hint-search  { top: 8px;   right: 200px; }
+  .hint-pills   { top: 56px;  right: 200px; }
+  .hint-filters { top: 116px; right: 200px; }
+  .hint-search .hint-label,
+  .hint-pills .hint-label,
+  .hint-filters .hint-label { max-width: 160px; }
+  .hint-legend.bottom-left  { left: 10px;  bottom: 280px; }
+  .hint-legend.bottom-right { right: 10px; bottom: 280px; }
+  .hint-arrow { font-size: 18px; }
 }
 
 /* ── Mapbox overrides ── */
