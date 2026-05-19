@@ -1,5 +1,16 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 
+// Mirror data/pois/fetch_pois.py:_normalize so search queries like "hot dog",
+// "café", or "drive thru" reach the hyphenated canonical tags / alias keys.
+function normalizeQuery(value) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\s_]+/g, '-')
+}
+
 export default function POISearch({
   availableTags,
   activeFilters,
@@ -66,7 +77,7 @@ export default function POISearch({
     if (!query.trim()) {
       return filtered.slice(0, 8).map(t => ({ ...t, label: t.tag }))
     }
-    const q = query.trim().toLowerCase()
+    const q = normalizeQuery(query)
     const out = []
     for (const t of filtered) {
       // Direct hit on the canonical tag wins — show the tag itself.
