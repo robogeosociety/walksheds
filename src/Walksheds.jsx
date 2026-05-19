@@ -265,6 +265,18 @@ export default function Walksheds() {
     [walkshedPois, tagColors],
   )
 
+  // Global (city-wide) tag list, for the search fallback when the typed term
+  // doesn't match anything in the current walkshed — surfaces the tag as
+  // "not in walkshed" instead of an empty dropdown.
+  const globalAvailableTags = useMemo(() => {
+    const features = []
+    for (const cat of POI_FILES) {
+      const fc = poiData[cat]
+      if (fc?.features) features.push(...fc.features)
+    }
+    return getAvailableTags(features, tagColors)
+  }, [poiData, tagColors])
+
   const spotlightsById = useMemo(() => {
     const out = {}
     for (const c of MAIN_POI_CATEGORIES) out[c.id] = c
@@ -560,6 +572,7 @@ export default function Walksheds() {
       {Object.keys(poiData).length > 0 && (
         <POISearch
           availableTags={availableTags}
+          globalAvailableTags={globalAvailableTags}
           activeCategories={activeCategories}
           activeFilters={activeFilters}
           poiFeatures={walkshedPois.features}
