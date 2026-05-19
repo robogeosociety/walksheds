@@ -1167,5 +1167,12 @@
     "wings": "cuisine",
     "wrap": "cuisine",
     "yoga": "sport"
-  }
+  },
+  "filter_tag_categories": [
+    "service",
+    "diet",
+    "accessibility",
+    "family",
+    "vibe"
+  ]
 }

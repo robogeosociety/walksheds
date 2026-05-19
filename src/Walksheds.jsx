@@ -4,7 +4,7 @@ import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './map
 import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
-import { filterPOIsInWalkshed, filterByMainCategoriesAndTags, getAvailableTags, mergeFeatureCollections } from './poiUtils'
+import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags, mergeFeatureCollections } from './poiUtils'
 import { useNavigation } from './useNavigation'
 import MapView from './MapView'
 import LineLegend from './LineLegend'
@@ -103,8 +103,14 @@ export default function Walksheds() {
   const [introVisible, setIntroVisible] = useState(() => shouldShowIntro())
   const [poiData, setPoiData] = useState({})
   const [tagCategories, setTagCategories] = useState(null)
-  const [poiFilters, setPoiFilters] = useState(new Set())
-  const [enabledCategories, setEnabledCategories] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
+  // Three independent state sets per the category/filter/spotlight model
+  // (see README.md → "POI selection logic"):
+  //   - enabledSpotlights: curated pill ids from MAIN_POI_CATEGORIES
+  //   - activeCategories:  user-added POI-type tags (shown as pills)
+  //   - activeFilters:     user-added attribute tags (shown as checkboxes)
+  const [activeCategories, setActiveCategories] = useState(new Set())
+  const [activeFilters, setActiveFilters] = useState(new Set())
+  const [enabledSpotlights, setEnabledSpotlights] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
   const [poiPopup, setPoiPopup] = useState(null)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
   const mapViewRef = useRef(null)
@@ -163,9 +169,10 @@ export default function Walksheds() {
       const base = import.meta.env.BASE_URL
       const lineNum = line.replace('-line', '')
       const schema = tagCategories?.filter_schema
+      const mergedTags = new Set([...activeCategories, ...activeFilters])
       const path = buildStationPath(lineNum, stopCode, base) + combineQuery(
         buildWalkshedParams(enabledWalksheds),
-        buildPoiFilterParam(enabledCategories, poiFilters, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
+        buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
       )
       window.history.replaceState(null, '', path)
     }
@@ -195,7 +202,7 @@ export default function Walksheds() {
       setLegendPosition(computeLegendPosition(map, results, enabledWalksheds))
       setAutoCollapsed(legendOverlapsWalkshed(map, results, enabledWalksheds))
     })
-  }, [stationsData, enabledWalksheds, enabledCategories, poiFilters, tagCategories])
+  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories])
 
   // Re-fit map when walkshed toggles change
   useEffect(() => {
@@ -241,24 +248,40 @@ export default function Walksheds() {
     [walkshedPois, tagColors],
   )
 
-  const mainCategoriesById = useMemo(() => {
+  const spotlightsById = useMemo(() => {
     const out = {}
     for (const c of MAIN_POI_CATEGORIES) out[c.id] = c
     return out
   }, [])
 
+  // Set of category ids whose tags should be treated as cross-cutting filters
+  // (rendered as checkboxes, AND'd on top of the category union). Sourced from
+  // tag-categories.json so the build pipeline owns the boundary.
+  const filterCategoryIds = useMemo(
+    () => new Set(tagCategories?.filter_tag_categories || []),
+    [tagCategories],
+  )
+
+  // Decide whether a tag is a "filter" (attribute) or "category" (POI type)
+  // by looking up its bucket in the manifest. Unknown tags default to
+  // category — the safer/more visible bucket.
+  const isFilterTag = useCallback((tag) => {
+    const catId = tagCategories?.tag_to_category?.[tag]
+    return catId ? filterCategoryIds.has(catId) : false
+  }, [tagCategories, filterCategoryIds])
+
   const visiblePois = useMemo(() => {
-    const filtered = filterByMainCategoriesAndTags(
-      walkshedPois.features,
-      enabledCategories,
-      poiFilters,
-      mainCategoriesById,
-    )
+    const filtered = filterByCategoriesAndFilters(walkshedPois.features, {
+      enabledSpotlights,
+      activeCategories,
+      activeFilters,
+      spotlightsById,
+    })
     return { type: 'FeatureCollection', features: filtered }
-  }, [walkshedPois, enabledCategories, poiFilters, mainCategoriesById])
+  }, [walkshedPois, enabledSpotlights, activeCategories, activeFilters, spotlightsById])
 
   const handleToggleCategory = useCallback((catId) => {
-    setEnabledCategories(prev => {
+    setEnabledSpotlights(prev => {
       const next = new Set(prev)
       if (next.has(catId)) next.delete(catId)
       else next.add(catId)
@@ -266,9 +289,15 @@ export default function Walksheds() {
     })
   }, [])
 
+  // Route a tag from the search dropdown into the right bucket. Filter-kind
+  // tags become checkboxes; category-kind tags become pills.
   const handleAddPoiFilter = useCallback((tag) => {
-    setPoiFilters(prev => new Set([...prev, tag]))
-  }, [])
+    if (isFilterTag(tag)) {
+      setActiveFilters(prev => new Set([...prev, tag]))
+    } else {
+      setActiveCategories(prev => new Set([...prev, tag]))
+    }
+  }, [isFilterTag])
 
   const fitToWalkshed = useCallback(() => {
     setPoiPopup(null)
@@ -279,17 +308,18 @@ export default function Walksheds() {
   }, [walksheds, enabledWalksheds])
 
   const handleRemovePoiFilter = useCallback((tag) => {
-    setPoiFilters(prev => {
+    const setter = isFilterTag(tag) ? setActiveFilters : setActiveCategories
+    setter(prev => {
       const next = new Set(prev)
       next.delete(tag)
-      if (next.size === 0) fitToWalkshed()
       return next
     })
-  }, [fitToWalkshed])
+  }, [isFilterTag])
 
   const handleClearPoiFilters = useCallback(() => {
-    setPoiFilters(new Set())
-    setEnabledCategories(new Set())
+    setActiveCategories(new Set())
+    setActiveFilters(new Set())
+    setEnabledSpotlights(new Set())
     fitToWalkshed()
   }, [fitToWalkshed])
 
@@ -378,7 +408,9 @@ export default function Walksheds() {
     queueMicrotask(() => selectStation(station.name, station.lng, station.lat, station.line))
   }, [stationsData, selectStation])
 
-  // Sync walkshed + POI filter query params when toggles change
+  // Sync walkshed + POI filter query params when toggles change. The URL
+  // codec uses a single tag namespace, so categories and filters are merged
+  // here and routed back on parse.
   useEffect(() => {
     if (!selectedStationRef.current) return
     const feat = stationsData?.features.find(f => f.properties.name === selectedStationRef.current.name)
@@ -387,27 +419,35 @@ export default function Walksheds() {
     const lineNum = currentLine?.replace('-line', '')
     if (!lineNum) return
     const schema = tagCategories?.filter_schema
+    const mergedTags = new Set([...activeCategories, ...activeFilters])
     const path = buildStationPath(lineNum, feat.properties.stopCode, base) + combineQuery(
       buildWalkshedParams(enabledWalksheds),
-      buildPoiFilterParam(enabledCategories, poiFilters, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
+      buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
     )
     window.history.replaceState(null, '', path)
-  }, [enabledWalksheds, enabledCategories, poiFilters, stationsData, currentLine, tagCategories])
+  }, [enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, stationsData, currentLine, tagCategories])
 
   // Restore POI filter state from `?pois=` once the schema is loaded.
-  // Runs once; does not call replaceState so the original URL stays until the
-  // user makes a change. Defers setState to a microtask to satisfy
-  // react-hooks/set-state-in-effect.
+  // Splits the parsed tag set into categories vs filters by the tag's
+  // category-bucket — backward-compatible with URLs minted before this split.
   useEffect(() => {
     if (!tagCategories || poisResolvedRef.current) return
     poisResolvedRef.current = true
     const parsed = parsePoiFilterParam(window.location.search, tagCategories.filter_schema)
     if (!parsed) return
     queueMicrotask(() => {
-      if (parsed.categories.size) setEnabledCategories(parsed.categories)
-      if (parsed.tags.size) setPoiFilters(parsed.tags)
+      if (parsed.categories.size) setEnabledSpotlights(parsed.categories)
+      if (parsed.tags.size) {
+        const cats = new Set()
+        const filts = new Set()
+        for (const t of parsed.tags) {
+          (isFilterTag(t) ? filts : cats).add(t)
+        }
+        if (cats.size) setActiveCategories(cats)
+        if (filts.size) setActiveFilters(filts)
+      }
     })
-  }, [tagCategories])
+  }, [tagCategories, isFilterTag])
 
   useNavigation({
     graphRef,
@@ -471,7 +511,8 @@ export default function Walksheds() {
       {Object.keys(poiData).length > 0 && (
         <POISearch
           availableTags={availableTags}
-          activeFilters={poiFilters}
+          activeCategories={activeCategories}
+          activeFilters={activeFilters}
           poiFeatures={walkshedPois.features}
           expandedTag={expandedPoiTag}
           onExpandTag={setExpandedPoiTag}
@@ -480,7 +521,7 @@ export default function Walksheds() {
           onClearFilters={handleClearPoiFilters}
           onPoiSelect={handlePoiClick}
           mainCategories={MAIN_POI_CATEGORIES}
-          enabledCategories={enabledCategories}
+          enabledCategories={enabledSpotlights}
           onToggleCategory={handleToggleCategory}
           tagAliases={tagCategories?.filter_schema?.aliases}
           onCommit={focusMap}

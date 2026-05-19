@@ -104,44 +104,48 @@ export const POI_FILES = [
   'lodging', 'shops', 'healthcare', 'services', 'fitness',
 ]
 
-// Always-visible main category toggles. Each pill matches POIs by raw OSM
-// `properties.category` value and/or by `properties.tags` membership.
+// Always-visible "spotlight" category pills. Each pill matches POIs by raw
+// OSM `properties.category` value and/or by `properties.tags` membership.
 // Order is driven by `mainCategories.json` (shared with the Python pipeline so
 // the filter-schema hash stays in sync).
 //
-// `EVERYTHING_CATEGORY_ID` is a sentinel: when present in the enabled set,
-// `filterByMainCategoriesAndTags` short-circuits and returns every feature
-// regardless of other pill / tag state.
+// The `everything` spotlight carries `matchAll: true` — when enabled it
+// short-circuits the category pool to every feature in the walkshed. Active
+// filters still AND on top.
 export const EVERYTHING_CATEGORY_ID = 'everything'
 
 const MAIN_POI_CATEGORY_DEFS = {
   everything: {
     label: 'everything',
     color: '#5a6c7d',
-    matchCategories: [],
-    matchTags: [],
+    spotlight: true,
+    matchAll: true,
   },
   restaurants: {
     label: 'restaurants',
     color: '#E67E22',
+    spotlight: true,
     matchCategories: ['restaurant', 'fast_food', 'ice_cream', 'bakery'],
     matchTags: [],
   },
   bars: {
     label: 'bars',
     color: '#9B59B6',
+    spotlight: true,
     matchCategories: ['bar', 'pub'],
     matchTags: ['brewery', 'winery', 'distillery', 'has-bar'],
   },
   coffee: {
     label: 'coffee',
     color: '#7B4A2A',
+    spotlight: true,
     matchCategories: ['cafe'],
     matchTags: ['coffee', 'coffee-shop', 'coffee-roaster'],
   },
   parks: {
     label: 'parks',
     color: '#2ECC71',
+    spotlight: true,
     matchCategories: ['park', 'playground', 'garden'],
     matchTags: [],
   },

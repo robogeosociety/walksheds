@@ -8,7 +8,9 @@ function renderSearch(overrides = {}) {
       { tag: 'cannabis', count: 4, color: '#aaa' },
       { tag: 'pizza', count: 12, color: '#bbb' },
       { tag: 'coffee', count: 22, color: '#ccc' },
+      { tag: 'child-friendly', count: 7, color: '#ddd' },
     ],
+    activeCategories: new Set(),
     activeFilters: new Set(),
     poiFeatures: [],
     expandedTag: null,
@@ -158,5 +160,64 @@ describe('POISearch alias-aware matching', () => {
     })
     // One row per canonical, regardless of how many of its aliases match.
     expect(dropdownTags().length).toBe(1)
+  })
+})
+
+describe('POISearch category pills vs filter checkboxes', () => {
+  it('renders an active category as a pill (not a checkbox row)', () => {
+    renderSearch({
+      activeCategories: new Set(['pizza']),
+      activeFilters: new Set(),
+    })
+    expect(document.querySelector('.poi-cat-pill-tag')).toBeTruthy()
+    expect(document.querySelector('.poi-filter-row')).toBeNull()
+  })
+
+  it('renders an active filter as a checkbox row (not a pill)', () => {
+    renderSearch({
+      activeCategories: new Set(),
+      activeFilters: new Set(['child-friendly']),
+    })
+    const row = document.querySelector('.poi-filter-row')
+    expect(row).toBeTruthy()
+    expect(row.textContent).toMatch(/child-friendly/)
+    expect(document.querySelector('.poi-cat-pill-tag')).toBeNull()
+  })
+
+  it('checkbox is initially checked and clicking it calls onRemoveFilter with the tag', () => {
+    const onRemoveFilter = vi.fn()
+    renderSearch({
+      activeFilters: new Set(['child-friendly']),
+      onRemoveFilter,
+    })
+    const checkbox = document.querySelector('.poi-filter-checkbox')
+    expect(checkbox).toBeTruthy()
+    expect(checkbox.checked).toBe(true)
+    fireEvent.click(checkbox)
+    expect(onRemoveFilter).toHaveBeenCalledWith('child-friendly')
+  })
+
+  it('renders both a pill row and a filter row when both are active', () => {
+    renderSearch({
+      activeCategories: new Set(['pizza']),
+      activeFilters: new Set(['child-friendly']),
+    })
+    expect(document.querySelector('.poi-cat-pill-tag')).toBeTruthy()
+    expect(document.querySelector('.poi-filter-row')).toBeTruthy()
+  })
+
+  it('search dropdown hides tags already pinned in either bucket', () => {
+    renderSearch({
+      activeCategories: new Set(['pizza']),
+      activeFilters: new Set(['child-friendly']),
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: '' },
+    })
+    // Dropdown shows up to 8 tags from availableTags minus pinned ones —
+    // pizza and child-friendly should be filtered out.
+    const labels = dropdownTags()
+    expect(labels).not.toContain('pizza')
+    expect(labels).not.toContain('child-friendly')
   })
 })

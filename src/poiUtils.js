@@ -2,8 +2,6 @@
  * POI filtering utilities — point-in-polygon, tag aggregation, and filter logic.
  */
 
-import { EVERYTHING_CATEGORY_ID } from './constants'
-
 /**
  * Ray-casting point-in-polygon test.
  * @param {[number, number]} point - [lng, lat]
@@ -84,54 +82,73 @@ export function filterByTags(features, activeTags) {
 }
 
 /**
- * Additive filter: a POI is visible if it matches an enabled main category
- * (by `properties.category` or by tag membership) OR if any of its tags is
- * in the active tag filters. With nothing enabled and no active filters,
- * returns an empty array (additive default).
+ * Decide which POI features are visible given the three independent inputs:
  *
- * The `everything` sentinel id (see EVERYTHING_CATEGORY_ID in constants)
- * short-circuits when present in enabledMainIds — all features pass.
+ *   - enabledSpotlights:  curated pill ids (restaurants, bars, coffee, parks,
+ *                         everything). A spotlight with matchAll=true short-
+ *                         circuits the category pool to every feature.
+ *   - activeCategories:   user-added POI-type tags (pizza, museum, …). These
+ *                         OR with the spotlight matches to form the pool.
+ *   - activeFilters:      cross-cutting attribute tags (child-friendly,
+ *                         vegan, wifi, …). Every active filter must be
+ *                         present on a feature (AND across the set).
  *
- * @param {Array} features - GeoJSON features
- * @param {Set<string>} enabledMainIds - main-category ids the user has activated
- * @param {Set<string>} activeTags - explicit tag filters
- * @param {Object} [mainCategoriesById] - map from id → { matchCategories[], matchTags[] }
+ * Truth table is documented in README.md → "POI selection logic".
+ *
+ * @param {Array} features
+ * @param {Object} opts
+ * @param {Set<string>} opts.enabledSpotlights
+ * @param {Set<string>} opts.activeCategories
+ * @param {Set<string>} opts.activeFilters
+ * @param {Object} opts.spotlightsById  - { [id]: { matchCategories[], matchTags[], matchAll? } }
  * @returns {Array} filtered features
  */
-export function filterByMainCategoriesAndTags(features, enabledMainIds, activeTags, mainCategoriesById) {
-  if (enabledMainIds && enabledMainIds.has(EVERYTHING_CATEGORY_ID)) return features
-  const hasMain = enabledMainIds && enabledMainIds.size > 0
-  const hasTags = activeTags && activeTags.size > 0
-  if (!hasMain && !hasTags) return []
+export function filterByCategoriesAndFilters(features, opts) {
+  const enabledSpotlights = opts.enabledSpotlights || new Set()
+  const activeCategories = opts.activeCategories || new Set()
+  const activeFilters = opts.activeFilters || new Set()
+  const spotlightsById = opts.spotlightsById || {}
 
+  let matchAll = false
   const matchCats = new Set()
-  const matchMainTags = new Set()
-  if (hasMain && mainCategoriesById) {
-    for (const id of enabledMainIds) {
-      const cat = mainCategoriesById[id]
-      if (!cat) continue
-      for (const c of cat.matchCategories || []) matchCats.add(c)
-      for (const t of cat.matchTags || []) matchMainTags.add(t)
-    }
+  const matchSpotlightTags = new Set()
+  for (const id of enabledSpotlights) {
+    const s = spotlightsById[id]
+    if (!s) continue
+    if (s.matchAll) { matchAll = true; continue }
+    for (const c of s.matchCategories || []) matchCats.add(c)
+    for (const t of s.matchTags || []) matchSpotlightTags.add(t)
   }
 
-  return features.filter(f => {
-    const props = f.properties || {}
-    const tags = props.tags
-    if (hasMain) {
-      if (props.category && matchCats.has(props.category)) return true
-      if (Array.isArray(tags)) {
-        for (const t of tags) {
-          if (matchMainTags.has(t)) return true
+  // Pool = features matching any category source (spotlight or activeCategory).
+  // matchAll short-circuits to every feature. If no category source is active,
+  // the pool is empty — preserves "empty pill bar ⇒ empty map" behaviour.
+  const hasAnyCat = matchAll || enabledSpotlights.size > 0 || activeCategories.size > 0
+  if (!hasAnyCat) return []
+
+  const pool = matchAll
+    ? features
+    : features.filter(f => {
+        const props = f.properties || {}
+        if (props.category && matchCats.has(props.category)) return true
+        const tags = props.tags
+        if (Array.isArray(tags)) {
+          for (const t of tags) {
+            if (matchSpotlightTags.has(t)) return true
+            if (activeCategories.has(t)) return true
+          }
         }
-      }
+        return false
+      })
+
+  if (activeFilters.size === 0) return pool
+  return pool.filter(f => {
+    const tags = f.properties?.tags
+    if (!Array.isArray(tags)) return false
+    for (const filt of activeFilters) {
+      if (!tags.includes(filt)) return false
     }
-    if (hasTags && Array.isArray(tags)) {
-      for (const t of tags) {
-        if (activeTags.has(t)) return true
-      }
-    }
-    return false
+    return true
   })
 }
 
