@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Generate the iOS home-screen icon from Westlake's real walking isochrone.
+"""Generate the iOS home-screen icon from UW Station's real walking isochrones.
 
-The icon = the 15-minute Mapbox walking isochrone outline for Westlake station,
-filled and stroked in the app's accent blue, with the two-line shared-station
+The icon = the 5/10/15-minute Mapbox walking isochrones for University of
+Washington station, stacked in the app's accent blue at the same opacities
+WalkshedLayers.jsx uses on the live map, with the two-line shared-station
 circles (Line 1 green + Line 2 blue) centered at the station's projected
 coordinate. Light and dark variants use the actual Mapbox Standard basemap
-land tones (sampled from walksheds.xyz) for the background, matching the
-in-app day/dusk presets.
+land tones (sampled from walksheds.xyz) for the background.
 
 Two phases, mirroring data/pois/fetch_pois.py:
 
-  1. Refresh (network): --refresh hits the Mapbox Isochrone API and writes
-     data/icons/raw/westlake-walkshed-15min.geojson.
+  1. Refresh (network): --refresh hits the Mapbox Isochrone API with all three
+     contours in a single request and writes data/icons/raw/uw-walksheds.geojson.
   2. Build (no network, default): reads the committed raw GeoJSON, renders
      two SVG variants, rasterizes to PNGs under public/.
 
@@ -21,14 +21,13 @@ the MAPBOX_TOKEN environment variable.
 
 Usage:
   python3 data/icons/fetch_app_icon.py            # build from committed GeoJSON
-  python3 data/icons/fetch_app_icon.py --refresh  # refetch isochrone, then build
+  python3 data/icons/fetch_app_icon.py --refresh  # refetch isochrones, then build
 """
 
 import argparse
 import json
 import math
 import os
-import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -36,14 +35,14 @@ from pathlib import Path
 import cairosvg
 
 ROOT = Path(__file__).resolve().parents[2]
-RAW_PATH = ROOT / "data" / "icons" / "raw" / "westlake-walkshed-15min.geojson"
+RAW_PATH = ROOT / "data" / "icons" / "raw" / "uw-walksheds.geojson"
 OUT_DIR = ROOT / "public"
 
-# Westlake Station — shared station 50, intersection of Lines 1 and 2.
-# Coordinates match public/all-stations.geojson.
-STATION_LNG = -122.336719986395
-STATION_LAT = 47.6115721588528
-MINUTES = 15
+# University of Washington Station — shared station 48, intersection of Lines 1
+# and 2. Coordinates match public/all-stations.geojson.
+STATION_LNG = -122.303763015652
+STATION_LAT = 47.6498150806149
+MINUTES = [5, 10, 15]
 
 # Colors
 ACCENT = "#0082C8"      # WALKSHED_ACCENT_LIGHT (matches src/constants.js)
@@ -51,27 +50,37 @@ LINE1_GREEN = "#4CAF50" # Line 1 — from data/process.py marker generation
 LINE2_BLUE = "#0082C8"  # Line 2 — same accent as the walkshed
 
 # Basemap land tones sampled from the live walksheds.xyz Mapbox Standard render
-# at z~13 over Westlake, day and dusk lightPresets.
+# at z~13, day and dusk lightPresets.
 BG_LIGHT = "#f4f0ef"
 BG_DARK = "#434860"
 
-# SVG working canvas; export sizes are rasterized down from this.
+# Per-contour styling, mirroring WalkshedLayers.jsx (same accent everywhere;
+# inner contours get heavier fill so the stack reads as a topographic gradient).
+# Dark variant opacities are bumped because the darker land tone otherwise
+# swallows the blue fill.
+CONTOUR_STYLE = {
+    15: {"fill_light": 0.10, "fill_dark": 0.18, "stroke_frac": 0.014},
+    10: {"fill_light": 0.15, "fill_dark": 0.24, "stroke_frac": 0.016},
+    5:  {"fill_light": 0.22, "fill_dark": 0.32, "stroke_frac": 0.020},
+}
+
+# SVG working canvas; PNGs are rasterized down from this.
 CANVAS = 1024
-PADDING_FRAC = 0.06              # 6% breathing room around the polygon bbox
-CIRCLE_R_FRAC = 0.135            # circle radius as fraction of canvas
-CIRCLE_GAP_FRAC = 0.012          # gap between the two circles
-STROKE_W_FRAC = 0.022            # walkshed stroke width
-DARK_RING_W_FRAC = 0.008         # white ring around circles in dark variant
+PADDING_FRAC = 0.06           # 6% breathing room around the 15-min bbox
+CIRCLE_R_FRAC = 0.110         # circle radius as fraction of canvas
+CIRCLE_GAP_FRAC = 0.012       # gap between the two circles
+DARK_RING_W_FRAC = 0.008      # white separator ring around circles in dark variant
 
-EXPORT_SIZES = [180, 512]        # iOS standard + high-DPI fallback
+EXPORT_SIZES = [180, 512]     # iOS standard + high-DPI fallback
 
 
-def fetch_mapbox_isochrone(token: str) -> dict:
-    """Call the Mapbox Isochrone API (same URL as src/mapbox.js:11)."""
+def fetch_mapbox_isochrones(token: str) -> dict:
+    """Call the Mapbox Isochrone API (same URL as src/mapbox.js:11) with all contours."""
+    minutes_str = ",".join(str(m) for m in MINUTES)
     url = (
         "https://api.mapbox.com/isochrone/v1/mapbox/walking/"
         f"{STATION_LNG},{STATION_LAT}"
-        f"?contours_minutes={MINUTES}&polygons=true"
+        f"?contours_minutes={minutes_str}&polygons=true"
         f"&access_token={urllib.parse.quote(token, safe='')}"
     )
     # The shared public token is URL-restricted; send the production Referer so
@@ -102,8 +111,8 @@ def read_token() -> str:
 
 def refresh() -> None:
     token = read_token()
-    geojson = fetch_mapbox_isochrone(token)
-    # Strip Mapbox's default styling props; keep only what identifies the contour.
+    geojson = fetch_mapbox_isochrones(token)
+    # Strip Mapbox's default styling props; keep only what identifies each contour.
     for f in geojson.get("features", []):
         props = f.get("properties") or {}
         f["properties"] = {k: props[k] for k in ("contour", "metric") if k in props}
@@ -112,23 +121,30 @@ def refresh() -> None:
     print(f"wrote {RAW_PATH.relative_to(ROOT)} ({RAW_PATH.stat().st_size} bytes)")
 
 
-def load_polygon() -> list[list[tuple[float, float]]]:
-    """Return list of rings (each a list of (lng, lat) tuples) for the isochrone."""
+def load_contours() -> dict[int, list[list[tuple[float, float]]]]:
+    """Return {minutes: [ring, ring, ...]} where each ring is (lng, lat) tuples."""
     if not RAW_PATH.exists():
         raise SystemExit(
             f"Missing {RAW_PATH.relative_to(ROOT)}. Run with --refresh first."
         )
     data = json.loads(RAW_PATH.read_text())
-    feat = data["features"][0]
-    geom = feat["geometry"]
-    if geom["type"] == "Polygon":
-        return [[(c[0], c[1]) for c in ring] for ring in geom["coordinates"]]
-    if geom["type"] == "MultiPolygon":
-        # Pick the polygon with the largest outer ring (longest perimeter proxy).
-        polys = geom["coordinates"]
-        biggest = max(polys, key=lambda p: len(p[0]))
-        return [[(c[0], c[1]) for c in ring] for ring in biggest]
-    raise SystemExit(f"Unexpected geometry type: {geom['type']}")
+    contours: dict[int, list[list[tuple[float, float]]]] = {}
+    for f in data["features"]:
+        minutes = int(f["properties"]["contour"])
+        geom = f["geometry"]
+        if geom["type"] == "Polygon":
+            rings = [[(c[0], c[1]) for c in ring] for ring in geom["coordinates"]]
+        elif geom["type"] == "MultiPolygon":
+            # Pick the polygon with the largest outer ring.
+            biggest = max(geom["coordinates"], key=lambda p: len(p[0]))
+            rings = [[(c[0], c[1]) for c in ring] for ring in biggest]
+        else:
+            raise SystemExit(f"Unexpected geometry type: {geom['type']}")
+        contours[minutes] = rings
+    missing = [m for m in MINUTES if m not in contours]
+    if missing:
+        raise SystemExit(f"Raw file is missing contours: {missing}")
+    return contours
 
 
 def project(points, lat0):
@@ -144,18 +160,17 @@ def project(points, lat0):
 
 
 def build_svg(variant: str) -> str:
-    rings_lnglat = load_polygon()
-    flat = [pt for ring in rings_lnglat for pt in ring]
-    projected_flat = project(flat, STATION_LAT)
-    station_x_m, station_y_m = project([(STATION_LNG, STATION_LAT)], STATION_LAT)[0]
+    contours = load_contours()
 
-    xs = [p[0] for p in projected_flat]
-    ys = [p[1] for p in projected_flat]
+    # Fit everything to the outermost (15-min) bbox so it defines the icon framing.
+    outer_flat = [pt for ring in contours[max(MINUTES)] for pt in ring]
+    projected_outer = project(outer_flat, STATION_LAT)
+    xs = [p[0] for p in projected_outer]
+    ys = [p[1] for p in projected_outer]
     bbox_w = max(xs) - min(xs)
     bbox_h = max(ys) - min(ys)
     target = CANVAS * (1 - 2 * PADDING_FRAC)
     scale = target / max(bbox_w, bbox_h)
-
     bx_c = (min(xs) + max(xs)) / 2
     by_c = (min(ys) + max(ys)) / 2
 
@@ -164,17 +179,32 @@ def build_svg(variant: str) -> str:
         y = -(p[1] - by_c) * scale + CANVAS / 2  # SVG y is down
         return x, y
 
-    # Build SVG path covering all rings (outer + holes); use evenodd fill-rule.
-    path_parts = []
-    idx = 0
-    for ring in rings_lnglat:
-        canvas_ring = [to_canvas(projected_flat[idx + i]) for i in range(len(ring))]
-        idx += len(ring)
-        d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in canvas_ring) + " Z"
-        path_parts.append(d)
-    path_d = " ".join(path_parts)
+    def project_rings_to_path(rings):
+        flat = [pt for ring in rings for pt in ring]
+        projected = project(flat, STATION_LAT)
+        parts = []
+        idx = 0
+        for ring in rings:
+            canvas_ring = [to_canvas(projected[idx + i]) for i in range(len(ring))]
+            idx += len(ring)
+            parts.append("M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in canvas_ring) + " Z")
+        return " ".join(parts)
 
-    station_canvas = to_canvas((station_x_m, station_y_m))
+    # Render outer → inner so inner fills paint on top and read as a gradient.
+    contour_paths = []
+    for minutes in sorted(MINUTES, reverse=True):
+        style = CONTOUR_STYLE[minutes]
+        d = project_rings_to_path(contours[minutes])
+        opacity = style["fill_light"] if variant == "light" else style["fill_dark"]
+        stroke_w = style["stroke_frac"] * CANVAS
+        contour_paths.append(
+            f'  <path d="{d}" fill="{ACCENT}" fill-opacity="{opacity}" fill-rule="evenodd" '
+            f'stroke="{ACCENT}" stroke-width="{stroke_w:.1f}" stroke-linejoin="round" stroke-linecap="round"/>'
+        )
+
+    # Two circles centered at the actual station coordinate (not bbox center —
+    # walking-network asymmetry means the station isn't centered in its walkshed).
+    station_canvas = to_canvas(project([(STATION_LNG, STATION_LAT)], STATION_LAT)[0])
     sx, sy = station_canvas
     r = CIRCLE_R_FRAC * CANVAS
     gap = CIRCLE_GAP_FRAC * CANVAS
@@ -182,17 +212,16 @@ def build_svg(variant: str) -> str:
     right_cx = sx + (r + gap / 2)
 
     bg = BG_LIGHT if variant == "light" else BG_DARK
-    fill_opacity = 0.18 if variant == "light" else 0.30
-    stroke_w = STROKE_W_FRAC * CANVAS
     ring_w = DARK_RING_W_FRAC * CANVAS if variant == "dark" else 0
-
     ring_attrs = (
         f' stroke="#ffffff" stroke-width="{ring_w:.1f}"' if variant == "dark" else ""
     )
 
+    contour_block = "\n".join(contour_paths)
+
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS}" height="{CANVAS}" viewBox="0 0 {CANVAS} {CANVAS}">
   <rect width="{CANVAS}" height="{CANVAS}" fill="{bg}"/>
-  <path d="{path_d}" fill="{ACCENT}" fill-opacity="{fill_opacity}" fill-rule="evenodd" stroke="{ACCENT}" stroke-width="{stroke_w:.1f}" stroke-linejoin="round" stroke-linecap="round"/>
+{contour_block}
   <circle cx="{left_cx:.1f}" cy="{sy:.1f}" r="{r:.1f}" fill="{LINE1_GREEN}"{ring_attrs}/>
   <circle cx="{right_cx:.1f}" cy="{sy:.1f}" r="{r:.1f}" fill="{LINE2_BLUE}"{ring_attrs}/>
 </svg>
@@ -215,7 +244,11 @@ def build() -> None:
         svg = build_svg(variant)
         suffix = "" if variant == "light" else "-dark"
         for size in EXPORT_SIZES:
-            name = f"apple-touch-icon{suffix}.png" if size == 180 else f"apple-touch-icon{suffix}-{size}.png"
+            name = (
+                f"apple-touch-icon{suffix}.png"
+                if size == 180
+                else f"apple-touch-icon{suffix}-{size}.png"
+            )
             out = OUT_DIR / name
             rasterize(svg, size, out)
             print(f"wrote {out.relative_to(ROOT)} ({size}x{size})")
@@ -224,7 +257,7 @@ def build() -> None:
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--refresh", action="store_true",
-                    help="Refetch the isochrone from Mapbox before building.")
+                    help="Refetch the isochrones from Mapbox before building.")
     args = ap.parse_args()
     if args.refresh:
         refresh()
