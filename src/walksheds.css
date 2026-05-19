@@ -530,13 +530,14 @@ body,
 }
 
 /* Junction (Chinatown) and terminus badges sit to the right of the pill
- * name, separated by a thin divider. Pure Unicode glyph(s): ↳ for the
- * Chinatown switch, ⤒ / ⤓ / ⇥ (arrow-to-bar) for the termini. The bar
- * portion of those glyphs reads as the buffer-stop at the end of track. */
+ * name, separated by a thin divider. Each badge is a row of one or more
+ * (line-circle + arrow-SVG) pairs; the outer gap spaces sibling pairs
+ * (Lynnwood has two: one per terminating line), the inner gap inside a
+ * pair is tighter. */
 .pill-badge {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   margin-left: 2px;
   padding-left: 6px;
   border-left: 1px solid #ddd;
@@ -549,6 +550,14 @@ body,
 .pill-badge-arrow {
   display: block;
   flex-shrink: 0;
+}
+
+/* Pair = one (line-circle + arrow) unit. Tight gap inside the pair,
+ * larger gap between sibling pairs (handled by .pill-badge's `gap`). */
+.pill-badge-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* Inset line-number circle used inside a badge (smaller than the

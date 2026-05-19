@@ -77,29 +77,34 @@ function SwitchBadge() {
       role="img"
       aria-label="Junction: Line 2 branches east"
     >
-      <span className="pill-badge-line-circle" style={{ background: LINE_2_COLOR }}>2</span>
-      <ArrowSvg d={SWITCH_PATH} color={LINE_2_COLOR} />
+      <span className="pill-badge-pair">
+        <span className="pill-badge-line-circle" style={{ background: LINE_2_COLOR }}>2</span>
+        <ArrowSvg d={SWITCH_PATH} color={LINE_2_COLOR} />
+      </span>
     </span>
   )
 }
 
 /**
- * Terminus end-of-line. The arrow-to-bar SVG encodes the cardinal the
- * line runs off the map in (Lynnwood north, Federal Way south, Downtown
- * Redmond east). When both lines terminate at the same station
- * (Lynnwood), one arrow per line color is rendered.
+ * Terminus end-of-line. Each terminating line gets a small line-color
+ * circle paired with an arrow-to-bar SVG (matching the [2] ↳ pattern at
+ * the Chinatown junction). The cardinal of the arrow is the local
+ * bearing into the station — see routeGraph.getTerminusInfo.
  */
 function TerminusBadge({ direction, lines }) {
   const d = TERMINUS_PATHS[direction] || TERMINUS_PATHS.ArrowUp
   return (
     <span className="pill-badge" role="img" aria-label="End of line">
-      {lines.map(line => (
-        <ArrowSvg
-          key={line}
-          d={d}
-          color={line === '1-line' ? LINE_1_COLOR : LINE_2_COLOR}
-        />
-      ))}
+      {lines.map(line => {
+        const lineNum = line === '1-line' ? '1' : '2'
+        const color = line === '1-line' ? LINE_1_COLOR : LINE_2_COLOR
+        return (
+          <span key={line} className="pill-badge-pair">
+            <span className="pill-badge-line-circle" style={{ background: color }}>{lineNum}</span>
+            <ArrowSvg d={d} color={color} />
+          </span>
+        )
+      })}
     </span>
   )
 }

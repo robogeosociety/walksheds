@@ -136,9 +136,12 @@ describe('routeGraph', () => {
       expect(info).toEqual({ arrowKey: 'ArrowDown', lines: ['1-line'] })
     })
 
-    it('Downtown Redmond is the east terminus of Line 2 only', () => {
+    it('Downtown Redmond is the north terminus of Line 2 only', () => {
+      // The line bends north as it approaches DR (Marymoor Village is south
+      // of DR), so the local arrival cardinal is ArrowUp even though Line 2
+      // travels east in the larger picture.
       const info = getTerminusInfo(graph, 'Downtown Redmond Station')
-      expect(info).toEqual({ arrowKey: 'ArrowRight', lines: ['2-line'] })
+      expect(info).toEqual({ arrowKey: 'ArrowUp', lines: ['2-line'] })
     })
 
     it('non-terminus stations return null', () => {

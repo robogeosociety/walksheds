@@ -144,18 +144,17 @@ export function isJunction(graph, stationName) {
   return stationName === JUNCTION_STATION
 }
 
-// Reference for terminus direction. Bearing from this central station to a
-// terminus picks the cardinal that matches the user's mental map of which
-// "end" of the system the line runs off toward — instead of the local
-// bearing over the last segment, which is noisy (e.g. Downtown Redmond
-// sits slightly north of Marymoor Village even though Line 2 runs east).
-const TERMINUS_REFERENCE = 'Westlake Station'
-
 /**
  * If `stationName` is the start or end of either line order, return the
  * cardinal direction the line "points off the map" in (as the arrow key
  * the user can no longer travel) and which lines terminate here.
  * Returns null for non-terminus stations.
+ *
+ * Direction is the bearing _from_ the only on-line neighbor _to_ the
+ * terminus station — i.e. the direction the train was moving as it
+ * pulled into the last stop. Local-segment-based so the orientation
+ * matches the actual rail approach (Marymoor Village → Downtown Redmond
+ * runs north, even though Line 2 "goes east" overall).
  */
 export function getTerminusInfo(graph, stationName) {
   const node = graph.get(stationName)
@@ -166,8 +165,8 @@ export function getTerminusInfo(graph, stationName) {
   if (LINE_2_ORDER[0] === stationName || LINE_2_ORDER[LINE_2_ORDER.length - 1] === stationName) lines.push('2-line')
   if (lines.length === 0) return null
 
-  const reference = graph.get(TERMINUS_REFERENCE) || node.neighbors[0]
-  const b = bearing(reference.coords[0], reference.coords[1], node.coords[0], node.coords[1])
+  const neighbor = node.neighbors[0]
+  const b = bearing(neighbor.coords[0], neighbor.coords[1], node.coords[0], node.coords[1])
   let bestKey = null
   let bestDiff = Infinity
   for (const [arrow, target] of Object.entries(ARROW_BEARINGS)) {
