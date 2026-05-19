@@ -228,36 +228,52 @@ export function getJunctionHints(graph, stationName) {
 }
 
 /**
- * Navigate to next station, preferring the current line.
- * Returns { name, line } or null.
+ * Bin a bearing (0–360°) to the nearest cardinal arrow key. Ties (e.g. 45°
+ * between Up and Right) resolve to whichever entry comes first in
+ * ARROW_BEARINGS, which is Up → Right → Down → Left.
+ */
+function nearestCardinal(b) {
+  let best = null
+  let bestDiff = Infinity
+  for (const [arrow, target] of Object.entries(ARROW_BEARINGS)) {
+    const diff = angleDiff(b, target)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = arrow
+    }
+  }
+  return best
+}
+
+/**
+ * Navigate to the next station in the direction of `arrowKey`.
+ *
+ * Only neighbors whose bearing's *nearest cardinal* matches `arrowKey`
+ * are eligible — so at Pioneer Square (north + south neighbors only) a
+ * left/right swipe returns null and the caller can let the gesture fall
+ * through to map panning. At Chinatown the same logic admits both south
+ * (Line 1 to Stadium) and east (Line 2 to Judkins Park) as separate
+ * arrow-key results, which is exactly the junction behavior we want.
+ *
+ * When multiple neighbors share the same cardinal (a shared-trunk
+ * station has duplicate up/down neighbors, one per line), prefer the
+ * one matching `currentLine`.
  */
 export function getNextStation(graph, currentStationName, arrowKey, currentLine) {
-  const targetBearing = ARROW_BEARINGS[arrowKey]
-  if (targetBearing === undefined) return null
-
+  if (ARROW_BEARINGS[arrowKey] === undefined) return null
   const current = graph.get(currentStationName)
   if (!current || current.neighbors.length === 0) return null
 
-  let bestName = null
-  let bestLine = null
+  let best = null
   let bestScore = Infinity
-
   for (const neighbor of current.neighbors) {
     const b = bearing(current.coords[0], current.coords[1], neighbor.coords[0], neighbor.coords[1])
-    const diff = angleDiff(b, targetBearing)
-    if (diff > 90) continue
-
-    // Prefer staying on current line
+    if (nearestCardinal(b) !== arrowKey) continue
     const lineBonus = (currentLine && neighbor.line === currentLine) ? -0.1 : 0
-    const score = diff + lineBonus
-
-    if (score < bestScore) {
-      bestScore = score
-      bestName = neighbor.name
-      bestLine = neighbor.line
+    if (lineBonus < bestScore) {
+      bestScore = lineBonus
+      best = { name: neighbor.name, line: neighbor.line }
     }
   }
-
-  if (!bestName) return null
-  return { name: bestName, line: bestLine }
+  return best
 }

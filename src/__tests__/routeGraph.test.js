@@ -99,6 +99,30 @@ describe('routeGraph', () => {
       const result = getNextStation(graph, 'Westlake Station', 'Enter', '1-line')
       expect(result).toBeNull()
     })
+
+    // Non-junction stations should NOT navigate on swipes that don't match
+    // a neighbor's actual cardinal direction — the gesture should fall
+    // through to map panning instead. Chinatown remains the only station
+    // where multiple different cardinals lead to different next stops.
+    it('ArrowLeft from Pioneer Square returns null (no west neighbor)', () => {
+      expect(getNextStation(graph, 'Pioneer Square Station', 'ArrowLeft', '1-line')).toBeNull()
+    })
+
+    it('ArrowRight from Pioneer Square returns null (no east neighbor)', () => {
+      expect(getNextStation(graph, 'Pioneer Square Station', 'ArrowRight', '1-line')).toBeNull()
+    })
+
+    it('ArrowLeft from Intl District returns null (junction has no west neighbor)', () => {
+      expect(getNextStation(graph, 'International District Station', 'ArrowLeft', '1-line')).toBeNull()
+    })
+
+    it('ArrowUp from Stadium returns null (no neighbor at that cardinal)', () => {
+      // Stadium's only-mock neighbor is Intl District to the north-northwest;
+      // its nearest cardinal is ArrowUp — but the geographic bearing also
+      // lets ArrowLeft be a plausible angle. Verify the cardinal-bin guard
+      // still rejects a sideways swipe.
+      expect(getNextStation(graph, 'Stadium Station', 'ArrowRight', '1-line')).toBeNull()
+    })
   })
 
   describe('getTerminusInfo', () => {
