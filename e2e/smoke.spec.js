@@ -17,7 +17,7 @@ test.describe('Smoke tests', () => {
     const legend = page.locator('.line-legend')
     await expect(legend).toBeVisible({ timeout: 10000 })
     const title = page.locator('.legend-title').first()
-    await expect(title).toHaveText('Link light rail')
+    await expect(title).toHaveText('Legend')
   })
 
   test('legend has walkshed toggles', async ({ page }) => {
