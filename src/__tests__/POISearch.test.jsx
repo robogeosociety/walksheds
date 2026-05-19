@@ -10,6 +10,7 @@ function renderSearch(overrides = {}) {
       { tag: 'coffee', count: 22, color: '#ccc' },
       { tag: 'child-friendly', count: 7, color: '#ddd' },
     ],
+    globalAvailableTags: [],
     activeCategories: new Set(),
     activeFilters: new Set(),
     poiFeatures: [],
@@ -204,6 +205,38 @@ describe('POISearch category pills vs filter checkboxes', () => {
     })
     expect(document.querySelector('.poi-cat-pill-tag')).toBeTruthy()
     expect(document.querySelector('.poi-filter-row')).toBeTruthy()
+  })
+
+  it('pads dropdown with out-of-walkshed matches when in-walkshed has no hit', () => {
+    renderSearch({
+      availableTags: [{ tag: 'pizza', count: 12, color: '#bbb' }],
+      globalAvailableTags: [
+        { tag: 'pizza', count: 200, color: '#bbb' },
+        { tag: 'gyros', count: 8, color: '#aaa' },
+      ],
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: 'gyro' },
+    })
+    const labels = dropdownTags()
+    expect(labels).toContain('gyros')
+    const row = document.querySelector('.poi-search-option.out-of-walkshed')
+    expect(row).toBeTruthy()
+    expect(row.textContent).toMatch(/not in walkshed/)
+    // The count badge is suppressed for greyed rows.
+    expect(row.querySelector('.poi-search-option-count')).toBeNull()
+  })
+
+  it('global fallback does not duplicate a tag already in the walkshed', () => {
+    renderSearch({
+      availableTags: [{ tag: 'pizza', count: 12, color: '#bbb' }],
+      globalAvailableTags: [{ tag: 'pizza', count: 200, color: '#bbb' }],
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: 'pizz' },
+    })
+    expect(dropdownTags().filter(t => t === 'pizza')).toHaveLength(1)
+    expect(document.querySelector('.poi-search-option.out-of-walkshed')).toBeNull()
   })
 
   it('search dropdown hides tags already pinned in either bucket', () => {

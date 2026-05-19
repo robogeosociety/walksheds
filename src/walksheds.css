@@ -846,6 +846,28 @@ body,
   color: rgba(255, 255, 255, 0.3);
 }
 
+/* Fallback rows: tag exists somewhere in Seattle but not in this walkshed.
+ * Greyed so the user understands the term is recognized but unreachable. */
+.poi-search-option.out-of-walkshed {
+  opacity: 0.55;
+}
+
+.poi-search-option.out-of-walkshed .poi-search-option-tag {
+  font-weight: 400;
+  font-style: italic;
+}
+
+.poi-search-option-note {
+  color: rgba(0, 0, 0, 0.4);
+  font-size: 10px;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.app.dark .poi-search-option-note {
+  color: rgba(255, 255, 255, 0.4);
+}
+
 /* ── POI list under search chips ── */
 
 .poi-chip-poi-list {

@@ -13,6 +13,7 @@ function normalizeQuery(value) {
 
 export default function POISearch({
   availableTags,
+  globalAvailableTags,
   activeCategories,
   activeFilters,
   poiFeatures,
@@ -86,22 +87,33 @@ export default function POISearch({
       return filtered.slice(0, 8).map(t => ({ ...t, label: t.tag }))
     }
     const q = normalizeQuery(query)
-    const out = []
-    for (const t of filtered) {
-      // Direct hit on the canonical tag wins — show the tag itself.
-      if (t.tag.includes(q)) {
-        out.push({ ...t, label: t.tag })
-        continue
-      }
-      // Otherwise see if any alias for this canonical matches; if so, show
-      // the matched alias as the dropdown label so the user sees the term
-      // they typed. Selection still adds the canonical tag.
+    // Single-pass match: tries the canonical tag first, then any alias. Used
+    // for both walkshed-scoped (primary) and global (fallback) result rows.
+    const tryMatch = (t) => {
+      if (t.tag.includes(q)) return { ...t, label: t.tag }
       const aliases = canonicalToAliases[t.tag]
       const hit = aliases?.find(a => a.includes(q))
-      if (hit) out.push({ ...t, label: hit })
+      return hit ? { ...t, label: hit } : null
+    }
+    const out = []
+    for (const t of filtered) {
+      const m = tryMatch(t)
+      if (m) out.push(m)
+    }
+    // Pad with out-of-walkshed matches when the in-walkshed dropdown isn't
+    // full. The greyed row tells the user the tag exists in Seattle but not
+    // near this station, instead of returning an empty dropdown.
+    if (out.length < 8 && globalAvailableTags?.length) {
+      const localSet = new Set(availableTags.map(t => t.tag))
+      for (const t of globalAvailableTags) {
+        if (out.length >= 8) break
+        if (localSet.has(t.tag) || pinnedTags.has(t.tag)) continue
+        const m = tryMatch(t)
+        if (m) out.push({ ...m, outOfWalkshed: true })
+      }
     }
     return out.slice(0, 8)
-  }, [query, availableTags, pinnedTags, canonicalToAliases])
+  }, [query, availableTags, globalAvailableTags, pinnedTags, canonicalToAliases])
 
   const handleSelect = useCallback((tag) => {
     onAddFilter(tag)
@@ -223,16 +235,18 @@ export default function POISearch({
 
       {showDropdown && matches.length > 0 && (
         <div className="poi-search-dropdown">
-          {matches.map(({ tag, label, count, color }, i) => (
+          {matches.map(({ tag, label, count, color, outOfWalkshed }, i) => (
             <button
               key={tag}
-              className={`poi-search-option ${i === highlightIdx ? 'highlighted' : ''}`}
+              className={`poi-search-option ${i === highlightIdx ? 'highlighted' : ''}${outOfWalkshed ? ' out-of-walkshed' : ''}`}
               onMouseDown={(e) => { e.preventDefault(); handleSelect(tag) }}
               onMouseEnter={() => setHighlightIdx(i)}
             >
               {color && <span className="poi-search-option-dot" style={{ background: color }} />}
               <span className="poi-search-option-tag">{label}</span>
-              <span className="poi-search-option-count">{count}</span>
+              {outOfWalkshed
+                ? <span className="poi-search-option-note">not in walkshed</span>
+                : <span className="poi-search-option-count">{count}</span>}
             </button>
           ))}
         </div>
