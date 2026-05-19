@@ -19,6 +19,8 @@ npm run preview       # Preview production build
 python3 data/process.py          # Regenerate transit GeoJSON from SDOT raw data
 python3 data/pois/fetch_pois.py  # Rebuild POI GeoJSONs from committed OSM dump (no network)
 python3 data/pois/fetch_pois.py --refresh  # Refetch OSM dump from Overpass, then rebuild
+python3 data/icons/fetch_app_icon.py            # Rebuild iOS home-screen icons from committed isochrone
+python3 data/icons/fetch_app_icon.py --refresh  # Refetch Westlake isochrone from Mapbox, then rebuild icons
 ```
 
 ## Architecture
