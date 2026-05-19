@@ -4,7 +4,7 @@ import {
   filterPOIsInWalkshed,
   getAvailableTags,
   filterByTags,
-  filterByMainCategoriesAndTags,
+  filterByCategoriesAndFilters,
   mergeFeatureCollections,
 } from '../poiUtils'
 
@@ -203,103 +203,114 @@ describe('filterByTags', () => {
   })
 })
 
-describe('filterByMainCategoriesAndTags', () => {
+describe('filterByCategoriesAndFilters', () => {
+  // Each feature listed with a comment of its (category, tags) so the
+  // expectations stay readable.
   const features = [
-    makeFeature(0, 0, { category: 'restaurant', tags: ['pizza', 'italian'] }),
-    makeFeature(0, 0, { category: 'fast_food', tags: ['burger'] }),
-    makeFeature(0, 0, { category: 'cafe',       tags: ['wifi'] }),
-    makeFeature(0, 0, { category: 'bar',        tags: ['outdoor-seating'] }),
-    makeFeature(0, 0, { category: 'restaurant', tags: ['brewery'] }),
-    makeFeature(0, 0, { category: 'park',       tags: [] }),
-    makeFeature(0, 0, { category: 'museum',     tags: ['art'] }),
+    makeFeature(0, 0, { category: 'restaurant', tags: ['pizza', 'italian', 'wheelchair-accessible'] }), // 0
+    makeFeature(0, 0, { category: 'fast_food',  tags: ['burger', 'child-friendly'] }),                  // 1
+    makeFeature(0, 0, { category: 'cafe',       tags: ['wifi'] }),                                      // 2
+    makeFeature(0, 0, { category: 'bar',        tags: ['outdoor-seating'] }),                           // 3
+    makeFeature(0, 0, { category: 'restaurant', tags: ['brewery', 'child-friendly'] }),                 // 4
+    makeFeature(0, 0, { category: 'park',       tags: ['dog-friendly'] }),                              // 5
+    makeFeature(0, 0, { category: 'museum',     tags: ['art', 'wheelchair-accessible'] }),              // 6
   ]
-  const mainCategoriesById = {
-    everything:  { matchCategories: [], matchTags: [] },
+  const spotlightsById = {
+    everything:  { matchAll: true },
     restaurants: { matchCategories: ['restaurant', 'fast_food', 'ice_cream', 'bakery'], matchTags: [] },
     bars:        { matchCategories: ['bar', 'pub'], matchTags: ['brewery', 'winery', 'distillery', 'has-bar'] },
     coffee:      { matchCategories: ['cafe'], matchTags: ['coffee', 'coffee-shop', 'coffee-roaster'] },
     parks:       { matchCategories: ['park', 'playground', 'garden'], matchTags: [] },
   }
+  // Shorthand for the three independent inputs — matches the truth table
+  // in README.md → "POI selection logic".
+  const opts = (spots = [], cats = [], filts = []) => ({
+    enabledSpotlights: new Set(spots),
+    activeCategories: new Set(cats),
+    activeFilters: new Set(filts),
+    spotlightsById,
+  })
 
   it('returns empty array when nothing is enabled or active', () => {
-    expect(filterByMainCategoriesAndTags(features, new Set(), new Set(), mainCategoriesById)).toEqual([])
-    expect(filterByMainCategoriesAndTags(features, null, null, mainCategoriesById)).toEqual([])
+    expect(filterByCategoriesAndFilters(features, opts())).toEqual([])
   })
 
-  it('matches features whose category is in an enabled main pill', () => {
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(['restaurants']), new Set(), mainCategoriesById,
-    )
-    // restaurant pizza + fast_food burger + restaurant brewery
-    expect(result).toHaveLength(3)
+  it('filter-only with no category pool returns empty (no pool to filter)', () => {
+    expect(filterByCategoriesAndFilters(features, opts([], [], ['child-friendly']))).toEqual([])
   })
 
-  it('matches features by main pill tag list (e.g. brewery → bars)', () => {
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(['bars']), new Set(), mainCategoriesById,
-    )
-    // bar outdoor-seating + restaurant brewery (matched by tag)
-    expect(result).toHaveLength(2)
+  it('spotlight match: features in restaurants spotlight', () => {
+    const r = filterByCategoriesAndFilters(features, opts(['restaurants']))
+    // 0 pizza + 1 burger + 4 brewery
+    expect(r).toHaveLength(3)
   })
 
-  it('matches by active tag filter alone', () => {
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(), new Set(['wifi']), mainCategoriesById,
-    )
-    expect(result).toHaveLength(1) // cafe wifi
+  it('spotlight matchTags: brewery → bars', () => {
+    const r = filterByCategoriesAndFilters(features, opts(['bars']))
+    // 3 outdoor-seating bar + 4 brewery
+    expect(r).toHaveLength(2)
   })
 
-  it('unions main categories and active tags (additive)', () => {
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(['parks']), new Set(['art']), mainCategoriesById,
-    )
-    // park (no tags) + museum art tag
-    expect(result).toHaveLength(2)
+  it('multiple spotlights union together', () => {
+    const r = filterByCategoriesAndFilters(features, opts(['coffee', 'parks']))
+    // 2 cafe wifi + 5 park
+    expect(r).toHaveLength(2)
   })
 
-  it('multiple enabled main categories OR together', () => {
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(['coffee', 'parks']), new Set(), mainCategoriesById,
+  it('activeCategories union with spotlights', () => {
+    const r = filterByCategoriesAndFilters(features, opts(['parks'], ['art']))
+    // park + museum (art tag)
+    expect(r).toHaveLength(2)
+  })
+
+  it('activeCategories alone (no spotlight)', () => {
+    const r = filterByCategoriesAndFilters(features, opts([], ['pizza', 'art']))
+    expect(r).toHaveLength(2)
+  })
+
+  it('activeFilters AND on top of spotlight pool', () => {
+    // restaurants pool = [0,1,4]; filter child-friendly → only [1,4]
+    const r = filterByCategoriesAndFilters(features, opts(['restaurants'], [], ['child-friendly']))
+    expect(r).toHaveLength(2)
+  })
+
+  it('multiple activeFilters AND across the set', () => {
+    // restaurants pool = [0,1,4]; child-friendly ∩ wheelchair-accessible → ∅
+    const r = filterByCategoriesAndFilters(
+      features, opts(['restaurants'], [], ['child-friendly', 'wheelchair-accessible']),
     )
-    // cafe wifi + park
-    expect(result).toHaveLength(2)
+    expect(r).toHaveLength(0)
+  })
+
+  it('matchAll spotlight short-circuits the pool to every feature', () => {
+    const r = filterByCategoriesAndFilters(features, opts(['everything']))
+    expect(r).toHaveLength(features.length)
+  })
+
+  it('matchAll still respects activeFilters (AND on top)', () => {
+    const r = filterByCategoriesAndFilters(features, opts(['everything'], [], ['wheelchair-accessible']))
+    // 0 (restaurant) + 6 (museum)
+    expect(r).toHaveLength(2)
+  })
+
+  it('matchAll combined with other spotlights stays matchAll', () => {
+    const r = filterByCategoriesAndFilters(features, opts(['everything', 'parks']))
+    expect(r).toHaveLength(features.length)
   })
 
   it('handles features with no tags array', () => {
-    const mixed = [...features, { type: 'Feature', properties: { category: 'restaurant' }, geometry: { type: 'Point', coordinates: [0, 0] } }]
-    const result = filterByMainCategoriesAndTags(
-      mixed, new Set(['restaurants']), new Set(), mainCategoriesById,
-    )
-    expect(result).toHaveLength(4)
+    const mixed = [...features, {
+      type: 'Feature',
+      properties: { category: 'restaurant' },
+      geometry: { type: 'Point', coordinates: [0, 0] },
+    }]
+    const r = filterByCategoriesAndFilters(mixed, opts(['restaurants']))
+    expect(r).toHaveLength(4)
   })
 
-  it('ignores categories not enabled', () => {
-    // only restaurants → museum, park, cafe, bar excluded
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(['restaurants']), new Set(), mainCategoriesById,
-    )
-    expect(result.every(f => ['restaurant', 'fast_food'].includes(f.properties.category))).toBe(true)
-  })
-
-  it('"everything" sentinel returns every feature', () => {
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(['everything']), new Set(), mainCategoriesById,
-    )
-    expect(result).toHaveLength(features.length)
-  })
-
-  it('"everything" overrides other enabled pills (they become inert)', () => {
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(['everything', 'parks']), new Set(), mainCategoriesById,
-    )
-    expect(result).toHaveLength(features.length)
-  })
-
-  it('"everything" overrides active tag filters (tags become inert)', () => {
-    const result = filterByMainCategoriesAndTags(
-      features, new Set(['everything']), new Set(['wifi']), mainCategoriesById,
-    )
-    expect(result).toHaveLength(features.length)
+  it('ignores non-matching categories', () => {
+    const r = filterByCategoriesAndFilters(features, opts(['restaurants']))
+    expect(r.every(f => ['restaurant', 'fast_food'].includes(f.properties.category))).toBe(true)
   })
 })
 

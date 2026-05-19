@@ -1,7 +1,19 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 
+// Mirror data/pois/fetch_pois.py:_normalize so search queries like "hot dog",
+// "café", or "drive thru" reach the hyphenated canonical tags / alias keys.
+function normalizeQuery(value) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\s_]+/g, '-')
+}
+
 export default function POISearch({
   availableTags,
+  activeCategories,
   activeFilters,
   poiFeatures,
   expandedTag,
@@ -16,6 +28,13 @@ export default function POISearch({
   tagAliases,
   onCommit,
 }) {
+  // Tags already pinned in either bucket — exclude from dropdown suggestions.
+  const pinnedTags = useMemo(() => {
+    const s = new Set()
+    if (activeCategories) for (const t of activeCategories) s.add(t)
+    if (activeFilters) for (const t of activeFilters) s.add(t)
+    return s
+  }, [activeCategories, activeFilters])
   const [query, setQuery] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(0)
@@ -62,11 +81,11 @@ export default function POISearch({
   }, [tagAliases])
 
   const matches = useMemo(() => {
-    const filtered = availableTags.filter(({ tag }) => !activeFilters.has(tag))
+    const filtered = availableTags.filter(({ tag }) => !pinnedTags.has(tag))
     if (!query.trim()) {
       return filtered.slice(0, 8).map(t => ({ ...t, label: t.tag }))
     }
-    const q = query.trim().toLowerCase()
+    const q = normalizeQuery(query)
     const out = []
     for (const t of filtered) {
       // Direct hit on the canonical tag wins — show the tag itself.
@@ -82,7 +101,7 @@ export default function POISearch({
       if (hit) out.push({ ...t, label: hit })
     }
     return out.slice(0, 8)
-  }, [query, availableTags, activeFilters, canonicalToAliases])
+  }, [query, availableTags, pinnedTags, canonicalToAliases])
 
   const handleSelect = useCallback((tag) => {
     onAddFilter(tag)
@@ -178,8 +197,10 @@ export default function POISearch({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [onExpandTag])
 
-  const activeTagList = [...activeFilters]
-  const hasAnyPills = (mainCategories?.length ?? 0) > 0 || activeTagList.length > 0
+  const categoryPillList = [...(activeCategories || [])]
+  const filterRowList = [...(activeFilters || [])]
+  const hasAnyPills = (mainCategories?.length ?? 0) > 0 || categoryPillList.length > 0
+  const totalActive = categoryPillList.length + filterRowList.length + (enabledCategories?.size ?? 0)
 
   return (
     <div className="poi-search" ref={containerRef}>
@@ -238,7 +259,7 @@ export default function POISearch({
             )
           })}
 
-          {activeTagList.map(tag => {
+          {categoryPillList.map(tag => {
             const color = tagColors[tag] || '#666'
             const count = tagCounts[tag] ?? 0
             const present = count > 0
@@ -298,11 +319,35 @@ export default function POISearch({
             )
           })}
 
-          {(activeFilters.size + (enabledCategories?.size ?? 0)) >= 2 && (
+          {totalActive >= 2 && (
             <button className="poi-cat-pill poi-cat-pill-clear" onClick={onClearFilters}>
               clear all
             </button>
           )}
+        </div>
+      )}
+
+      {filterRowList.length > 0 && (
+        <div className="poi-filter-list">
+          {filterRowList.map(tag => {
+            const color = tagColors[tag] || '#666'
+            const count = tagCounts[tag] ?? 0
+            return (
+              <label key={`filter:${tag}`} className="poi-filter-row">
+                <input
+                  type="checkbox"
+                  className="poi-filter-checkbox"
+                  checked
+                  onChange={() => onRemoveFilter(tag)}
+                  aria-label={`Remove ${tag} filter`}
+                  style={{ accentColor: color }}
+                />
+                <span className="poi-filter-dot" style={{ background: color }} />
+                <span className="poi-filter-label">{tag}</span>
+                <span className="poi-filter-count">{count}</span>
+              </label>
+            )
+          })}
         </div>
       )}
 

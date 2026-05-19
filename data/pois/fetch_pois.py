@@ -411,6 +411,13 @@ EXPLICIT_TAG_CATEGORIES = {
 DEFAULT_TAG_CATEGORY = "cuisine"
 DEFAULT_CATEGORY_DEF = {"label": "Cuisine", "color": "#E67E22"}
 
+# Tag-category ids whose tags are "filters" (cross-cutting attributes that
+# constrain the visible POIs) rather than "categories" (POI-type selectors
+# that add to the visible POIs). The frontend uses this to route a tag from
+# the search box into the checkbox-list UI vs the pill UI, and to AND the
+# filter set on top of the category union.
+FILTER_TAG_CATEGORY_IDS = ("service", "diet", "accessibility", "family", "vibe")
+
 
 def build_tag_index():
     """Build the tag → category lookup. Errors if a tag is in two explicit buckets."""
@@ -539,6 +546,11 @@ def build_tag_categories_manifest(all_tags, tag_index, main_category_ids=None):
         ),
         "categories": categories,
         "tag_to_category": sorted_tag_to_category,
+        # Category ids whose tags should render as cross-cutting "filters"
+        # (checkbox list) rather than "categories" (pills). Used by the
+        # frontend to dispatch search-box selections to the right state set
+        # and to AND filters on top of the category union.
+        "filter_tag_categories": list(FILTER_TAG_CATEGORY_IDS),
     }
     return manifest
 
