@@ -31,10 +31,10 @@ export default function HintOverlay({ legendPosition, legendCollapsed }) {
     <div className="hint-overlay" role="presentation" aria-hidden="true">
       <div className={legendClass}>
         <span className="hint-label">legend &mdash; toggle walksheds, dark mode, &amp; these hints</span>
-        <svg className="hint-arrow hint-arrow-legend" width="140" height="100" viewBox="0 0 140 100">
+        <svg className="hint-arrow hint-arrow-legend" width="120" height="90" viewBox="0 0 120 90" aria-hidden="true">
           {ARROW_HEAD}
           <path
-            d="M 20 10 C 30 50, 60 70, 110 90"
+            d="M 30 5 C 25 30, 35 55, 50 80"
             stroke="currentColor"
             strokeWidth="4"
             strokeLinecap="round"
@@ -46,10 +46,10 @@ export default function HintOverlay({ legendPosition, legendCollapsed }) {
 
       <div className="hint hint-search">
         <span className="hint-label">search any place by name or category</span>
-        <svg className="hint-arrow hint-arrow-search" width="140" height="80" viewBox="0 0 140 80">
+        <svg className="hint-arrow hint-arrow-search" width="160" height="60" viewBox="0 0 160 60" aria-hidden="true">
           {ARROW_HEAD}
           <path
-            d="M 20 20 C 50 10, 90 30, 120 60"
+            d="M 10 40 C 50 20, 100 18, 145 28"
             stroke="currentColor"
             strokeWidth="4"
             strokeLinecap="round"
@@ -61,10 +61,10 @@ export default function HintOverlay({ legendPosition, legendCollapsed }) {
 
       <div className="hint hint-pills">
         <span className="hint-label">tap a pill to filter what shows up on the map</span>
-        <svg className="hint-arrow hint-arrow-pills" width="140" height="80" viewBox="0 0 140 80">
+        <svg className="hint-arrow hint-arrow-pills" width="160" height="60" viewBox="0 0 160 60" aria-hidden="true">
           {ARROW_HEAD}
           <path
-            d="M 20 60 C 50 70, 90 40, 120 15"
+            d="M 10 15 C 50 30, 100 35, 145 30"
             stroke="currentColor"
             strokeWidth="4"
             strokeLinecap="round"
