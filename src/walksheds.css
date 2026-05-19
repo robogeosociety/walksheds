@@ -618,12 +618,22 @@ body,
    so it reads as the final token of the sentence on the same blurred
    transparent layer as the text. */
 .hint-arrow {
+  display: inline-block;
   font-family: inherit;
   font-size: 22px;
   line-height: 1;
   color: inherit;
   margin-inline-start: 4px;
   vertical-align: -3px;
+}
+
+/* Leading variant: arrow sits to the LEFT of the text and is flipped
+   horizontally so its tail comes from the right and the tip lands
+   bottom-left toward the (centered) collapsed legend pill below. */
+.hint-arrow-leading {
+  margin-inline-start: 0;
+  margin-inline-end: 4px;
+  transform: scaleX(-1);
 }
 
 /* Legend hint: card above the legend, ⤵ glyph inside the label points

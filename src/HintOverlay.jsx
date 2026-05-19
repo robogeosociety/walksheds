@@ -19,8 +19,13 @@ export default function HintOverlay({ legendPosition, legendCollapsed, hasActive
     <div className="hint-overlay" role="presentation" aria-hidden="true">
       <div className={legendClass}>
         <span className="hint-label">
+          {legendCollapsed && (
+            <kbd className="hint-arrow hint-arrow-leading" aria-hidden="true">⤵</kbd>
+          )}
           legend &mdash; walksheds, units, dark mode &amp; these hints
-          <kbd className="hint-arrow" aria-hidden="true">⤵</kbd>
+          {!legendCollapsed && (
+            <kbd className="hint-arrow" aria-hidden="true">⤵</kbd>
+          )}
         </span>
       </div>
 
