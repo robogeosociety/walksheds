@@ -599,8 +599,8 @@ body,
   position: absolute;
   pointer-events: none;
   display: flex;
-  flex-direction: column;
   align-items: center;
+  gap: 8px;
 }
 
 .hint-label {
@@ -608,8 +608,7 @@ body,
   font-size: 20px;
   font-weight: 400;
   line-height: 1.15;
-  max-width: 240px;
-  text-align: center;
+  max-width: 220px;
   color: inherit;
   text-shadow:
     0 0 6px rgba(255, 255, 255, 0.9),
@@ -622,30 +621,51 @@ body,
     0 0 12px rgba(0, 0, 0, 0.6);
 }
 
+/* kbd-styled glyph chip matching the junction-turn arrows on the station
+   pill (.pill-hint kbd), scaled up for the hint-overlay context. */
 .hint-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid currentColor;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
   color: inherit;
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.9));
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(2px);
+  flex-shrink: 0;
 }
 
 .app.dark .hint-arrow {
-  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.9));
+  background: rgba(0, 0, 0, 0.55);
 }
 
-/* Legend hint anchors above the legend with the arrow pointing down at it. */
+/* Legend hint: label above, arrow below pointing DOWN at the legend. */
+.hint-legend {
+  flex-direction: column;
+  gap: 6px;
+}
+
 .hint-legend.bottom-left {
-  bottom: 260px;
-  left: 16px;
+  bottom: 330px;
+  left: 18px;
   align-items: flex-start;
+  text-align: left;
 }
 
 .hint-legend.bottom-right {
-  bottom: 260px;
-  right: 16px;
+  bottom: 330px;
+  right: 18px;
   align-items: flex-end;
+  text-align: right;
 }
 
-/* When the legend is collapsed it lives at the bottom-center as a small
-   pill, so re-anchor the hint above it. */
+/* Collapsed legend lives at bottom-center as a small pill — re-anchor
+   above it. */
 .hint-legend.collapsed.bottom-left,
 .hint-legend.collapsed.bottom-right {
   bottom: 70px;
@@ -653,40 +673,47 @@ body,
   right: auto;
   transform: translateX(-50%);
   align-items: center;
+  text-align: center;
 }
 
-/* Search and pills hints sit to the LEFT of the top-right search column so
-   the labels don't overlap the UI they point at. Arrows curve right. */
+/* Search hint: label left, arrow right pointing RIGHT at the search box. */
 .hint-search {
   top: 18px;
   right: 240px;
-  align-items: flex-end;
+  text-align: right;
 }
 
+.hint-search .hint-label {
+  max-width: 200px;
+}
+
+/* Pills hint: label left, arrow right pointing RIGHT at the pills row.
+   Aligns vertically with the pills (which appear directly below the
+   search box). */
 .hint-pills {
-  top: 100px;
-  right: 240px;
-  align-items: flex-end;
+  top: 62px;
+  right: 290px;
+  text-align: right;
 }
 
-@media (max-width: 720px) {
-  .hint-label { font-size: 17px; max-width: 200px; }
-  .hint-search, .hint-pills { right: 200px; }
-  .hint-legend.bottom-left { left: 12px; bottom: 240px; }
-  .hint-legend.bottom-right { right: 12px; bottom: 240px; }
+.hint-pills .hint-label {
+  max-width: 200px;
+}
+
+@media (max-width: 900px) {
+  .hint-label { font-size: 17px; }
+  .hint-search { right: 220px; }
+  .hint-pills  { right: 260px; }
+  .hint-search .hint-label, .hint-pills .hint-label { max-width: 160px; }
+  .hint-legend.bottom-left  { left: 14px; bottom: 300px; }
+  .hint-legend.bottom-right { right: 14px; bottom: 300px; }
 }
 
 @media (max-width: 540px) {
-  /* On small screens the search column gets too tight — stack the hint
-     labels below the pills instead of beside them. */
-  .hint-search,
-  .hint-pills {
-    top: auto;
-    bottom: 50%;
-    right: 16px;
-    left: 16px;
-    align-items: center;
-  }
+  /* Narrow viewports: drop the side-by-side layout, stack the hints
+     centered with arrows still pointing right. */
+  .hint-search { top: 20px; right: 80px; }
+  .hint-pills  { top: 64px; right: 80px; }
 }
 
 /* ── Mapbox overrides ── */
