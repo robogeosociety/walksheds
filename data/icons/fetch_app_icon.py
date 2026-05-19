@@ -69,6 +69,7 @@ CANVAS = 1024
 PADDING_FRAC = 0.06           # 6% breathing room around the 15-min bbox
 CIRCLE_R_FRAC = 0.110         # circle radius as fraction of canvas
 CIRCLE_GAP_FRAC = 0.012       # gap between the two circles
+CIRCLE_LABEL_FRAC = 0.165     # font-size for "1"/"2" labels as fraction of canvas
 DARK_RING_W_FRAC = 0.008      # white separator ring around circles in dark variant
 
 EXPORT_SIZES = [180, 512]     # iOS standard + high-DPI fallback
@@ -219,11 +220,23 @@ def build_svg(variant: str) -> str:
 
     contour_block = "\n".join(contour_paths)
 
+    font_size = CIRCLE_LABEL_FRAC * CANVAS
+    # Cairo aligns dominant-baseline="central" off the cap line, so nudge labels
+    # down a few percent of font size to sit visually centered in the circles.
+    label_y = sy + font_size * 0.06
+    label_attrs = (
+        f'font-family="DejaVu Sans, Helvetica, Arial, sans-serif" '
+        f'font-weight="700" font-size="{font_size:.1f}" '
+        f'text-anchor="middle" dominant-baseline="central" fill="#ffffff"'
+    )
+
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS}" height="{CANVAS}" viewBox="0 0 {CANVAS} {CANVAS}">
   <rect width="{CANVAS}" height="{CANVAS}" fill="{bg}"/>
 {contour_block}
   <circle cx="{left_cx:.1f}" cy="{sy:.1f}" r="{r:.1f}" fill="{LINE1_GREEN}"{ring_attrs}/>
   <circle cx="{right_cx:.1f}" cy="{sy:.1f}" r="{r:.1f}" fill="{LINE2_BLUE}"{ring_attrs}/>
+  <text x="{left_cx:.1f}" y="{label_y:.1f}" {label_attrs}>1</text>
+  <text x="{right_cx:.1f}" y="{label_y:.1f}" {label_attrs}>2</text>
 </svg>
 '''
 
