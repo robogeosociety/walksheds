@@ -37,7 +37,6 @@ MINUTES = [5, 10, 15]
 
 # Colors
 ACCENT = "#0082C8"      # WALKSHED_ACCENT_LIGHT (matches src/constants.js)
-LINE1_GREEN = "#4CAF50" # Line 1 — from data/process.py marker generation
 LINE2_BLUE = "#0082C8"  # Line 2 — same accent as the walkshed
 
 # Basemap land tones sampled from the live walksheds.xyz Mapbox Standard render
@@ -58,10 +57,9 @@ CONTOUR_STYLE = {
 # SVG working canvas; PNGs are rasterized down from this.
 CANVAS = 1024
 PADDING_FRAC = 0.06           # 6% breathing room around the 15-min bbox
-CIRCLE_R_FRAC = 0.110         # circle radius as fraction of canvas
-CIRCLE_GAP_FRAC = 0.012       # gap between the two circles
-CIRCLE_LABEL_FRAC = 0.165     # font-size for "1"/"2" labels as fraction of canvas
-DARK_RING_W_FRAC = 0.008      # white separator ring around circles in dark variant
+CIRCLE_R_FRAC = 0.140         # circle radius as fraction of canvas
+CIRCLE_LABEL_FRAC = 0.215     # font-size for the "2" label as fraction of canvas
+RING_W_FRAC = 0.018           # bold white separator ring around the circle
 
 EXPORT_SIZES = [180, 512]     # iOS standard + high-DPI fallback
 
@@ -114,7 +112,7 @@ def project(points, lat0):
 
 
 def build_svg(variant: str) -> str:
-    station_lng, station_lat, contours = load_station_and_contours()
+    _, station_lat, contours = load_station_and_contours()
 
     # Fit everything to the outermost (15-min) bbox so it defines the icon framing.
     outer_flat = [pt for ring in contours[max(MINUTES)] for pt in ring]
@@ -156,40 +154,27 @@ def build_svg(variant: str) -> str:
             f'stroke="{ACCENT}" stroke-width="{stroke_w:.1f}" stroke-linejoin="round" stroke-linecap="round"/>'
         )
 
-    # Two circles centered at the actual station coordinate (not bbox center —
-    # walking-network asymmetry means the station isn't centered in its walkshed).
-    station_canvas = to_canvas(project([(station_lng, station_lat)], station_lat)[0])
-    sx, sy = station_canvas
+    # Single circle centered in the 15-min walkshed bbox (which the projection
+    # above already mapped to the canvas center).
+    cx = CANVAS / 2
+    cy = CANVAS / 2
     r = CIRCLE_R_FRAC * CANVAS
-    gap = CIRCLE_GAP_FRAC * CANVAS
-    left_cx = sx - (r + gap / 2)
-    right_cx = sx + (r + gap / 2)
 
     bg = BG_LIGHT if variant == "light" else BG_DARK
-    ring_w = DARK_RING_W_FRAC * CANVAS if variant == "dark" else 0
-    ring_attrs = (
-        f' stroke="#ffffff" stroke-width="{ring_w:.1f}"' if variant == "dark" else ""
-    )
+    ring_w = RING_W_FRAC * CANVAS
 
     contour_block = "\n".join(contour_paths)
 
     font_size = CIRCLE_LABEL_FRAC * CANVAS
     # Cairo aligns dominant-baseline="central" off the cap line, so nudge labels
-    # down a few percent of font size to sit visually centered in the circles.
-    label_y = sy + font_size * 0.06
-    label_attrs = (
-        f'font-family="DejaVu Sans, Helvetica, Arial, sans-serif" '
-        f'font-weight="700" font-size="{font_size:.1f}" '
-        f'text-anchor="middle" dominant-baseline="central" fill="#ffffff"'
-    )
+    # down a few percent of font size to sit visually centered in the circle.
+    label_y = cy + font_size * 0.06
 
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS}" height="{CANVAS}" viewBox="0 0 {CANVAS} {CANVAS}">
   <rect width="{CANVAS}" height="{CANVAS}" fill="{bg}"/>
 {contour_block}
-  <circle cx="{left_cx:.1f}" cy="{sy:.1f}" r="{r:.1f}" fill="{LINE1_GREEN}"{ring_attrs}/>
-  <circle cx="{right_cx:.1f}" cy="{sy:.1f}" r="{r:.1f}" fill="{LINE2_BLUE}"{ring_attrs}/>
-  <text x="{left_cx:.1f}" y="{label_y:.1f}" {label_attrs}>1</text>
-  <text x="{right_cx:.1f}" y="{label_y:.1f}" {label_attrs}>2</text>
+  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{LINE2_BLUE}" stroke="#ffffff" stroke-width="{ring_w:.1f}"/>
+  <text x="{cx:.1f}" y="{label_y:.1f}" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-weight="700" font-size="{font_size:.1f}" text-anchor="middle" dominant-baseline="central" fill="#ffffff">2</text>
 </svg>
 '''
 
