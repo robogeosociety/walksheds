@@ -21,6 +21,7 @@ python3 data/pois/fetch_pois.py  # Rebuild POI GeoJSONs from committed OSM dump 
 python3 data/pois/fetch_pois.py --refresh  # Refetch OSM dump from Overpass, then rebuild
 python3 data/pois/fetch_walksheds.py --refresh           # Refetch walkshed polygons from Mapbox Isochrone
 python3 data/pois/fetch_walking_distances.py --refresh   # Refetch POI↔station walking distances from Mapbox Matrix
+python3 data/icons/fetch_app_icon.py                     # Rebuild iOS home-screen icons from the committed walksheds dump
 ```
 
 ## Architecture
