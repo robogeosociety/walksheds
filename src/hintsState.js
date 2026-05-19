@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'walksheds_intro_v1_seen'
+const STORAGE_KEY = 'walksheds_hints_v1_seen'
 
 function safeStorage() {
   try {
@@ -11,14 +11,14 @@ function safeStorage() {
   }
 }
 
-export function shouldShowIntro() {
+export function shouldShowHints() {
   if (typeof window === 'undefined') return false
-  // ?intro forces the intro regardless of storage or deep link
+  // ?hints forces hints regardless of storage or deep link
   const params = new URLSearchParams(window.location.search)
-  if (params.has('intro')) return true
+  if (params.has('hints')) return true
   const ls = safeStorage()
   if (ls && ls.getItem(STORAGE_KEY)) return false
-  // Skip the intro for deep-linked visits — user already knows what they want
+  // Skip hints for deep-linked visits — shared links shouldn't surface onboarding
   const base = import.meta.env.BASE_URL
   const path = window.location.pathname
   const normalized = path.endsWith('/') ? path : path + '/'
@@ -27,16 +27,16 @@ export function shouldShowIntro() {
   return true
 }
 
-export function markIntroSeen() {
+export function markHintsSeen() {
   const ls = safeStorage()
   if (ls) {
     try { ls.setItem(STORAGE_KEY, '1') } catch { /* private mode */ }
   }
-  // Strip ?intro from the URL so a page refresh doesn't replay
+  // Strip ?hints from the URL so a page refresh doesn't replay
   if (typeof window !== 'undefined') {
     const url = new URL(window.location.href)
-    if (url.searchParams.has('intro')) {
-      url.searchParams.delete('intro')
+    if (url.searchParams.has('hints')) {
+      url.searchParams.delete('hints')
       window.history.replaceState(null, '', url.pathname + url.search + url.hash)
     }
   }

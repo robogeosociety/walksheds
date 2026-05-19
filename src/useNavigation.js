@@ -3,7 +3,7 @@ import { getNextStation } from './routeGraph'
 
 // Overlays whose interior touch/wheel events drive their own scrolling or
 // gesture handlers — never the global station-transition navigation.
-const NAV_EXEMPT_SELECTOR = '.poi-search, .mapboxgl-popup-content, .line-legend, .intro-overlay'
+const NAV_EXEMPT_SELECTOR = '.poi-search, .mapboxgl-popup-content, .line-legend, .hint-overlay'
 
 function isInsideExemptOverlay(target) {
   return !!(target && typeof target.closest === 'function' && target.closest(NAV_EXEMPT_SELECTOR))

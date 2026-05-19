@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints, getTerminusInfo } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
-import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
+import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags, mergeFeatureCollections } from './poiUtils'
@@ -9,9 +9,23 @@ import { useNavigation } from './useNavigation'
 import MapView from './MapView'
 import LineLegend from './LineLegend'
 import POISearch from './POISearch'
-import Intro from './Intro'
-import { shouldShowIntro } from './introState'
+import HintOverlay from './HintOverlay'
+import { shouldShowHints, markHintsSeen } from './hintsState'
 import './walksheds.css'
+
+function computeSystemBounds(stationsData) {
+  if (!stationsData?.features?.length) return null
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+  for (const f of stationsData.features) {
+    const [lng, lat] = f.geometry.coordinates
+    if (lng < minLng) minLng = lng
+    if (lng > maxLng) maxLng = lng
+    if (lat < minLat) minLat = lat
+    if (lat > maxLat) maxLat = lat
+  }
+  if (!isFinite(minLng)) return null
+  return [[minLng, minLat], [maxLng, maxLat]]
+}
 
 function legendOverlapsWalkshed(map, walksheds, enabledWalksheds) {
   if (!map) return false
@@ -111,7 +125,7 @@ export default function Walksheds() {
   }, [units])
 
   const [legendPosition, setLegendPosition] = useState('bottom-left')
-  const [introVisible, setIntroVisible] = useState(() => shouldShowIntro())
+  const [hintsVisible, setHintsVisible] = useState(() => shouldShowHints())
   const [poiData, setPoiData] = useState({})
   const [tagCategories, setTagCategories] = useState(null)
   // Three independent state sets per the category/filter/spotlight model
@@ -438,30 +452,30 @@ export default function Walksheds() {
     return false
   }, [walksheds, enabledWalksheds, popup, poiPopup, fitToWalkshed])
 
-  const handleDeselect = useCallback(() => {
-    selectedStationRef.current = null
-    setPopup(null)
-    setWalksheds({})
-    setCurrentLine(null)
-    setJunctionHints([])
-    setTerminusInfo(null)
-    setPoiPopup(null)
-    setAutoCollapsed(false)
-    setLegendPosition('bottom-left')
-    window.history.replaceState(null, '', import.meta.env.BASE_URL)
-  }, [])
-
-  // Resolve deep link on initial load
+  // Resolve deep link on initial load, or default to Westlake with a
+  // full-system overview that flies in.
   useEffect(() => {
     if (!stationsData || resolvedRef.current) return
     resolvedRef.current = true
     const base = import.meta.env.BASE_URL
     const parsed = parseStationPath(window.location.pathname, base)
-    if (!parsed) return
-    const station = findStationByCode(stationsData, parsed.line, parsed.stopCode)
+    if (parsed) {
+      const station = findStationByCode(stationsData, parsed.line, parsed.stopCode)
+      if (!station) return
+      queueMicrotask(() => selectStation(station.name, station.lng, station.lat, station.line))
+      return
+    }
+    // No deep link: snap to system-wide overview, then fly into Westlake.
+    const station = findStationByCode(stationsData, '1', 50)
     if (!station) return
-    // Defer to avoid synchronous setState in effect body (lint: react-hooks/set-state-in-effect)
-    queueMicrotask(() => selectStation(station.name, station.lng, station.lat, station.line))
+    const bounds = computeSystemBounds(stationsData)
+    if (bounds) {
+      mapViewRef.current?.fitBounds(bounds, { padding: 80, duration: 0 })
+    }
+    const t = setTimeout(() => {
+      selectStation(station.name, station.lng, station.lat, station.line)
+    }, 900)
+    return () => clearTimeout(t)
   }, [stationsData, selectStation])
 
   // Sync walkshed + POI filter query params when toggles change. The URL
@@ -486,21 +500,28 @@ export default function Walksheds() {
   // Restore POI filter state from `?pois=` once the schema is loaded.
   // Splits the parsed tag set into categories vs filters by the tag's
   // category-bucket — backward-compatible with URLs minted before this split.
+  // When no `?pois=` is present, seed sandwich (category pill) + outdoor-seating
+  // (filter checkbox) so the empty-state landing on Westlake demonstrates both
+  // the pill row and the filter list, alongside the parks + coffee spotlights.
   useEffect(() => {
     if (!tagCategories || poisResolvedRef.current) return
     poisResolvedRef.current = true
     const parsed = parsePoiFilterParam(window.location.search, tagCategories.filter_schema)
-    if (!parsed) return
     queueMicrotask(() => {
-      if (parsed.categories.size) setEnabledSpotlights(parsed.categories)
-      if (parsed.tags.size) {
-        const cats = new Set()
-        const filts = new Set()
-        for (const t of parsed.tags) {
-          (isFilterTag(t) ? filts : cats).add(t)
+      if (parsed) {
+        if (parsed.categories.size) setEnabledSpotlights(parsed.categories)
+        if (parsed.tags.size) {
+          const cats = new Set()
+          const filts = new Set()
+          for (const t of parsed.tags) {
+            (isFilterTag(t) ? filts : cats).add(t)
+          }
+          if (cats.size) setActiveCategories(cats)
+          if (filts.size) setActiveFilters(filts)
         }
-        if (cats.size) setActiveCategories(cats)
-        if (filts.size) setActiveFilters(filts)
+      } else {
+        setActiveCategories(new Set(['sandwich']))
+        setActiveFilters(new Set(['outdoor-seating']))
       }
     })
   }, [tagCategories, isFilterTag])
@@ -527,23 +548,32 @@ export default function Walksheds() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [handleWalkshedToggle, toggleLegendCollapsed])
 
-  const introControls = {
-    selectByName: useCallback((name) => {
-      const feat = stationsData?.features.find(f => f.properties.name === name)
-      if (!feat) return
-      const [lng, lat] = feat.geometry.coordinates
-      selectStation(name, lng, lat, feat.properties.line)
-    }, [stationsData, selectStation]),
-    setEnabledWalksheds: useCallback((set) => setEnabledWalksheds(set), []),
-    flyToOverview: useCallback(() => {
-      handleDeselect()
-      mapViewRef.current?.getMap()?.flyTo({
-        center: SEATTLE_CENTER,
-        zoom: SEATTLE_ZOOM,
-        duration: 1500,
-      })
-    }, [handleDeselect]),
-  }
+  // Dismiss hints on any click. Armed after a short delay so the auto-fly
+  // into Westlake (and any synthetic map events around it) doesn't swallow
+  // the hints on first paint.
+  useEffect(() => {
+    if (!hintsVisible) return
+    let armed = false
+    const armT = setTimeout(() => { armed = true }, 250)
+    const onClick = () => {
+      if (!armed) return
+      markHintsSeen()
+      setHintsVisible(false)
+    }
+    document.addEventListener('click', onClick, { capture: true })
+    return () => {
+      clearTimeout(armT)
+      document.removeEventListener('click', onClick, { capture: true })
+    }
+  }, [hintsVisible])
+
+  const handleHintsToggle = useCallback(() => {
+    setHintsVisible(v => {
+      const next = !v
+      if (!next) markHintsSeen()
+      return next
+    })
+  }, [])
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''} ${listOnTop ? 'list-on-top' : ''}`}>
@@ -601,13 +631,15 @@ export default function Walksheds() {
         onUnitsToggle={() => setUnits(u => u === 'imperial' ? 'metric' : 'imperial')}
         collapsed={legendCollapsed}
         onToggleCollapse={() => toggleLegendCollapsed()}
+        onHintsToggle={handleHintsToggle}
         position={legendPosition}
       />
 
-      {introVisible && stationsData && (
-        <Intro
-          controls={introControls}
-          onClose={() => setIntroVisible(false)}
+      {hintsVisible && stationsData && (
+        <HintOverlay
+          legendPosition={legendPosition}
+          legendCollapsed={legendCollapsed}
+          hasActiveFilters={activeFilters.size > 0}
         />
       )}
     </div>

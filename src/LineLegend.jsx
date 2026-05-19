@@ -22,6 +22,14 @@ function UnitsToggle({ units, onToggle, className }) {
   )
 }
 
+const HELP_ICON = (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M6 6.2a2 2 0 1 1 2.5 1.9c-.3.1-.5.4-.5.7V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+    <circle cx="8" cy="11.5" r="0.7" fill="currentColor"/>
+  </svg>
+)
+
 export default function LineLegend({
   lineColors,
   enabledWalksheds,
@@ -33,6 +41,7 @@ export default function LineLegend({
   onUnitsToggle,
   collapsed,
   onToggleCollapse,
+  onHintsToggle,
   position,
 }) {
   const posClass = position === 'bottom-right' ? 'bottom-right' : ''
@@ -77,6 +86,9 @@ export default function LineLegend({
           {onUnitsToggle && (
             <UnitsToggle units={units} onToggle={onUnitsToggle} className="legend-units-toggle-inline" />
           )}
+          <button className="legend-dark-toggle-inline" onClick={onHintsToggle} aria-label="Toggle hints">
+            {HELP_ICON}
+          </button>
           <div className="legend-collapsed-divider" />
           <div className="legend-collapsed-walksheds">
             {WALKSHED_ITEMS.map(({ minutes }) => {
@@ -128,6 +140,9 @@ export default function LineLegend({
         {onUnitsToggle && (
           <UnitsToggle units={units} onToggle={onUnitsToggle} className="legend-header-btn legend-units-toggle" />
         )}
+        <button className="legend-header-btn" onClick={onHintsToggle} aria-label="Toggle hints">
+          {HELP_ICON}
+        </button>
         <h3 className="legend-title">Link light rail</h3>
         <button className="legend-header-btn" onClick={onToggleCollapse} aria-label="Collapse legend">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
