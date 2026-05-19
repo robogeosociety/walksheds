@@ -530,10 +530,13 @@ body,
 }
 
 /* Junction (Chinatown) and terminus badges sit to the right of the pill
- * name, separated by a thin divider. Pure SVG glyph — no embedded labels. */
+ * name, separated by a thin divider. Pure Unicode glyph(s): ↳ for the
+ * Chinatown switch, ⤒ / ⤓ / ⇥ (arrow-to-bar) for the termini. The bar
+ * portion of those glyphs reads as the buffer-stop at the end of track. */
 .pill-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  gap: 2px;
   margin-left: 2px;
   padding-left: 6px;
   border-left: 1px solid #ddd;
@@ -543,9 +546,11 @@ body,
   border-left-color: rgba(255, 255, 255, 0.15);
 }
 
-.pill-badge-svg {
-  display: block;
-  flex-shrink: 0;
+.pill-badge-glyph {
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 700;
+  font-family: -apple-system, "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", system-ui, sans-serif;
 }
 
 /* ── Intro walkthrough ── */

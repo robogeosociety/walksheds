@@ -5,6 +5,17 @@ import { LINE_COLORS } from './constants'
 const LINE_1_COLOR = LINE_COLORS['1-line'].color
 const LINE_2_COLOR = LINE_COLORS['2-line'].color
 
+// Unicode glyphs encoding the track's direction at each special station.
+// ↳ = south-then-east curve (Line 2 diverging at Chinatown).
+// ⤒ ⤓ ⇥ = "arrow to bar" — the bar is the buffer-stop / end-of-track.
+const SWITCH_GLYPH = '↳'
+const TERMINUS_GLYPHS = {
+  ArrowUp: '⤒',
+  ArrowDown: '⤓',
+  ArrowRight: '⇥',
+  ArrowLeft: '⇤',
+}
+
 /**
  * Pure pill body — used by the on-map StationPill (wrapped in a Mapbox
  * Marker) and by the POI popup's "Nearest stations" rows. No animations,
@@ -31,90 +42,39 @@ export function StationPillBody({ lines, stopCode, name, className }) {
   )
 }
 
-/**
- * Junction switch glyph: a vertical Line 1 (green) trunk with a Line 2
- * (blue) branch diverging east — depicting the Chinatown split.
- */
+/** Chinatown junction: Line 2's south-then-east curve in blue. */
 function SwitchBadge() {
   return (
-    <div className="pill-badge pill-badge-junction">
-      <svg
-        className="pill-badge-svg"
-        width="22"
-        height="22"
-        viewBox="0 0 22 22"
-        role="img"
-        aria-label="Junction: Line 1 continues south, Line 2 branches east"
-      >
-        <line x1="6" y1="1" x2="6" y2="21" stroke={LINE_1_COLOR} strokeWidth="3" strokeLinecap="round" />
-        <line x1="6" y1="11" x2="21" y2="11" stroke={LINE_2_COLOR} strokeWidth="3" strokeLinecap="round" />
-      </svg>
-    </div>
+    <span
+      className="pill-badge"
+      role="img"
+      aria-label="Junction: Line 2 branches east"
+    >
+      <span className="pill-badge-glyph" style={{ color: LINE_2_COLOR }}>{SWITCH_GLYPH}</span>
+    </span>
   )
 }
 
 /**
- * Terminus glyph: a colored rail capped by a perpendicular bumper at
- * the end-of-line side. Direction encodes which way the line "runs off
- * the map"; lines={["1-line","2-line"]} (Lynnwood) draws both rails in
- * parallel, otherwise a single rail in the terminating line's color.
+ * Terminus end-of-line. The arrow-to-bar glyph encodes the cardinal the
+ * line runs off the map in (Lynnwood north, Federal Way south, Downtown
+ * Redmond east). When both lines terminate at the same station
+ * (Lynnwood), one glyph per line color is rendered.
  */
 function TerminusBadge({ direction, lines }) {
-  const isBoth = lines.length === 2
-  const railColor = lines[0] === '1-line' ? LINE_1_COLOR : LINE_2_COLOR
-  const BUMPER = '#666'
-
-  // Each variant is hand-laid-out rather than rotated so the per-direction
-  // proportions (single rail vs double rail; squat horizontal vs tall vertical)
-  // can be tuned independently.
-  if (direction === 'ArrowUp') {
-    // North terminus (Lynnwood): bumper at top, rails go down (south).
-    return (
-      <div className="pill-badge pill-badge-terminus" aria-hidden>
-        <svg className="pill-badge-svg" width="22" height="22" viewBox="0 0 22 22">
-          <line x1="2" y1="3" x2="20" y2="3" stroke={BUMPER} strokeWidth="3.5" strokeLinecap="round" />
-          {isBoth ? (
-            <>
-              <line x1="8" y1="3" x2="8" y2="22" stroke={LINE_1_COLOR} strokeWidth="3" strokeLinecap="round" />
-              <line x1="14" y1="3" x2="14" y2="22" stroke={LINE_2_COLOR} strokeWidth="3" strokeLinecap="round" />
-            </>
-          ) : (
-            <line x1="11" y1="3" x2="11" y2="22" stroke={railColor} strokeWidth="3" strokeLinecap="round" />
-          )}
-        </svg>
-      </div>
-    )
-  }
-  if (direction === 'ArrowDown') {
-    // South terminus (Federal Way Line 1): bumper at bottom, rail goes up.
-    return (
-      <div className="pill-badge pill-badge-terminus" aria-hidden>
-        <svg className="pill-badge-svg" width="22" height="22" viewBox="0 0 22 22">
-          <line x1="11" y1="0" x2="11" y2="19" stroke={railColor} strokeWidth="3" strokeLinecap="round" />
-          <line x1="2" y1="19" x2="20" y2="19" stroke={BUMPER} strokeWidth="3.5" strokeLinecap="round" />
-        </svg>
-      </div>
-    )
-  }
-  if (direction === 'ArrowRight') {
-    // East terminus (Downtown Redmond Line 2): bumper at right, rail goes left.
-    return (
-      <div className="pill-badge pill-badge-terminus" aria-hidden>
-        <svg className="pill-badge-svg" width="22" height="22" viewBox="0 0 22 22">
-          <line x1="0" y1="11" x2="19" y2="11" stroke={railColor} strokeWidth="3" strokeLinecap="round" />
-          <line x1="19" y1="2" x2="19" y2="20" stroke={BUMPER} strokeWidth="3.5" strokeLinecap="round" />
-        </svg>
-      </div>
-    )
-  }
-  // direction === 'ArrowLeft' — west terminus (no line uses this today; render mirror of east).
+  const glyph = TERMINUS_GLYPHS[direction] || TERMINUS_GLYPHS.ArrowUp
   return (
-    <div className="pill-badge pill-badge-terminus" aria-hidden>
-      <svg className="pill-badge-svg" width="22" height="22" viewBox="0 0 22 22">
-        <line x1="3" y1="11" x2="22" y2="11" stroke={railColor} strokeWidth="3" strokeLinecap="round" />
-        <line x1="3" y1="2" x2="3" y2="20" stroke={BUMPER} strokeWidth="3.5" strokeLinecap="round" />
-      </svg>
-    </div>
+    <span className="pill-badge" role="img" aria-label="End of line">
+      {lines.map(line => (
+        <span
+          key={line}
+          className="pill-badge-glyph"
+          style={{ color: line === '1-line' ? LINE_1_COLOR : LINE_2_COLOR }}
+        >
+          {glyph}
+        </span>
+      ))}
+    </span>
   )
 }
 
@@ -150,3 +110,4 @@ export default function StationPill({ longitude, latitude, lines, stopCode, name
     </Marker>
   )
 }
+
