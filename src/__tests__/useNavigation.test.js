@@ -3,10 +3,20 @@ import { renderHook } from '@testing-library/react'
 import { useNavigation } from '../useNavigation'
 
 function makeGraph() {
+  // Station B sits at the center with neighbors in all four cardinals.
+  // The east neighbor (D) is required so the wheel/touch-swipe tests can
+  // verify horizontal-gesture navigation lands somewhere — under the new
+  // cardinal-bin rules in routeGraph.getNextStation, a horizontal swipe
+  // only navigates when the station actually has an east/west neighbor.
   const graph = new Map()
   graph.set('Station A', { coords: [-122.3, 47.6], neighbors: [{ name: 'Station B', line: '1-line', coords: [-122.3, 47.65] }] })
-  graph.set('Station B', { coords: [-122.3, 47.65], neighbors: [{ name: 'Station A', line: '1-line', coords: [-122.3, 47.6] }, { name: 'Station C', line: '1-line', coords: [-122.3, 47.7] }] })
+  graph.set('Station B', { coords: [-122.3, 47.65], neighbors: [
+    { name: 'Station A', line: '1-line', coords: [-122.3, 47.6] },
+    { name: 'Station C', line: '1-line', coords: [-122.3, 47.7] },
+    { name: 'Station D', line: '1-line', coords: [-122.2, 47.65] },
+  ] })
   graph.set('Station C', { coords: [-122.3, 47.7], neighbors: [{ name: 'Station B', line: '1-line', coords: [-122.3, 47.65] }] })
+  graph.set('Station D', { coords: [-122.2, 47.65], neighbors: [{ name: 'Station B', line: '1-line', coords: [-122.3, 47.65] }] })
   return graph
 }
 

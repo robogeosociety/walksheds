@@ -8,6 +8,20 @@ const WALKSHED_ITEMS = [
 
 const WALKSHED_OPACITIES = { 5: 0.7, 10: 0.45, 15: 0.25 }
 
+function UnitsToggle({ units, onToggle, className }) {
+  const next = units === 'imperial' ? 'metric' : 'imperial'
+  return (
+    <button
+      className={className}
+      onClick={onToggle}
+      aria-label={`Switch units to ${next === 'imperial' ? 'imperial (miles, feet)' : 'metric (km, meters)'}`}
+      title={`Distance units: ${units === 'imperial' ? 'mi/ft' : 'km/m'} — click to switch`}
+    >
+      <span className="legend-units-text">{units === 'imperial' ? 'mi' : 'km'}</span>
+    </button>
+  )
+}
+
 export default function LineLegend({
   lineColors,
   enabledWalksheds,
@@ -15,6 +29,8 @@ export default function LineLegend({
   onWalkshedToggle,
   darkMode,
   onDarkModeToggle,
+  units,
+  onUnitsToggle,
   collapsed,
   onToggleCollapse,
   position,
@@ -58,6 +74,9 @@ export default function LineLegend({
               </svg>
             )}
           </button>
+          {onUnitsToggle && (
+            <UnitsToggle units={units} onToggle={onUnitsToggle} className="legend-units-toggle-inline" />
+          )}
           <div className="legend-collapsed-divider" />
           <div className="legend-collapsed-walksheds">
             {WALKSHED_ITEMS.map(({ minutes }) => {
@@ -106,6 +125,9 @@ export default function LineLegend({
             </svg>
           )}
         </button>
+        {onUnitsToggle && (
+          <UnitsToggle units={units} onToggle={onUnitsToggle} className="legend-header-btn legend-units-toggle" />
+        )}
         <h3 className="legend-title">Link light rail</h3>
         <button className="legend-header-btn" onClick={onToggleCollapse} aria-label="Collapse legend">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

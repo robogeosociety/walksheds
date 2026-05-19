@@ -762,6 +762,19 @@ def validate_geojson(fc, category_name, bbox):
         if not isinstance(props.get("tags"), list) or len(props.get("tags", [])) == 0:
             errors.append(f"{category_name}[{i}]: missing or empty tags")
 
+        if "stations" in props:
+            stations_prop = props["stations"]
+            if not isinstance(stations_prop, list):
+                errors.append(f"{category_name}[{i}]: 'stations' is not a list")
+            else:
+                for j, s in enumerate(stations_prop):
+                    if not isinstance(s, dict):
+                        errors.append(f"{category_name}[{i}].stations[{j}]: not an object")
+                        continue
+                    for required in ("stopCode", "lines", "name", "walkingMeters", "walkingSeconds", "band"):
+                        if required not in s:
+                            errors.append(f"{category_name}[{i}].stations[{j}]: missing '{required}'")
+
         if coords:
             lng, lat = coords
             if not (bbox[1] - 0.01 <= lng <= bbox[3] + 0.01 and bbox[0] - 0.01 <= lat <= bbox[2] + 0.01):
@@ -773,6 +786,82 @@ def validate_geojson(fc, category_name, bbox):
         ids.add(eid)
 
     return errors
+
+
+def attach_station_distances(all_fcs):
+    """Attach a sorted `stations` array to every POI feature using the committed dumps.
+
+    Reads data/pois/raw/walksheds.json.gz (polygon dump) and
+    data/pois/raw/walking-distances.json.gz (Mapbox Matrix cache) and writes
+    each in-walkshed (station, POI) pair onto the POI as one entry in
+    `properties.stations`, sorted ascending by walking seconds.
+
+    Silent no-op if either dump is missing — the offline `fetch_pois.py` build
+    keeps working before walkshed/distance refresh has ever been run. After
+    the first refresh the dumps are committed and this step always runs.
+    """
+    import fetch_walking_distances as fwd
+    import fetch_walksheds as fws
+
+    if not os.path.exists(fws.RAW_DUMP) or not os.path.exists(fwd.DUMP):
+        print("\nSkipping station-distance attachment: walkshed / distance dumps not committed yet.")
+        print("  Run `python3 data/pois/fetch_walksheds.py --refresh` and")
+        print("       `python3 data/pois/fetch_walking_distances.py --refresh` to populate.")
+        return
+
+    print("\nAttaching station distances to POIs...")
+    walkshed_payload = fws.load_dump()
+    distance_payload = fwd.load_dump()
+
+    if distance_payload.get("version") != walkshed_payload.get("version"):
+        print(f"  WARNING: distance cache version {distance_payload.get('version')} != "
+              f"walkshed version {walkshed_payload.get('version')}; "
+              f"re-run `fetch_walking_distances.py --refresh`.")
+        return
+
+    stations = load_station_index()
+    station_meta = {fws.station_key(s): s for s in stations}
+    pairs = distance_payload.get("pairs", {})
+
+    # Group pairs by POI id so each POI gets one lookup.
+    by_poi = {}
+    for pair_key, value in pairs.items():
+        try:
+            station_key_str, poi_id_str = pair_key.split(":", 1)
+            poi_id = int(poi_id_str)
+        except (ValueError, TypeError):
+            continue
+        meters, seconds, band = value
+        by_poi.setdefault(poi_id, []).append((station_key_str, meters, seconds, band))
+
+    attached = 0
+    total = 0
+    for cat, fc in all_fcs.items():
+        for feat in fc["features"]:
+            total += 1
+            poi_id = feat["properties"]["id"]
+            entries = by_poi.get(poi_id)
+            if not entries:
+                continue
+            stations_list = []
+            for station_key_str, meters, seconds, band in entries:
+                meta = station_meta.get(station_key_str)
+                if not meta:
+                    continue
+                stations_list.append({
+                    "stopCode": meta["stopCode"],
+                    "lines": meta["lines"],
+                    "name": meta["name"],
+                    "walkingMeters": round(meters),
+                    "walkingSeconds": round(seconds),
+                    "band": band,
+                })
+            stations_list.sort(key=lambda s: (s["walkingSeconds"], s["walkingMeters"]))
+            if stations_list:
+                feat["properties"]["stations"] = stations_list
+                attached += 1
+    print(f"  Attached station distances to {attached:,}/{total:,} POIs "
+          f"(remainder are outside every 15-min walkshed)")
 
 
 def haversine_dist(lng1, lat1, lng2, lat2):
@@ -981,10 +1070,17 @@ def main():
         print(f"  {len(elements):,} elements in dump")
 
         print(f"\nBuilding categories... (normalize={'on' if normalize else 'off'})")
-        all_errors = []
         for cat in categories_to_build:
             fc = build_category(elements, cat, normalize=normalize)
             all_fcs[cat] = fc
+
+        # Attach station distances before validation+write so the new
+        # `stations` array passes the validator and lands in the on-disk files.
+        attach_station_distances(all_fcs)
+
+        all_errors = []
+        for cat in categories_to_build:
+            fc = all_fcs[cat]
             errors = validate_geojson(fc, cat, bbox)
             all_errors.extend(errors)
 

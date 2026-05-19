@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { buildGraph, isJunction, getJunctionHints } from './routeGraph'
+import { buildGraph, isJunction, getJunctionHints, getTerminusInfo } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
 import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, SEATTLE_CENTER, SEATTLE_ZOOM, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
@@ -69,8 +69,15 @@ export default function Walksheds() {
   })
   const [currentLine, setCurrentLine] = useState(null)
   const [junctionHints, setJunctionHints] = useState([])
+  const [terminusInfo, setTerminusInfo] = useState(null)
   const [darkMode, setDarkMode] = useState(() => {
     try { return window.localStorage.getItem('walksheds_dark_mode') === '1' } catch { return false }
+  })
+  const [units, setUnits] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem('walksheds_units')
+      return stored === 'imperial' ? 'imperial' : 'metric'
+    } catch { return 'metric' }
   })
   const [line1Data, setLine1Data] = useState(null)
   const [line2Data, setLine2Data] = useState(null)
@@ -99,6 +106,10 @@ export default function Walksheds() {
     try { window.localStorage.setItem('walksheds_dark_mode', darkMode ? '1' : '0') } catch { /* private mode */ }
   }, [darkMode])
 
+  useEffect(() => {
+    try { window.localStorage.setItem('walksheds_units', units) } catch { /* private mode */ }
+  }, [units])
+
   const [legendPosition, setLegendPosition] = useState('bottom-left')
   const [introVisible, setIntroVisible] = useState(() => shouldShowIntro())
   const [poiData, setPoiData] = useState({})
@@ -107,6 +118,10 @@ export default function Walksheds() {
   const [enabledCategories, setEnabledCategories] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
   const [poiPopup, setPoiPopup] = useState(null)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
+  // Z-order toggle: when the user opens a chip's POI list, lift the search/list
+  // above any open popup; clicking the popup body or a POI dot puts the popup
+  // back on top. Default state is popup-on-top to match historical behavior.
+  const [listOnTop, setListOnTop] = useState(false)
   const mapViewRef = useRef(null)
   const selectedStationRef = useRef(null)
   const graphRef = useRef(null)
@@ -172,8 +187,10 @@ export default function Walksheds() {
 
     if (graphRef.current && isJunction(graphRef.current, name)) {
       setJunctionHints(getJunctionHints(graphRef.current, name))
+      setTerminusInfo(null)
     } else {
       setJunctionHints([])
+      setTerminusInfo(graphRef.current ? getTerminusInfo(graphRef.current, name) : null)
     }
 
     const results = {}
@@ -290,6 +307,7 @@ export default function Walksheds() {
   const handleClearPoiFilters = useCallback(() => {
     setPoiFilters(new Set())
     setEnabledCategories(new Set())
+    setExpandedPoiTag(null)
     fitToWalkshed()
   }, [fitToWalkshed])
 
@@ -311,13 +329,38 @@ export default function Walksheds() {
       tags: typeof props.tags === 'string' ? JSON.parse(props.tags) : props.tags,
       website: props.website,
       address: props.address,
+      stations: typeof props.stations === 'string' ? JSON.parse(props.stations) : props.stations,
     })
     setExpandedPoiTag(null)
+    setListOnTop(false)
   }, [])
+
+  // Click handler for a station row inside a POI popup: jump to that station.
+  const handlePopupStationClick = useCallback((s) => {
+    if (!stationsData) return
+    const feat = stationsData.features.find(f =>
+      f.properties.stopCode === s.stopCode && (f.properties.lines || '').trim() === (s.lines || '').trim()
+    )
+    if (!feat) return
+    const [lng, lat] = feat.geometry.coordinates
+    selectStation(feat.properties.name, lng, lat, feat.properties.line)
+  }, [stationsData, selectStation])
 
   // Closing the popup re-frames the walkshed at its original padding so the
   // user lands back in "station view" instead of stuck zoomed on the POI.
   const handlePoiClose = useCallback(() => fitToWalkshed(), [fitToWalkshed])
+
+  // Expanding a chip's POI list raises the list above any open popup. Passing
+  // null collapses the list; the z-order doesn't matter once the list is gone
+  // but we clear the flag to keep state tidy.
+  const handleExpandPoiTag = useCallback((tag) => {
+    setExpandedPoiTag(tag)
+    setListOnTop(tag != null)
+  }, [])
+
+  // Any click inside the popup (or the POI dot on the map) brings the popup
+  // back to the top. Wired into POILayer's popup container.
+  const handlePopupFocus = useCallback(() => setListOnTop(false), [])
 
   // Hand keyboard focus from the search box back to the map canvas so the
   // user can pan/zoom with arrow keys right after committing a selection.
@@ -359,6 +402,7 @@ export default function Walksheds() {
     setWalksheds({})
     setCurrentLine(null)
     setJunctionHints([])
+    setTerminusInfo(null)
     setPoiPopup(null)
     setAutoCollapsed(false)
     setLegendPosition('bottom-left')
@@ -424,6 +468,7 @@ export default function Walksheds() {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
       if (e.key === 'd') setDarkMode(d => !d)
       else if (e.key === 'l') toggleLegendCollapsed()
+      else if (e.key === 'u') setUnits(u => u === 'imperial' ? 'metric' : 'imperial')
       else if (WALKSHED_KEYS[e.key]) handleWalkshedToggle(WALKSHED_KEYS[e.key])
     }
     window.addEventListener('keydown', handleKey)
@@ -449,7 +494,7 @@ export default function Walksheds() {
   }
 
   return (
-    <div className={`app ${darkMode ? 'dark' : ''}`}>
+    <div className={`app ${darkMode ? 'dark' : ''} ${listOnTop ? 'list-on-top' : ''}`}>
       <MapView
         ref={mapViewRef}
         darkMode={darkMode}
@@ -457,6 +502,7 @@ export default function Walksheds() {
         enabledWalksheds={enabledWalksheds}
         popup={popup}
         junctionHints={junctionHints}
+        terminusInfo={terminusInfo}
         line1Data={line1Data}
         line2Data={line2Data}
         stationsData={stationsData}
@@ -466,6 +512,9 @@ export default function Walksheds() {
         onPoiClick={handlePoiClick}
         onPoiClose={handlePoiClose}
         onPoiTagClick={handleAddPoiFilter}
+        onPopupStationClick={handlePopupStationClick}
+        onPopupFocus={handlePopupFocus}
+        units={units}
       />
 
       {Object.keys(poiData).length > 0 && (
@@ -474,7 +523,7 @@ export default function Walksheds() {
           activeFilters={poiFilters}
           poiFeatures={walkshedPois.features}
           expandedTag={expandedPoiTag}
-          onExpandTag={setExpandedPoiTag}
+          onExpandTag={handleExpandPoiTag}
           onAddFilter={handleAddPoiFilter}
           onRemoveFilter={handleRemovePoiFilter}
           onClearFilters={handleClearPoiFilters}
@@ -494,6 +543,8 @@ export default function Walksheds() {
         onWalkshedToggle={handleWalkshedToggle}
         darkMode={darkMode}
         onDarkModeToggle={() => setDarkMode(d => !d)}
+        units={units}
+        onUnitsToggle={() => setUnits(u => u === 'imperial' ? 'metric' : 'imperial')}
         collapsed={legendCollapsed}
         onToggleCollapse={() => toggleLegendCollapsed()}
         position={legendPosition}

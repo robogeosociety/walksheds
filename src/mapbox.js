@@ -34,18 +34,26 @@ export function polygonToLine(geojson) {
  * should be left alone. Returns the POI coords when a popup is open
  * (every popup goes through a flyTo, so popup-exists ⇔ POI-is-centered),
  * the station coords when no popup is open, and null when the current map
- * center is outside the largest enabled walkshed ring (user deliberately
- * panned away).
+ * center is outside the snap ring.
+ *
+ * The snap ring is the **second-largest** enabled-and-loaded walkshed
+ * (e.g. 10-min when 5/10/15 are all on). Using the largest made it too
+ * hard to pan-navigate to neighboring stations along the trunk — the
+ * 15-min rings of adjacent downtown stations overlap, so any pan toward
+ * a neighbor immediately snapped back. With n-1, the outer band acts as
+ * a "release zone" where panning lets you keep moving toward the next
+ * station. When only one walkshed is enabled there's no n-1, so we fall
+ * back to that one ring.
  */
 export function computeSnapTarget({ mapCenter, walksheds, enabledWalksheds, popup, poiPopup }) {
   if (!popup) return null
-  const sorted = [...enabledWalksheds].sort((a, b) => b - a)
-  let ring = null
-  for (const min of sorted) {
-    const candidate = walksheds[min]?.features?.[0]?.geometry?.coordinates?.[0]
-    if (candidate) { ring = candidate; break }
-  }
-  if (!ring || !pointInPolygon(mapCenter, ring)) return null
+  const loadedRings = [...enabledWalksheds]
+    .sort((a, b) => b - a)
+    .map(min => walksheds[min]?.features?.[0]?.geometry?.coordinates?.[0])
+    .filter(Boolean)
+  if (loadedRings.length === 0) return null
+  const ring = loadedRings[loadedRings.length >= 2 ? 1 : 0]
+  if (!pointInPolygon(mapCenter, ring)) return null
   if (poiPopup) return [poiPopup.longitude, poiPopup.latitude]
   return [popup.longitude, popup.latitude]
 }

@@ -14,6 +14,7 @@ const MapView = forwardRef(function MapView({
   enabledWalksheds,
   popup,
   junctionHints,
+  terminusInfo,
   line1Data,
   line2Data,
   stationsData,
@@ -23,6 +24,9 @@ const MapView = forwardRef(function MapView({
   onPoiClick,
   onPoiClose,
   onPoiTagClick,
+  onPopupStationClick,
+  onPopupFocus,
+  units,
 }, ref) {
   const mapRef = useRef(null)
   const isDraggingRef = useRef(false)
@@ -75,6 +79,22 @@ const MapView = forwardRef(function MapView({
     if (!map || !mapLoaded) return
     map.setConfigProperty('basemap', 'showPointOfInterestLabels', !hasWalksheds)
   }, [hasWalksheds, mapLoaded])
+
+  // Re-pin POI and station layers to the top after any walkshed change.
+  // Mapbox adds new layers at the top of the stack, so the freshly-mounted
+  // walkshed Sources (which mount when the user picks a station, toggles
+  // a band, or switches dark mode — the latter changes the source IDs)
+  // would otherwise sit above the station icons. JSX order alone doesn't
+  // fix this because by the time walksheds mount, station-circles was
+  // already added. The effect runs after the commit so the new walkshed
+  // layers are already in the stack when we re-order.
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map || !mapLoaded) return
+    for (const id of ['poi-circles', 'poi-labels', 'station-circles']) {
+      if (map.getLayer(id)) map.moveLayer(id)
+    }
+  }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode])
 
   const handleDragStart = useCallback(() => { isDraggingRef.current = true }, [])
   const handleDragEnd = useCallback(() => {
@@ -185,6 +205,20 @@ const MapView = forwardRef(function MapView({
         </Source>
       )}
 
+      {mapLoaded && visiblePois && (
+        <POILayer
+          poiData={visiblePois}
+          poiPopup={poiPopup}
+          onPoiClick={onPoiClick}
+          onPoiClose={onPoiClose}
+          onTagClick={onPoiTagClick}
+          onStationClick={onPopupStationClick}
+          onPopupFocus={onPopupFocus}
+          darkMode={darkMode}
+          units={units}
+        />
+      )}
+
       {mapLoaded && iconsReady && stationsData && (
         <Source id="stations" type="geojson" data={stationsData}>
           <Layer
@@ -201,17 +235,6 @@ const MapView = forwardRef(function MapView({
         </Source>
       )}
 
-      {mapLoaded && visiblePois && (
-        <POILayer
-          poiData={visiblePois}
-          poiPopup={poiPopup}
-          onPoiClick={onPoiClick}
-          onPoiClose={onPoiClose}
-          onTagClick={onPoiTagClick}
-          darkMode={darkMode}
-        />
-      )}
-
       {popup && (
         <StationPill
           key={popup.name}
@@ -221,6 +244,7 @@ const MapView = forwardRef(function MapView({
           stopCode={popup.stopCode}
           name={popup.name}
           junctionHints={junctionHints}
+          terminusInfo={terminusInfo}
         />
       )}
     </Map>
