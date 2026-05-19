@@ -19,6 +19,9 @@ npm run preview       # Preview production build
 python3 data/process.py          # Regenerate transit GeoJSON from SDOT raw data
 python3 data/pois/fetch_pois.py  # Rebuild POI GeoJSONs from committed OSM dump (no network)
 python3 data/pois/fetch_pois.py --refresh  # Refetch OSM dump from Overpass, then rebuild
+python3 data/pois/fetch_walksheds.py --refresh           # Refetch walkshed polygons from Mapbox Isochrone
+python3 data/pois/fetch_walking_distances.py --refresh   # Refetch POI↔station walking distances from Mapbox Matrix
+python3 data/icons/fetch_app_icon.py                     # Rebuild iOS home-screen icons from the committed walksheds dump
 ```
 
 ## Architecture
@@ -62,7 +65,21 @@ Tag categorization is config-driven via `EXPLICIT_TAG_CATEGORIES` (category id �
 
 Restaurants surface ~315 canonical tags (down from ~340 raw via alias compression); the frontend chip list (`getAvailableTags` in `src/poiUtils.js`) sorts by count desc, so common ones bubble up.
 
-Per-feature properties on output GeoJSON: `id` (OSM node/way id), `name`, `category`, `tags[]`, plus optional `address`, `website`, `phone`, `hours`.
+Per-feature properties on output GeoJSON: `id` (OSM node/way id), `name`, `category`, `tags[]`, plus optional `address`, `website`, `phone`, `hours`, `stations[]` (see below).
+
+### Walksheds + POI walking distances (Mapbox → committed dumps)
+
+Two committed dumps power the "Nearest stations" section of POI popups:
+
+1. **`data/pois/raw/walksheds.json.gz`** — one Mapbox Isochrone call per station (38 stations × `contours_minutes=5,10,15`). Built by `python3 data/pois/fetch_walksheds.py --refresh`. Keyed by `f"{lines}-{stopCode}"` (disambiguates the two stations sharing stopCode 54). Includes a `version` (sha1) used to invalidate downstream caches.
+
+2. **`data/pois/raw/walking-distances.json.gz`** — for every (station, POI) pair where the POI sits inside the station's 15-min isochrone, the walking distance + duration from Mapbox Matrix API. Built by `python3 data/pois/fetch_walking_distances.py --refresh`. Caches per pair, so re-running is incremental. Re-running with a new walkshed version invalidates the whole cache.
+
+`python3 data/pois/fetch_pois.py` (default, offline) attaches a sorted `stations: [{stopCode, lines, name, walkingMeters, walkingSeconds, band}, …]` array to each POI feature using both dumps. POIs outside every 15-min walkshed simply lack the array. If the dumps don't exist, the build runs without the array and prints a hint to refresh.
+
+**Refresh order when POIs change:** `fetch_pois.py --refresh` → `fetch_walking_distances.py --refresh` (the latter re-fetches Matrix entries for any new POI ids inside a walkshed). `fetch_walksheds.py --refresh` is only needed when station coordinates change.
+
+**Mapbox token for refresh scripts:** set `MAPBOX_TOKEN` (or `MAPBOX_ACCESS_TOKEN`) in the environment. Public (`pk.`) and secret (`sk.`) tokens have identical capability for Isochrone + Matrix (both are read endpoints); the practical reason for a build-only token is URL restrictions — if the browser-side `VITE_MAPBOX_ACCESS_TOKEN` is restricted to `walksheds.xyz`, calls from a Python script will fail the referrer check. Easiest fix: add the build host's URL (or leave unrestricted) on that token, or mint a separate token for the scripts.
 
 ## Deployment
 

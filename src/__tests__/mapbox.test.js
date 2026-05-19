@@ -39,10 +39,10 @@ describe('computeSnapTarget', () => {
     })).toBeNull()
   })
 
-  it('returns null when center is outside the largest enabled ring', () => {
-    // [4, 0] sits outside the 15-min ring (half-width 3).
+  it('returns null when center is outside the snap (n-1) ring', () => {
+    // [2.5, 0] sits inside the 15-min ring but outside the 10-min snap ring.
     expect(computeSnapTarget({
-      mapCenter: [4, 0],
+      mapCenter: [2.5, 0],
       walksheds: WALKSHEDS,
       enabledWalksheds: ENABLED_ALL,
       popup: STATION,
@@ -50,10 +50,10 @@ describe('computeSnapTarget', () => {
     })).toBeNull()
   })
 
-  it('snaps to the station when inside the largest enabled ring and no popup is open', () => {
-    // [2.5, 0] is outside the 5-min and 10-min rings but inside the 15-min.
+  it('snaps to the station when inside the n-1 enabled ring and no popup is open', () => {
+    // [1.5, 0] is outside the 5-min but inside the 10-min snap ring.
     expect(computeSnapTarget({
-      mapCenter: [2.5, 0],
+      mapCenter: [1.5, 0],
       walksheds: WALKSHEDS,
       enabledWalksheds: ENABLED_ALL,
       popup: STATION,
@@ -61,9 +61,9 @@ describe('computeSnapTarget', () => {
     })).toEqual([STATION.longitude, STATION.latitude])
   })
 
-  it('snaps to the POI when a popup is open and center is inside the largest enabled ring', () => {
+  it('snaps to the POI when a popup is open and center is inside the n-1 ring', () => {
     expect(computeSnapTarget({
-      mapCenter: [2.5, 0],
+      mapCenter: [1.5, 0],
       walksheds: WALKSHEDS,
       enabledWalksheds: ENABLED_ALL,
       popup: STATION,
@@ -71,16 +71,8 @@ describe('computeSnapTarget', () => {
     })).toEqual([POI.longitude, POI.latitude])
   })
 
-  it('uses only the largest enabled ring: dropping the outer ones shrinks the snap zone', () => {
-    // With only the 5-min enabled (half-width 1), [2.5, 0] no longer snaps.
-    expect(computeSnapTarget({
-      mapCenter: [2.5, 0],
-      walksheds: WALKSHEDS,
-      enabledWalksheds: new Set([5]),
-      popup: STATION,
-      poiPopup: null,
-    })).toBeNull()
-    // And [0.5, 0] (still inside the 5-min) does.
+  it('uses the only enabled ring when just one is on (no n-1 fallback exists)', () => {
+    // With only the 5-min enabled (half-width 1), [0.5, 0] snaps.
     expect(computeSnapTarget({
       mapCenter: [0.5, 0],
       walksheds: WALKSHEDS,
@@ -88,12 +80,29 @@ describe('computeSnapTarget', () => {
       popup: STATION,
       poiPopup: null,
     })).toEqual([STATION.longitude, STATION.latitude])
+    // And [2.5, 0] (outside the 5-min) does not.
+    expect(computeSnapTarget({
+      mapCenter: [2.5, 0],
+      walksheds: WALKSHEDS,
+      enabledWalksheds: new Set([5]),
+      popup: STATION,
+      poiPopup: null,
+    })).toBeNull()
   })
 
-  it('falls back to a smaller enabled ring when the largest hasn\'t loaded yet', () => {
-    // 15-min ring missing from data; should fall back to 10-min for the test.
+  it('snap zone tracks the n-1 of loaded rings: dropping the 15-min loaded data makes 5-min the snap', () => {
+    // With only {5, 10} loaded and ENABLED_ALL, the n-1 of loaded becomes the 5-min ring.
+    // [1.5, 0] is outside the 5-min snap → null.
     expect(computeSnapTarget({
       mapCenter: [1.5, 0],
+      walksheds: { 5: WALKSHEDS[5], 10: WALKSHEDS[10] },
+      enabledWalksheds: ENABLED_ALL,
+      popup: STATION,
+      poiPopup: null,
+    })).toBeNull()
+    // [0.5, 0] (inside 5-min) snaps.
+    expect(computeSnapTarget({
+      mapCenter: [0.5, 0],
       walksheds: { 5: WALKSHEDS[5], 10: WALKSHEDS[10] },
       enabledWalksheds: ENABLED_ALL,
       popup: STATION,

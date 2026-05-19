@@ -33,7 +33,9 @@ body,
   position: absolute;
   bottom: calc(32px + env(safe-area-inset-bottom, 0px));
   left: 16px;
-  z-index: 10;
+  /* Always-highest layer (above poi-popup z=20 and the chip-list-on-top
+   * search column at z=30; only the intro overlay at z=50 sits above). */
+  z-index: 40;
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 10px;
@@ -527,49 +529,50 @@ body,
   color: #ddd;
 }
 
-.pill-hints {
-  display: flex;
-  gap: 4px;
+/* Junction (Chinatown) and terminus badges sit to the right of the pill
+ * name, separated by a thin divider. Each badge is a row of one or more
+ * (line-circle + arrow-SVG) pairs; the outer gap spaces sibling pairs
+ * (Lynnwood has two: one per terminating line), the inner gap inside a
+ * pair is tighter. */
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-left: 2px;
   padding-left: 6px;
   border-left: 1px solid #ddd;
 }
 
-.app.dark .pill-hints {
+.app.dark .pill-badge {
   border-left-color: rgba(255, 255, 255, 0.15);
 }
 
-.pill-hint {
-  display: flex;
+.pill-badge-arrow {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Pair = one (line-circle + arrow) unit. Tight gap inside the pair,
+ * larger gap between sibling pairs (handled by .pill-badge's `gap`). */
+.pill-badge-pair {
+  display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #666;
 }
 
-.app.dark .pill-hint {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.pill-hint kbd {
+/* Inset line-number circle used inside a badge (smaller than the
+ * main pill-circles so it reads as an annotation, not a primary chip). */
+.pill-badge-line-circle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  font-size: 11px;
-  font-family: inherit;
-  color: #333;
-  background: #f5f5f5;
-}
-
-.app.dark .pill-hint kbd {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #ddd;
-  background: rgba(255, 255, 255, 0.08);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 /* ── Intro walkthrough ── */
@@ -908,10 +911,22 @@ body,
 
 /* ── POI Popup ── */
 
-/* Float above the search box (z-index 10) so it isn't obscured when
- * the popup anchors near the top-right of the viewport. */
+/* Default: popup floats above the search column (z-index 10) so it isn't
+ * obscured when anchored near the top-right of the viewport. When the user
+ * opens a chip's POI list (`.app.list-on-top`), we swap the two — the
+ * search container goes on top so the list is visible — until a click on
+ * the popup body or a POI dot puts the popup back on top. See `listOnTop`
+ * state + `handlePopupFocus` in src/Walksheds.jsx. */
 .poi-popup-container {
   z-index: 20;
+}
+
+.app.list-on-top .poi-search {
+  z-index: 30;
+}
+
+.app.list-on-top .poi-popup-container {
+  z-index: 10;
 }
 
 .poi-popup-container .mapboxgl-popup-content {
@@ -1067,6 +1082,144 @@ body,
 
 .app.dark .poi-popup-link {
   color: #5bb8f0;
+}
+
+/* ── Nearest-stations section in POI popup ── */
+
+.poi-popup-stations {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.app.dark .poi-popup-stations {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.poi-popup-stations-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 2px;
+}
+
+.app.dark .poi-popup-stations-label {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.poi-popup-station-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.poi-popup-station-row:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.app.dark .poi-popup-station-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.poi-popup-station-row .station-pill.inline {
+  position: static;
+  transform: none;
+  box-shadow: none;
+  padding: 2px 6px 2px 2px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 999px;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.app.dark .poi-popup-station-row .station-pill.inline {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.poi-popup-station-row .station-pill.inline .pill-name {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.poi-popup-station-row .station-pill.inline .pill-circle {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.poi-popup-station-row .station-pill.inline .pill-code {
+  font-size: 10px;
+}
+
+.poi-popup-station-dist {
+  font-size: 11px;
+  color: #555;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.app.dark .poi-popup-station-dist {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* ── Units toggle (m/ft) in the legend ── */
+
+.legend-units-toggle,
+.legend-units-toggle-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.legend-units-toggle:hover,
+.legend-units-toggle-inline:hover {
+  color: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.app.dark .legend-units-toggle,
+.app.dark .legend-units-toggle-inline {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.app.dark .legend-units-toggle:hover,
+.app.dark .legend-units-toggle-inline:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.legend-units-text {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 /* ── POI category pills (sit under the search input) ── */
