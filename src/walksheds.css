@@ -553,6 +553,11 @@ body,
   font-family: -apple-system, "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", system-ui, sans-serif;
 }
 
+.pill-badge-arrow {
+  display: block;
+  flex-shrink: 0;
+}
+
 /* Inset line-number circle used inside a badge (smaller than the
  * main pill-circles so it reads as an annotation, not a primary chip). */
 .pill-badge-line-circle {
