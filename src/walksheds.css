@@ -610,8 +610,10 @@ body,
   color: inherit;
   padding: 4px 10px;
   border-radius: 10px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+}
+
+.hint.dimmed {
+  opacity: 0.45;
 }
 
 /* Hand-drawn SVG arrows inline with the label text. Sized to match the

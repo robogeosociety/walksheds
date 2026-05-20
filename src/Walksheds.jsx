@@ -500,9 +500,10 @@ export default function Walksheds() {
   // Restore POI filter state from `?pois=` once the schema is loaded.
   // Splits the parsed tag set into categories vs filters by the tag's
   // category-bucket — backward-compatible with URLs minted before this split.
-  // When no `?pois=` is present, seed sandwich (category pill) + outdoor-seating
-  // (filter checkbox) so the empty-state landing on Westlake demonstrates both
-  // the pill row and the filter list, alongside the parks + coffee spotlights.
+  // When no `?pois=` is present, seed the sandwich category pill so the
+  // empty-state landing on Westlake demonstrates the pill row alongside
+  // the parks + coffee spotlights. Filter checkboxes are left empty —
+  // users discover them via the dimmed hint in the overlay.
   useEffect(() => {
     if (!tagCategories || poisResolvedRef.current) return
     poisResolvedRef.current = true
@@ -521,7 +522,6 @@ export default function Walksheds() {
         }
       } else {
         setActiveCategories(new Set(['sandwich']))
-        setActiveFilters(new Set(['outdoor-seating']))
       }
     })
   }, [tagCategories, isFilterTag])
@@ -550,13 +550,16 @@ export default function Walksheds() {
 
   // Dismiss hints on any click. Armed after a short delay so the auto-fly
   // into Westlake (and any synthetic map events around it) doesn't swallow
-  // the hints on first paint.
+  // the hints on first paint. Elements marked `data-hint-keep` (the legend
+  // collapse/expand chevrons) are opted out so toggling the legend doesn't
+  // dismiss the hint that points at it.
   useEffect(() => {
     if (!hintsVisible) return
     let armed = false
     const armT = setTimeout(() => { armed = true }, 250)
-    const onClick = () => {
+    const onClick = (e) => {
       if (!armed) return
+      if (e.target?.closest?.('[data-hint-keep]')) return
       markHintsSeen()
       setHintsVisible(false)
     }

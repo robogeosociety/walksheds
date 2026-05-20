@@ -2,8 +2,9 @@
 // input, the category pills, and the attribute-filter checkbox list.
 // The overlay itself is pointer-events: none; clicks anywhere on the
 // page dismiss it via a document-level listener in Walksheds.jsx.
-// `hasActiveFilters` suppresses the filter hint when the checkbox list
-// isn't rendered, so the arrow never points at empty space.
+// The filter hint renders dimmed when no attribute filters are active
+// (so the user still learns where filters will live), and switches to
+// full opacity + "uncheck to drop" copy once a filter exists.
 
 // Hand-drawn SVG arrows. The wobbly bezier curves and rounded line caps
 // mirror the imperfect strokes of the Architects Daughter font; sized to
@@ -99,14 +100,14 @@ export default function HintOverlay({ legendPosition, legendCollapsed, hasActive
         </span>
       </div>
 
-      {hasActiveFilters && (
-        <div className="hint hint-filters">
-          <span className="hint-label">
-            uncheck to drop an attribute filter
-            <ArrowRight />
-          </span>
-        </div>
-      )}
+      <div className={`hint hint-filters${hasActiveFilters ? '' : ' dimmed'}`}>
+        <span className="hint-label">
+          {hasActiveFilters
+            ? 'uncheck to drop an attribute filter'
+            : "filter by attribute — add tags from a chip's list"}
+          <ArrowRight />
+        </span>
+      </div>
     </div>
   )
 }
