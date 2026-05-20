@@ -113,7 +113,7 @@ export default function LineLegend({
             })}
           </div>
         <div className="legend-collapsed-divider" />
-        <button className="legend-expand-btn" onClick={onToggleCollapse} aria-label="Expand legend">
+        <button className="legend-expand-btn" onClick={onToggleCollapse} aria-label="Expand legend" data-hint-keep="true">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
             <path d="M4 10l4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -144,7 +144,7 @@ export default function LineLegend({
           {HELP_ICON}
         </button>
         <h3 className="legend-title">Legend</h3>
-        <button className="legend-header-btn" onClick={onToggleCollapse} aria-label="Collapse legend">
+        <button className="legend-header-btn" onClick={onToggleCollapse} aria-label="Collapse legend" data-hint-keep="true">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
             <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
