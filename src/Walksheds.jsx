@@ -565,8 +565,10 @@ export default function Walksheds() {
   // Dismiss hints on any click. Armed after a short delay so the auto-fly
   // into Westlake (and any synthetic map events around it) doesn't swallow
   // the hints on first paint. Elements marked `data-hint-keep` (the legend
-  // collapse/expand chevrons) are opted out so toggling the legend doesn't
-  // dismiss the hint that points at it.
+  // collapse/expand chevrons and the ? hint toggle itself) are opted out:
+  // the chevrons so toggling the legend doesn't dismiss the hint that points
+  // at it, and the ? button so its own click flips state once via the toggle
+  // rather than being dismissed here and immediately re-opened by the toggle.
   useEffect(() => {
     if (!hintsVisible) return
     let armed = false
