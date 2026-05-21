@@ -279,6 +279,20 @@ export default function Walksheds() {
     [walkshedPois, tagColors],
   )
 
+  // Flattened station list for the search box. Mirrors the shape POISearch
+  // wants — name + stopCode/lines for matching, lng/lat/line for selectStation.
+  const stationsForSearch = useMemo(() => {
+    if (!stationsData?.features?.length) return []
+    return stationsData.features.map(f => ({
+      name: f.properties.name,
+      stopCode: f.properties.stopCode,
+      lines: f.properties.lines,
+      lng: f.geometry.coordinates[0],
+      lat: f.geometry.coordinates[1],
+      line: f.properties.line,
+    }))
+  }, [stationsData])
+
   // Global (city-wide) tag list, for the search fallback when the typed term
   // doesn't match anything in the current walkshed — surfaces the tag as
   // "not in walkshed" instead of an empty dropdown.
@@ -619,6 +633,8 @@ export default function Walksheds() {
           enabledCategories={enabledSpotlights}
           onToggleCategory={handleToggleCategory}
           tagAliases={tagCategories?.filter_schema?.aliases}
+          stations={stationsForSearch}
+          onStationSelect={(s) => selectStation(s.name, s.lng, s.lat, s.line)}
           onCommit={focusMap}
         />
       )}

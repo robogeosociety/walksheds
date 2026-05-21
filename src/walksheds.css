@@ -861,6 +861,32 @@ body,
   color: rgba(255, 255, 255, 0.3);
 }
 
+/* Station rows in the search dropdown reuse StationPillBody verbatim (same
+ * component as the on-map pill + the "Nearest stations" rows inside a POI
+ * popup). We mount it with the `expanded` modifier so the name is visible,
+ * then disable the on-mount transition so it appears in its final state
+ * without the compact→expanded slide that the on-map version uses. The
+ * inner pill captures no pointer events — the wrapping button handles the
+ * click — and the search-row gets a touch more vertical padding to make
+ * room for the taller expanded pill. */
+.poi-search-option-station {
+  padding: 6px 8px;
+  gap: 6px;
+  align-items: center;
+}
+
+.poi-search-option-station .station-pill,
+.poi-search-option-station .station-pill .pill-name,
+.poi-search-option-station .station-pill .pill-circle,
+.poi-search-option-station .station-pill .pill-code {
+  transition: none;
+}
+
+.poi-search-option-station .station-pill {
+  pointer-events: none;
+  box-shadow: none;
+}
+
 /* Fallback rows: tag exists somewhere in Seattle but not in this walkshed.
  * Greyed so the user understands the term is recognized but unreachable. */
 .poi-search-option.out-of-walkshed {

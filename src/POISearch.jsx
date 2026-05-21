@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { StationPillBody } from './StationPill'
+import { STATION_ALIASES } from './stationAliases'
 
 // Mirror data/pois/fetch_pois.py:_normalize so search queries like "hot dog",
 // "café", or "drive thru" reach the hyphenated canonical tags / alias keys.
@@ -10,6 +12,9 @@ function normalizeQuery(value) {
     .replace(/[̀-ͯ]/g, '')
     .replace(/[\s_]+/g, '-')
 }
+
+const STATION_MATCH_CAP = 5
+const POI_MATCH_CAP = 8
 
 export default function POISearch({
   availableTags,
@@ -27,6 +32,8 @@ export default function POISearch({
   enabledCategories,
   onToggleCategory,
   tagAliases,
+  stations,
+  onStationSelect,
   onCommit,
 }) {
   // Tags already pinned in either bucket — exclude from dropdown suggestions.
@@ -81,10 +88,59 @@ export default function POISearch({
     return inv
   }, [tagAliases])
 
-  const matches = useMemo(() => {
+  // Find stations by stop code, "line-code" prefix, normalized name substring,
+  // or alias key — mirrors the canonical+alias two-step the POI matcher uses
+  // (see tryMatch below), but always renders the canonical station name so
+  // every row reuses StationPillBody.
+  const stationMatches = useMemo(() => {
+    if (!stations?.length || !query.trim()) return []
+    const q = normalizeQuery(query)
+
+    // "1-50" / "2 54" → exact line + stop code lookup.
+    const linePrefix = q.match(/^([12])-(\d{1,2})$/)
+    if (linePrefix) {
+      const [, line, codeStr] = linePrefix
+      const code = parseInt(codeStr, 10)
+      return stations.filter(s =>
+        s.stopCode === code && (s.lines || '').split(',').map(x => x.trim()).includes(line)
+      ).slice(0, STATION_MATCH_CAP)
+    }
+
+    // 1–2 digit numeric → stop code lookup (Westlake = 50, shared 54, etc.).
+    if (/^\d{1,2}$/.test(q)) {
+      const code = parseInt(q, 10)
+      return stations.filter(s => s.stopCode === code).slice(0, STATION_MATCH_CAP)
+    }
+
+    const seen = new Set()
+    const out = []
+    for (const s of stations) {
+      if (out.length >= STATION_MATCH_CAP) break
+      const nameNorm = normalizeQuery(s.name)
+      if (nameNorm.includes(q)) {
+        seen.add(s.name)
+        out.push(s)
+      }
+    }
+    if (out.length < STATION_MATCH_CAP) {
+      for (const [alias, canonical] of Object.entries(STATION_ALIASES)) {
+        if (out.length >= STATION_MATCH_CAP) break
+        if (!alias.includes(q)) continue
+        if (seen.has(canonical)) continue
+        const s = stations.find(st => st.name === canonical)
+        if (s) {
+          seen.add(canonical)
+          out.push(s)
+        }
+      }
+    }
+    return out
+  }, [stations, query])
+
+  const tagMatches = useMemo(() => {
     const filtered = availableTags.filter(({ tag }) => !pinnedTags.has(tag))
     if (!query.trim()) {
-      return filtered.slice(0, 8).map(t => ({ ...t, label: t.tag }))
+      return filtered.slice(0, POI_MATCH_CAP).map(t => ({ ...t, label: t.tag }))
     }
     const q = normalizeQuery(query)
     // Single-pass match: tries the canonical tag first, then any alias. Used
@@ -103,17 +159,25 @@ export default function POISearch({
     // Pad with out-of-walkshed matches when the in-walkshed dropdown isn't
     // full. The greyed row tells the user the tag exists in Seattle but not
     // near this station, instead of returning an empty dropdown.
-    if (out.length < 8 && globalAvailableTags?.length) {
+    if (out.length < POI_MATCH_CAP && globalAvailableTags?.length) {
       const localSet = new Set(availableTags.map(t => t.tag))
       for (const t of globalAvailableTags) {
-        if (out.length >= 8) break
+        if (out.length >= POI_MATCH_CAP) break
         if (localSet.has(t.tag) || pinnedTags.has(t.tag)) continue
         const m = tryMatch(t)
         if (m) out.push({ ...m, outOfWalkshed: true })
       }
     }
-    return out.slice(0, 8)
+    return out.slice(0, POI_MATCH_CAP)
   }, [query, availableTags, globalAvailableTags, pinnedTags, canonicalToAliases])
+
+  // Unified dropdown list — stations first, then POI tags. The keyboard
+  // handler treats this as one indexable array; `kind` routes Enter to the
+  // right callback.
+  const matches = useMemo(() => [
+    ...stationMatches.map(s => ({ kind: 'station', station: s })),
+    ...tagMatches.map(t => ({ kind: 'tag', ...t })),
+  ], [stationMatches, tagMatches])
 
   const handleSelect = useCallback((tag) => {
     onAddFilter(tag)
@@ -126,10 +190,25 @@ export default function POISearch({
     onCommit?.()
   }, [onAddFilter, onCommit])
 
+  const handleStationSelect = useCallback((station) => {
+    onStationSelect?.(station)
+    setQuery('')
+    setShowDropdown(false)
+    setHighlightIdx(0)
+    inputRef.current?.blur()
+    onCommit?.()
+  }, [onStationSelect, onCommit])
+
   const handleCategoryToggle = useCallback((catId) => {
     onToggleCategory?.(catId)
     onCommit?.()
   }, [onToggleCategory, onCommit])
+
+  const commitMatch = useCallback((item) => {
+    if (!item) return
+    if (item.kind === 'station') handleStationSelect(item.station)
+    else handleSelect(item.tag)
+  }, [handleSelect, handleStationSelect])
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
@@ -154,10 +233,10 @@ export default function POISearch({
     }
     if (e.key === 'Enter' && matches.length > 0) {
       e.preventDefault()
-      handleSelect(matches[highlightIdx]?.tag || matches[0].tag)
+      commitMatch(matches[highlightIdx] ?? matches[0])
       return
     }
-  }, [matches, highlightIdx, handleSelect, showDropdown])
+  }, [matches, highlightIdx, commitMatch, showDropdown])
 
   const handleInput = useCallback((e) => {
     setQuery(e.target.value)
@@ -225,7 +304,7 @@ export default function POISearch({
           ref={inputRef}
           className="poi-search-input"
           type="text"
-          placeholder="Search places..."
+          placeholder="Search stations or places..."
           value={query}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
@@ -235,20 +314,42 @@ export default function POISearch({
 
       {showDropdown && matches.length > 0 && (
         <div className="poi-search-dropdown">
-          {matches.map(({ tag, label, count, color, outOfWalkshed }, i) => (
-            <button
-              key={tag}
-              className={`poi-search-option ${i === highlightIdx ? 'highlighted' : ''}${outOfWalkshed ? ' out-of-walkshed' : ''}`}
-              onMouseDown={(e) => { e.preventDefault(); handleSelect(tag) }}
-              onMouseEnter={() => setHighlightIdx(i)}
-            >
-              {color && <span className="poi-search-option-dot" style={{ background: color }} />}
-              <span className="poi-search-option-tag">{label}</span>
-              {outOfWalkshed
-                ? <span className="poi-search-option-note">not in walkshed</span>
-                : <span className="poi-search-option-count">{count}</span>}
-            </button>
-          ))}
+          {matches.map((item, i) => {
+            const highlighted = i === highlightIdx ? 'highlighted' : ''
+            if (item.kind === 'station') {
+              const s = item.station
+              return (
+                <button
+                  key={`station-${s.lines}-${s.stopCode}`}
+                  className={`poi-search-option poi-search-option-station ${highlighted}`}
+                  onMouseDown={(e) => { e.preventDefault(); handleStationSelect(s) }}
+                  onMouseEnter={() => setHighlightIdx(i)}
+                >
+                  <StationPillBody
+                    lines={s.lines}
+                    stopCode={s.stopCode}
+                    name={s.name}
+                    className="expanded"
+                  />
+                </button>
+              )
+            }
+            const { tag, label, count, color, outOfWalkshed } = item
+            return (
+              <button
+                key={`tag-${tag}`}
+                className={`poi-search-option ${highlighted}${outOfWalkshed ? ' out-of-walkshed' : ''}`}
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(tag) }}
+                onMouseEnter={() => setHighlightIdx(i)}
+              >
+                {color && <span className="poi-search-option-dot" style={{ background: color }} />}
+                <span className="poi-search-option-tag">{label}</span>
+                {outOfWalkshed
+                  ? <span className="poi-search-option-note">not in walkshed</span>
+                  : <span className="poi-search-option-count">{count}</span>}
+              </button>
+            )
+          })}
         </div>
       )}
 
