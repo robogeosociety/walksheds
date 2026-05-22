@@ -5,6 +5,7 @@ import { registerStationIcons } from './stationIcons'
 import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
 import { computeSnapTarget } from './mapbox'
 import WalkshedLayers from './WalkshedLayers'
+import WalkshedHints from './WalkshedHints'
 import POILayer from './POILayer'
 import StationPill from './StationPill'
 
@@ -27,6 +28,7 @@ const MapView = forwardRef(function MapView({
   onPopupStationClick,
   onPopupFocus,
   units,
+  walkshedHints,
 }, ref) {
   const mapRef = useRef(null)
   const isDraggingRef = useRef(false)
@@ -247,6 +249,8 @@ const MapView = forwardRef(function MapView({
           terminusInfo={terminusInfo}
         />
       )}
+
+      <WalkshedHints hints={walkshedHints} />
     </Map>
   )
 })

@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints, getTerminusInfo } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
-import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
+import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, POI_FILES, POI_CATEGORIES, POI_GROUP_COLORS, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
-import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags, mergeFeatureCollections } from './poiUtils'
+import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags, mergeFeatureCollections, pointInPolygon } from './poiUtils'
 import { useNavigation } from './useNavigation'
 import MapView from './MapView'
 import LineLegend from './LineLegend'
@@ -278,6 +278,49 @@ export default function Walksheds() {
     () => getAvailableTags(walkshedPois.features, tagColors),
     [walkshedPois, tagColors],
   )
+
+  // Per-band POI breakdown for the welcome-hint overlay. For each enabled
+  // walkshed, count every POI inside the ring + bucket by POI_CATEGORIES.group
+  // so each hint card can show a small "{N} dining · {N} parks · {N} shops"
+  // line in addition to the headline count. Skipped (returns []) once the
+  // user dismisses the hint overlay so we stop projecting Markers.
+  const walkshedHints = useMemo(() => {
+    if (!hintsVisible) return []
+    const allFeatures = []
+    for (const cat of POI_FILES) {
+      const fc = poiData[cat]
+      if (fc?.features) allFeatures.push(...fc.features)
+    }
+    if (!allFeatures.length) return []
+    const out = []
+    for (const min of WALKSHED_OPTIONS) {
+      if (!walksheds[min] || !enabledWalksheds.has(min)) continue
+      const ring = walksheds[min].features?.[0]?.geometry?.coordinates?.[0]
+      if (!ring) continue
+      let total = 0
+      const groupCounts = {}
+      for (const f of allFeatures) {
+        const c = f.geometry?.coordinates
+        if (!c || !pointInPolygon(c, ring)) continue
+        total += 1
+        const group = POI_CATEGORIES[f.properties?.category]?.group
+        if (group) groupCounts[group] = (groupCounts[group] || 0) + 1
+      }
+      const breakdown = Object.entries(groupCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([group, count]) => ({
+          group,
+          count,
+          label: group,
+          color: POI_GROUP_COLORS[group] || '#888',
+        }))
+      let anchor = ring[0]
+      for (const p of ring) if (p[1] > anchor[1]) anchor = p
+      out.push({ min, count: total, breakdown, anchor })
+    }
+    return out
+  }, [hintsVisible, walksheds, enabledWalksheds, poiData])
 
   // Global (city-wide) tag list, for the search fallback when the typed term
   // doesn't match anything in the current walkshed — surfaces the tag as
@@ -600,6 +643,7 @@ export default function Walksheds() {
         onPopupStationClick={handlePopupStationClick}
         onPopupFocus={handlePopupFocus}
         units={units}
+        walkshedHints={walkshedHints}
       />
 
       {Object.keys(poiData).length > 0 && (
