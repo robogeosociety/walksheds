@@ -86,7 +86,7 @@ export default function LineLegend({
           {onUnitsToggle && (
             <UnitsToggle units={units} onToggle={onUnitsToggle} className="legend-units-toggle-inline" />
           )}
-          <button className="legend-dark-toggle-inline" onClick={onHintsToggle} aria-label="Toggle hints">
+          <button className="legend-dark-toggle-inline" onClick={onHintsToggle} aria-label="Toggle hints" data-hint-keep="true">
             {HELP_ICON}
           </button>
           <div className="legend-collapsed-divider" />
@@ -140,7 +140,7 @@ export default function LineLegend({
         {onUnitsToggle && (
           <UnitsToggle units={units} onToggle={onUnitsToggle} className="legend-header-btn legend-units-toggle" />
         )}
-        <button className="legend-header-btn" onClick={onHintsToggle} aria-label="Toggle hints">
+        <button className="legend-header-btn" onClick={onHintsToggle} aria-label="Toggle hints" data-hint-keep="true">
           {HELP_ICON}
         </button>
         <h3 className="legend-title">Legend</h3>
