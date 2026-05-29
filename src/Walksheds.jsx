@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { buildGraph, isJunction, getJunctionHints, getTerminusInfo } from './routeGraph'
+import { buildGraph, isJunction, getJunctionHints, getTerminusInfo, getSwipeHint } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
 import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
@@ -166,9 +166,14 @@ export default function Walksheds() {
       .then(d => { if (d) setTagCategories(d) })
   }, [])
 
+  // Build the adjacency graph once per stations payload. Kept both as a
+  // memoized value (for render-time reads like the swipe hint) and mirrored
+  // into graphRef so the navigation/selection event handlers can reach it
+  // without re-subscribing.
+  const graph = useMemo(() => (stationsData ? buildGraph(stationsData) : null), [stationsData])
   useEffect(() => {
-    if (stationsData) graphRef.current = buildGraph(stationsData)
-  }, [stationsData])
+    graphRef.current = graph
+  }, [graph])
 
   const handleWalkshedToggle = useCallback((minutes) => {
     const next = new Set(enabledWalksheds)
@@ -570,6 +575,14 @@ export default function Walksheds() {
     }
   }, [hintsVisible])
 
+  // Onward station for the swipe hint, recomputed whenever the selected
+  // station (popup) or current line changes so the label tracks the user as
+  // they ride along the line. Only needed while the hints are on screen.
+  const swipeHint = useMemo(() => {
+    if (!hintsVisible || !popup || !graph) return null
+    return getSwipeHint(graph, popup.name, currentLine)
+  }, [hintsVisible, popup, currentLine, graph])
+
   const handleHintsToggle = useCallback(() => {
     setHintsVisible(v => {
       const next = !v
@@ -643,6 +656,7 @@ export default function Walksheds() {
           legendPosition={legendPosition}
           legendCollapsed={legendCollapsed}
           hasActiveFilters={activeFilters.size > 0}
+          swipeHint={swipeHint}
         />
       )}
     </div>

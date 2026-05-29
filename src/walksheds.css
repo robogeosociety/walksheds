@@ -634,6 +634,12 @@ body,
   vertical-align: -10px;
 }
 
+/* Flipped variant: a 180° rotation reuses the same glyph (and its layout
+   box) for the opposite swipe direction — left from right, up from down. */
+.hint-arrow.flip {
+  transform: rotate(180deg);
+}
+
 /* Legend hint: card above the legend, ⤵ glyph inside the label points
    the user's eye down at the legend itself. */
 .hint-legend.bottom-left {
@@ -696,6 +702,21 @@ body,
 
 .hint-filters .hint-label {
   max-width: 440px;
+}
+
+/* Swipe hint: floats over the lower-center of the map, away from the
+   centered station pill and the bottom legend, naming the next stop you'd
+   reach by swiping. The arrow shows the finger motion (see SWIPE_FOR_ARROW
+   in HintOverlay.jsx), so it can point any direction inline with the text. */
+.hint-swipe {
+  left: 50%;
+  bottom: 26%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.hint-swipe .hint-label {
+  max-width: 300px;
 }
 
 /* Tablet / phone-landscape (640–1024px): same fixed search-column

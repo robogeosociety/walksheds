@@ -227,6 +227,39 @@ export function getJunctionHints(graph, stationName) {
 }
 
 /**
+ * Pick a representative onward station for the swipe/keyboard hint, plus the
+ * cardinal arrow key that reaches it. Walks the current line's order toward
+ * the far terminus (the next index); at the terminus it falls back to the
+ * prior station so the hint always names a real, navigable neighbor. The
+ * arrowKey is derived from the actual bearing the same way getNextStation
+ * bins it, so the gesture the hint teaches is guaranteed to land on the
+ * returned station.
+ *
+ * Returns `{ stationName, label, arrowKey }`, or null when the station isn't
+ * on the current line (or the line has no neighbor to move to).
+ */
+export function getSwipeHint(graph, stationName, currentLine) {
+  if (!graph) return null
+  const order = currentLine === '2-line' ? LINE_2_ORDER : LINE_1_ORDER
+  const idx = order.indexOf(stationName)
+  if (idx === -1) return null
+
+  const targetName = idx < order.length - 1 ? order[idx + 1] : order[idx - 1]
+  if (!targetName) return null
+
+  const current = graph.get(stationName)
+  const target = graph.get(targetName)
+  if (!current || !target) return null
+
+  const b = bearing(current.coords[0], current.coords[1], target.coords[0], target.coords[1])
+  return {
+    stationName: targetName,
+    label: targetName.replace(' Station', ''),
+    arrowKey: nearestCardinal(b),
+  }
+}
+
+/**
  * Bin a bearing (0–360°) to the nearest cardinal arrow key. Ties (e.g. 45°
  * between Up and Right) resolve to whichever entry comes first in
  * ARROW_BEARINGS, which is Up → Right → Down → Left.
