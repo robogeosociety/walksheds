@@ -731,6 +731,10 @@ body,
   .hint-filters .hint-label { max-width: 400px; }
   .hint-legend.bottom-left  { left: 14px; bottom: 300px; }
   .hint-legend.bottom-right { right: 14px; bottom: 300px; }
+  /* Pin to a fixed offset above the bottom legend instead of a percentage —
+     on short landscape phones 26% lands on top of the collapsed legend hint. */
+  .hint-swipe { bottom: 150px; }
+  .hint-swipe .hint-label { max-width: 260px; }
 }
 
 /* Phone portrait (< 540px): the search column shrinks to 180px and
@@ -747,6 +751,8 @@ body,
   .hint-legend.bottom-left  { left: 10px;  bottom: 280px; }
   .hint-legend.bottom-right { right: 10px; bottom: 280px; }
   .hint-arrow { font-size: 18px; }
+  .hint-swipe { bottom: 140px; }
+  .hint-swipe .hint-label { max-width: 200px; }
 }
 
 /* ── Mapbox overrides ── */
