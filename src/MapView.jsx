@@ -26,6 +26,7 @@ const MapView = forwardRef(function MapView({
   onPoiTagClick,
   onPopupStationClick,
   onPopupFocus,
+  onUserInteract,
   units,
 }, ref) {
   const mapRef = useRef(null)
@@ -95,6 +96,16 @@ const MapView = forwardRef(function MapView({
       if (map.getLayer(id)) map.moveLayer(id)
     }
   }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode])
+
+  // A user-initiated zoom (scroll-zoom, pinch, double-tap) carries an
+  // originalEvent; programmatic fitBounds/flyTo/easeTo do not. We key off zoom
+  // rather than move because a one-finger swipe pans the map (firing movestart)
+  // mid-gesture — keying off move would mark the view "touched" before the
+  // swipe's own touchend gets a chance to navigate. Zoom is the signal that the
+  // user has stopped riding the line and started inspecting a walkshed.
+  const handleZoomStart = useCallback((e) => {
+    if (e.originalEvent) onUserInteract?.()
+  }, [onUserInteract])
 
   const handleDragStart = useCallback(() => { isDraggingRef.current = true }, [])
   const handleDragEnd = useCallback(() => {
@@ -168,6 +179,7 @@ const MapView = forwardRef(function MapView({
       mapboxAccessToken={MAPBOX_TOKEN}
       interactiveLayerIds={mapLoaded ? ['station-circles', ...POI_INTERACTIVE_LAYERS] : []}
       onClick={handleMapClick}
+      onZoomStart={handleZoomStart}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onMouseEnter={handleMouseEnter}

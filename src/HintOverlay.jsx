@@ -11,10 +11,10 @@
 // match the cap-height of 18-19px text so each arrow reads as part of
 // the sentence flow.
 
-function ArrowRight() {
+function ArrowRight({ flip = false }) {
   return (
     <svg
-      className="hint-arrow hint-arrow-right"
+      className={`hint-arrow hint-arrow-right${flip ? ' flip' : ''}`}
       viewBox="0 0 44 18"
       width="44"
       height="18"
@@ -40,10 +40,10 @@ function ArrowRight() {
   )
 }
 
-function ArrowDown() {
+function ArrowDown({ flip = false }) {
   return (
     <svg
-      className="hint-arrow hint-arrow-down"
+      className={`hint-arrow hint-arrow-down${flip ? ' flip' : ''}`}
       viewBox="0 0 22 40"
       width="22"
       height="40"
@@ -69,7 +69,30 @@ function ArrowDown() {
   )
 }
 
-export default function HintOverlay({ legendPosition, legendCollapsed, hasActiveFilters }) {
+// A touch swipe is the inverse of the travel direction — you drag the world
+// the opposite way, like panning a map. This mirrors the gesture mapping in
+// useNavigation.js (swipe up → ArrowDown, swipe down → ArrowUp, swipe left →
+// ArrowRight, swipe right → ArrowLeft), so the word + arrow the hint shows
+// match the finger motion that actually reaches the next station.
+const SWIPE_FOR_ARROW = {
+  ArrowUp: 'down',
+  ArrowDown: 'up',
+  ArrowLeft: 'right',
+  ArrowRight: 'left',
+}
+
+// Draw the swipe gesture's finger motion. Horizontal swipes reuse the wide
+// ArrowRight glyph (flipped for "left"); vertical swipes reuse the tall
+// ArrowDown glyph (flipped for "up"). Flipping is a 180° rotation, so the
+// SVG's layout box is unchanged and the arrow still flows inline with text.
+function SwipeArrow({ direction }) {
+  if (direction === 'left' || direction === 'right') {
+    return <ArrowRight flip={direction === 'left'} />
+  }
+  return <ArrowDown flip={direction === 'up'} />
+}
+
+export default function HintOverlay({ legendPosition, legendCollapsed, hasActiveFilters, swipeHint }) {
   const legendClass = [
     'hint',
     'hint-legend',
@@ -108,6 +131,15 @@ export default function HintOverlay({ legendPosition, legendCollapsed, hasActive
           <ArrowRight />
         </span>
       </div>
+
+      {swipeHint && (
+        <div className="hint hint-swipe">
+          <span className="hint-label">
+            swipe {SWIPE_FOR_ARROW[swipeHint.arrowKey]} to ride to {swipeHint.label}
+            <SwipeArrow direction={SWIPE_FOR_ARROW[swipeHint.arrowKey]} />
+          </span>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildGraph, getNextStation, isJunction, getJunctionHints, getTerminusInfo } from '../routeGraph'
+import { buildGraph, getNextStation, isJunction, getJunctionHints, getTerminusInfo, getSwipeHint } from '../routeGraph'
 
 const mockStations = {
   type: 'FeatureCollection',
@@ -152,6 +152,35 @@ describe('routeGraph', () => {
 
     it('unknown stations return null', () => {
       expect(getTerminusInfo(graph, 'Not A Station')).toBeNull()
+    })
+  })
+
+  describe('getSwipeHint', () => {
+    it('points at the onward (toward-terminus) station on the current line', () => {
+      // Southbound from International District on Line 1 → Stadium.
+      const hint = getSwipeHint(graph, 'International District Station', '1-line')
+      expect(hint).toEqual({ stationName: 'Stadium Station', label: 'Stadium', arrowKey: 'ArrowDown' })
+    })
+
+    it('follows the current line through the junction', () => {
+      // Same station on Line 2 diverges east → Judkins Park.
+      const hint = getSwipeHint(graph, 'International District Station', '2-line')
+      expect(hint).toEqual({ stationName: 'Judkins Park Station', label: 'Judkins Park', arrowKey: 'ArrowRight' })
+    })
+
+    it('falls back to the prior station at a terminus', () => {
+      const hint = getSwipeHint(graph, 'Federal Way Downtown Station', '1-line')
+      expect(hint.stationName).toBe('Star Lake Station')
+      expect(hint.label).toBe('Star Lake')
+    })
+
+    it('defaults to Line 1 when no current line is set', () => {
+      const hint = getSwipeHint(graph, 'International District Station', null)
+      expect(hint.stationName).toBe('Stadium Station')
+    })
+
+    it('returns null for unknown stations', () => {
+      expect(getSwipeHint(graph, 'Not A Station', '1-line')).toBeNull()
     })
   })
 })
