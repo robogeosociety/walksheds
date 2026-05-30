@@ -144,6 +144,11 @@ export default function Walksheds() {
   const [listOnTop, setListOnTop] = useState(false)
   const mapViewRef = useRef(null)
   const selectedStationRef = useRef(null)
+  // False right after a station is selected (map programmatically framed to its
+  // walkshed), flipped true once the user zooms in to inspect it. Lets swipes
+  // on a fresh station view navigate to the neighbor the hint promises instead
+  // of being eaten by the in-walkshed snap-back.
+  const userMovedSinceSelectRef = useRef(false)
   const graphRef = useRef(null)
   const resolvedRef = useRef(false)
   const poisResolvedRef = useRef(false)
@@ -189,6 +194,9 @@ export default function Walksheds() {
 
   const selectStation = useCallback((name, lng, lat, line) => {
     selectedStationRef.current = { name, lng, lat }
+    // A new selection re-frames the map programmatically; treat the view as
+    // "untouched" until the user zooms in again.
+    userMovedSinceSelectRef.current = false
     const feat = stationsData?.features.find(f => f.properties.name === name)
     const stopCode = feat?.properties.stopCode ?? null
     const lines = feat?.properties.lines ?? line.replace('-line', '')
@@ -423,6 +431,13 @@ export default function Walksheds() {
   // back to the top. Wired into POILayer's popup container.
   const handlePopupFocus = useCallback(() => setListOnTop(false), [])
 
+  // Mark the framed station view as "touched" once the user zooms in, so the
+  // swipe-to-navigate carve-out in handleScrollNavigationAttempt yields to the
+  // in-walkshed snap-back from then on (until the next selection re-frames).
+  const handleUserInteract = useCallback(() => {
+    userMovedSinceSelectRef.current = true
+  }, [])
+
   // Hand keyboard focus from the search box back to the map canvas so the
   // user can pan/zoom with arrow keys right after committing a selection.
   const focusMap = useCallback(() => {
@@ -438,6 +453,11 @@ export default function Walksheds() {
   const handleScrollNavigationAttempt = useCallback(() => {
     const map = mapViewRef.current?.getMap()
     if (!map) return true
+    // On a freshly-framed station view (the user hasn't zoomed in since
+    // selecting), let the swipe/scroll navigate to the adjacent station — this
+    // is the gesture the swipe hint teaches. Snap-back only applies once the
+    // user has zoomed in to explore. A POI popup still takes precedence.
+    if (!poiPopup && !userMovedSinceSelectRef.current) return true
     const center = map.getCenter()
     // Use the helper with poiPopup omitted so the target is always station
     // coords — the wheel snap goes to station regardless of popup state.
@@ -612,6 +632,7 @@ export default function Walksheds() {
         onPoiTagClick={handleAddPoiFilter}
         onPopupStationClick={handlePopupStationClick}
         onPopupFocus={handlePopupFocus}
+        onUserInteract={handleUserInteract}
         units={units}
       />
 
