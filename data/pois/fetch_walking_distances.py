@@ -27,10 +27,12 @@ Usage:
 """
 
 import argparse
+import concurrent.futures
 import gzip
 import json
 import os
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -200,8 +202,35 @@ def pair_key(station_key, poi_id):
     return f"{station_key}:{poi_id}"
 
 
-def refresh_pairs(pairs, walkshed_version, token, existing=None, dry_run=False):
-    """Fetch missing (station, POI) distances and merge with existing cache."""
+class _RateGate:
+    """Token-bucket-ish limiter: spaces request *starts* by `interval` seconds,
+    shared across pool workers so aggregate throughput stays under the Matrix
+    rate limit regardless of how many workers are in flight."""
+
+    def __init__(self, interval):
+        self._interval = interval
+        self._lock = threading.Lock()
+        self._next = time.monotonic()
+
+    def wait(self):
+        with self._lock:
+            now = time.monotonic()
+            wait = max(0.0, self._next - now)
+            self._next = max(now, self._next) + self._interval
+        if wait:
+            time.sleep(wait)
+
+
+def refresh_pairs(pairs, walkshed_version, token, existing=None, dry_run=False,
+                  workers=1, rate_interval=SLEEP_BETWEEN_REQUESTS):
+    """Fetch missing (station, POI) distances and merge with existing cache.
+
+    Requests run through a bounded thread pool (`workers`) so call latency is
+    overlapped, while a shared rate gate keeps aggregate request starts spaced
+    by `rate_interval` seconds — pooling for speed, backoff (in fetch_matrix)
+    plus the gate to avoid swamping the API. workers=1 is the original
+    sequential behavior.
+    """
     by_station = {}
     for key, poi_id, band, station, feat in pairs:
         by_station.setdefault(key, []).append((poi_id, band, station, feat))
@@ -222,8 +251,8 @@ def refresh_pairs(pairs, walkshed_version, token, existing=None, dry_run=False):
         print(f"  [dry-run] Would fetch {missing_total:,} Matrix entries")
         return cache
 
-    fetched = 0
-    call_count = 0
+    # One work unit = one Matrix call (1 station source + up to 24 destinations).
+    units = []
     for key in sorted(by_station):
         items = by_station[key]
         missing = [(poi_id, band, feat) for (poi_id, band, _, feat) in items if pair_key(key, poi_id) not in cache]
@@ -231,27 +260,45 @@ def refresh_pairs(pairs, walkshed_version, token, existing=None, dry_run=False):
             continue
         station = items[0][2]
         source = (station["lng"], station["lat"])
-        print(f"  {key} ({station['name']}): {len(missing)} to fetch")
         for chunk_start in range(0, len(missing), MATRIX_MAX_DESTS):
-            chunk = missing[chunk_start:chunk_start + MATRIX_MAX_DESTS]
-            destinations = [(f["geometry"]["coordinates"][0], f["geometry"]["coordinates"][1]) for _, _, f in chunk]
-            response = fetch_matrix(source, destinations, token)
-            # Response row layout: [source→source, source→dest_1, ..., source→dest_N]. Skip index 0.
-            distances = (response.get("distances") or [[None] * (len(chunk) + 1)])[0][1:]
-            durations = (response.get("durations") or [[None] * (len(chunk) + 1)])[0][1:]
-            for (poi_id, band, _), meters, seconds in zip(chunk, distances, durations):
-                if meters is None or seconds is None:
-                    # POI is in the polygon but Matrix couldn't route to it (off-network).
-                    # Skip — the popup will simply omit this station for this POI.
-                    continue
-                cache[pair_key(key, poi_id)] = [round(meters, 1), round(seconds, 1), band]
-            call_count += 1
-            fetched += len(chunk)
-            time.sleep(SLEEP_BETWEEN_REQUESTS)
-        # Persist after each station so a mid-refresh crash doesn't wipe progress.
-        # Subsequent re-runs skip already-cached pairs.
-        write_dump(cache, walkshed_version)
-    print(f"  Fetched {fetched:,} entries across {call_count} Matrix calls")
+            units.append((key, source, missing[chunk_start:chunk_start + MATRIX_MAX_DESTS]))
+
+    print(f"  {len(units)} Matrix calls across {workers} worker(s), "
+          f"~{rate_interval:.2f}s/call gate")
+
+    gate = _RateGate(rate_interval)
+
+    def run_unit(unit):
+        key, source, chunk = unit
+        gate.wait()
+        destinations = [(f["geometry"]["coordinates"][0], f["geometry"]["coordinates"][1]) for _, _, f in chunk]
+        response = fetch_matrix(source, destinations, token)  # has its own retry/backoff
+        # Row layout: [source→source, source→dest_1, ...]. Skip index 0.
+        distances = (response.get("distances") or [[None] * (len(chunk) + 1)])[0][1:]
+        durations = (response.get("durations") or [[None] * (len(chunk) + 1)])[0][1:]
+        out = []
+        for (poi_id, band, _), meters, seconds in zip(chunk, distances, durations):
+            if meters is None or seconds is None:
+                continue  # in-polygon but Matrix couldn't route — popup omits it
+            out.append((pair_key(key, poi_id), [round(meters, 1), round(seconds, 1), band]))
+        return out
+
+    cache_lock = threading.Lock()
+    fetched = done = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futures = [pool.submit(run_unit, u) for u in units]
+        for fut in concurrent.futures.as_completed(futures):
+            results = fut.result()
+            with cache_lock:
+                for k, v in results:
+                    cache[k] = v
+                fetched += len(results)
+                done += 1
+                # Persist periodically so a mid-refresh crash keeps progress.
+                if done % 20 == 0 or done == len(units):
+                    write_dump(cache, walkshed_version)
+                    print(f"    {done}/{len(units)} calls, {fetched:,} pairs fetched")
+    print(f"  Fetched {fetched:,} entries across {len(units)} Matrix calls")
     return cache
 
 
@@ -272,6 +319,10 @@ def main():
     parser.add_argument("--refresh", action="store_true",
                         help="Fetch missing pairs from Mapbox Matrix (needs MAPBOX_TOKEN)")
     parser.add_argument("--dry-run", action="store_true", help="Plan only, don't write")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Concurrent Matrix calls (pooling). Default 1 (sequential).")
+    parser.add_argument("--rate", type=float, default=SLEEP_BETWEEN_REQUESTS,
+                        help="Min seconds between request starts across the pool.")
     args = parser.parse_args()
 
     stations = fetch_pois.load_station_index()
@@ -294,7 +345,8 @@ def main():
             print("ERROR: --refresh requires MAPBOX_TOKEN (or MAPBOX_ACCESS_TOKEN) env var.", file=sys.stderr)
             print("  Any token with Matrix scope works (pk. or sk. — same capability).", file=sys.stderr)
             sys.exit(1)
-        cache = refresh_pairs(pairs, walkshed_version, token, existing=existing, dry_run=args.dry_run)
+        cache = refresh_pairs(pairs, walkshed_version, token, existing=existing,
+                              dry_run=args.dry_run, workers=args.workers, rate_interval=args.rate)
         write_dump(cache, walkshed_version, dry_run=args.dry_run)
         return
 
