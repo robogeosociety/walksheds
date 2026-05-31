@@ -588,7 +588,27 @@ def format_address(osm_tags):
     return None
 
 
-def normalize_element(element, osm_key, normalize=True):
+def haversine_m(lon1, lat1, lon2, lat2):
+    """Great-circle distance in meters between two lon/lat points."""
+    r = 6371000
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def nearest_station(lon, lat, stations):
+    """Return (station_name, straight-line meters) for the closest station."""
+    best_name, best_m = None, float("inf")
+    for s in stations:
+        d = haversine_m(lon, lat, s["lng"], s["lat"])
+        if d < best_m:
+            best_name, best_m = s["name"], d
+    return best_name, round(best_m)
+
+
+def normalize_element(element, osm_key, stations, normalize=True):
     """Convert an Overpass element to a GeoJSON Feature."""
     tags = element.get("tags", {})
     name = tags.get("name", "").strip()
@@ -630,6 +650,12 @@ def normalize_element(element, osm_key, normalize=True):
     if address:
         props["address"] = address
 
+    # Computed nearest-station distance (mirrors fetch_overture.py).
+    st_name, st_m = nearest_station(lng, lat, stations)
+    props["nearest_station"] = st_name
+    props["station_m"] = st_m
+    props["station_walk_min"] = max(1, round(st_m / 80))  # ~80 m/min walking
+
     return {
         "type": "Feature",
         "properties": props,
@@ -637,7 +663,7 @@ def normalize_element(element, osm_key, normalize=True):
     }
 
 
-def build_category(elements, category_name, normalize=True):
+def build_category(elements, category_name, stations, normalize=True):
     """Build a GeoJSON FeatureCollection for a category from raw Overpass elements."""
     osm_key, osm_values = CATEGORIES[category_name]
     if osm_key not in RAW_KEYS:
@@ -657,7 +683,7 @@ def build_category(elements, category_name, normalize=True):
     features = []
     seen_ids = set()
     for el in kept:
-        feat = normalize_element(el, osm_key, normalize=normalize)
+        feat = normalize_element(el, osm_key, stations, normalize=normalize)
         if feat and feat["properties"]["id"] not in seen_ids:
             seen_ids.add(feat["properties"]["id"])
             features.append(feat)
@@ -947,7 +973,7 @@ def main():
         print(f"\nBuilding categories... (normalize={'on' if normalize else 'off'})")
         all_errors = []
         for cat in categories_to_build:
-            fc = build_category(elements, cat, normalize=normalize)
+            fc = build_category(elements, cat, stations, normalize=normalize)
             all_fcs[cat] = fc
             errors = validate_geojson(fc, cat, bbox)
             all_errors.extend(errors)
