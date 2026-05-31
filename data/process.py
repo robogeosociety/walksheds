@@ -622,6 +622,56 @@ def svg_to_png(svg_str, scale=1):
     return Image.open(BytesIO(png_bytes))
 
 
+# ── Brand "w" mark (embossed) ──
+
+# The letter is drawn in the SAME color as the plate, then a light highlight is
+# offset up-left and a dark shadow down-right so the glyph reads as raised from
+# the surface — the classic emboss. Tuned per theme.
+EMBOSS_THEMES = {
+    "light": {
+        "plate": "#e8e8e8",
+        "border": "rgba(51,51,51,0.30)",
+        "highlight": "rgba(255,255,255,0.95)",
+        "shadow": "rgba(0,0,0,0.35)",
+    },
+    "dark": {
+        "plate": "#2a2a3a",
+        "border": "rgba(255,255,255,0.25)",
+        "highlight": "rgba(255,255,255,0.22)",
+        "shadow": "rgba(0,0,0,0.55)",
+    },
+}
+
+W_ICON_SENTINEL = "__brand_w__"
+
+
+def create_w_emboss_svg(mode="light"):
+    """Generate a square embossed 'w' brand icon for the sprite sheet."""
+    e = EMBOSS_THEMES[mode]
+    size = 30
+    cx = size / 2
+    baseline = size / 2 + 7  # vertically centers a ~20px glyph
+    font = "-apple-system,BlinkMacSystemFont,sans-serif"
+
+    def glyph(fill, dx, dy):
+        return (
+            f'<text x="{cx + dx}" y="{baseline + dy}" text-anchor="middle" '
+            f'fill="{fill}" font-family="{font}" font-size="20" '
+            f'font-weight="800">w</text>'
+        )
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}">',
+        f'<rect x="1" y="1" width="{size - 2}" height="{size - 2}" rx="7" ry="7" '
+        f'fill="{e["plate"]}" stroke="{e["border"]}" stroke-width="1.5"/>',
+        glyph(e["shadow"], 1.1, 1.1),     # shadow peeks bottom-right
+        glyph(e["highlight"], -1, -1),    # highlight peeks top-left
+        glyph(e["plate"], 0, 0),          # main glyph blends into the plate
+        "</svg>",
+    ]
+    return "".join(parts), size, size
+
+
 def generate_sprites(station_index, output_dir):
     """Generate Mapbox-compatible sprite sheets (1x and 2x) from the station index."""
     icons = {}
@@ -633,11 +683,18 @@ def generate_sprites(station_index, output_dir):
             key = f"station-{mode}-{base_key}"
             icons[key] = (lines, code, mode)
 
+    # Brand "w" mark, one per theme.
+    for mode in ("light", "dark"):
+        icons[f"brand-w-{mode}"] = (W_ICON_SENTINEL, None, mode)
+
     # Render all icons at both scales
     for scale, suffix in [(1, ""), (2, "@2x")]:
         rendered = {}
         for key, (lines, code, mode) in icons.items():
-            svg, w, h = create_pill_svg(lines, code, mode)
+            if lines == W_ICON_SENTINEL:
+                svg, w, h = create_w_emboss_svg(mode)
+            else:
+                svg, w, h = create_pill_svg(lines, code, mode)
             img = svg_to_png(svg, scale=scale)
             rendered[key] = img
 
