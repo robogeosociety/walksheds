@@ -34,6 +34,7 @@ IDs are **append-only and stable** (`INV-NNN` — never reused; a retired invari
 - **INV-016 spotlight-references** — every spotlight pill's `matchCategories` / `matchTags` resolves to a real category / tag in the data. (JS suite)
 - **INV-017 schema-registry-consistency** — `filter_schema` ID maps match `filter-registry.json` positions and cover every live tag.
 - **INV-018 no-emoji** — no emoji anywhere (UI, docs, wiki, commits, PRs); see Design & House Style.
+- **INV-019 no-orphan-poi** — every emitted POI is inside at least one station's walkshed (has a non-empty `stations[]`). The app only renders POIs inside a selected station's walkshed, so POIs outside every walkshed can never be shown; `build_refined.py` prunes them (`prune_outside_walksheds`). The complement of INV-001: that POI⊆walkshed ⇒ lists a station; this, that emitted ⇒ in a walkshed. (Revisiting marginal/just-outside POIs is tracked as a follow-up issue.)
 
 ## Commands
 

@@ -73,6 +73,14 @@ def test_inv_001_walkshed_listing(features, membership):
     assert not bad, f"{len(bad)} in-walkshed POIs list no station, e.g. {bad[:5]}"
 
 
+# ── INV-019 — no-orphan-poi: every emitted POI is inside >=1 walkshed ──
+def test_inv_019_no_orphan_poi(features, membership):
+    bad = [f["properties"]["name"] for f in features
+           if f["properties"]["id"] not in membership]
+    assert not bad, (f"{len(bad)} POIs are outside every walkshed and can never "
+                     f"render, e.g. {bad[:5]} — they should be pruned at build time")
+
+
 # ── INV-006 — no-orphan-tags: every tag is categorized ──
 def test_inv_006_no_orphan_tags(features, tag_categories):
     known = set(tag_categories["tag_to_category"])

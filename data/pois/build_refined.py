@@ -243,6 +243,22 @@ def verify_walkshed_invariant(all_fcs, members):
     print(f"  Invariant OK: all {len(members):,} in-walkshed POIs list >=1 station")
 
 
+def prune_outside_walksheds(all_fcs, members):
+    """INV-019: every emitted POI must be inside at least one station's walkshed.
+
+    The app only ever renders POIs inside a selected station's walkshed
+    (filterPOIsInWalkshed), so a POI outside every walkshed can never be shown.
+    Drop those (no `stations` array) at build time. Returns count dropped.
+    """
+    dropped = 0
+    for fc in all_fcs.values():
+        keep = [f for f in fc["features"] if f["properties"]["id"] in members]
+        dropped += len(fc["features"]) - len(keep)
+        fc["features"] = keep
+    print(f"  Pruned {dropped:,} POIs outside every walkshed")
+    return dropped
+
+
 def _first(seq, key):
     for m in seq:
         if m.get(key):
