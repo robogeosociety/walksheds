@@ -68,6 +68,14 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, da
                 </svg>
               </span>
             </div>
+            {poiPopup.walkMin && poiPopup.nearestStation && (
+              <div className="poi-popup-distance">
+                <svg className="poi-popup-distance-mark" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true">
+                  <circle cx="5.5" cy="5.5" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                </svg>
+                <span>{poiPopup.walkMin} min walk to {poiPopup.nearestStation}</span>
+              </div>
+            )}
             {poiPopup.tags && poiPopup.tags.length > 0 && (
               <div className="poi-popup-tags">
                 {poiPopup.tags.map(t => {

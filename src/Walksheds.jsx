@@ -302,6 +302,8 @@ export default function Walksheds() {
       tags: typeof props.tags === 'string' ? JSON.parse(props.tags) : props.tags,
       website: props.website,
       address: props.address,
+      nearestStation: props.nearest_station,
+      walkMin: props.station_walk_min,
     })
   }, [])
 
