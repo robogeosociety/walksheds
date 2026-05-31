@@ -14,10 +14,11 @@ source's internal duplicates.
 Closure handling combines both signals: OSM features are already closure-filtered
 by fetch_pois; Overture rows with operating_status='closed' are dropped here.
 
-Output uses the mainline POI schema and machinery: merged records keep raw
-integer OSM ids where an OSM source is present, so the committed walking-distance
-cache (keyed by OSM id) attaches `stations` to them via attach_station_distances.
-Overture-only POIs (new coverage) carry no `stations` until a Matrix refresh.
+Output uses the mainline POI schema. Every in-walkshed POI gets a `stations`
+array: membership + band come from point-in-polygon against the committed
+walkshed dump (free, any POI), the distance/duration from the committed Mapbox
+Matrix cache where the pair is present (matched / OSM POIs) and a straight-line
+estimate otherwise (Overture-only POIs) — so none are left without stop icons.
 tag-categories.json is rebuilt with the mainline writer.
 
 Needs network (Overture S3 query); the OSM side reads the committed dump.
@@ -38,7 +39,6 @@ import duckdb
 from fetch_pois import (
     CATEGORIES,
     OUTPUT_DIR,
-    attach_station_distances,
     build_category,
     compute_bbox,
     load_raw_dump,
@@ -156,6 +156,70 @@ def cluster(records):
     return clusters
 
 
+# Urban detour factor + walking speed for estimating distances to stations when
+# a POI is not in the committed Mapbox Matrix cache (Overture-only POIs).
+DETOUR_FACTOR = 1.3
+WALK_MPS = 1.34  # ~4.8 km/h
+
+
+def attach_stations(all_fcs, stations):
+    """Attach a sorted `stations` array to every in-walkshed POI.
+
+    Walkshed membership + band come from point-in-polygon against the committed
+    walkshed dump (free, works for any POI). Walking distance/duration uses the
+    committed Mapbox Matrix cache when the (station, POI) pair is present
+    (matched / OSM POIs, keyed by integer id) and a straight-line estimate
+    (haversine x detour factor) otherwise (Overture-only POIs) — so no POI is
+    left without nearby-station stop icons, with zero API spend.
+    """
+    import fetch_walksheds as fws
+    import fetch_walking_distances as fwd
+
+    walkshed_payload = fws.load_dump()
+    if not walkshed_payload:
+        print("  No walkshed dump committed; skipping station attach.")
+        return
+    cached_pairs = (fwd.load_dump() or {}).get("pairs", {})
+    station_meta = {fws.station_key(s): s for s in stations}
+
+    pairs = fwd.compute_membership(stations, walkshed_payload, all_fcs)
+    by_poi = {}
+    estimated = real = 0
+    for skey, poi_id, band, _station, poi in pairs:
+        meta = station_meta.get(skey)
+        if not meta:
+            continue
+        cached = cached_pairs.get(f"{skey}:{poi_id}")
+        if cached:
+            meters, seconds = round(cached[0]), round(cached[1])
+            real += 1
+        else:
+            straight = hav(poi["geometry"]["coordinates"], (meta["lng"], meta["lat"]))
+            meters = round(straight * DETOUR_FACTOR)
+            seconds = round(meters / WALK_MPS)
+            estimated += 1
+        by_poi.setdefault(poi_id, []).append({
+            "stopCode": meta["stopCode"],
+            "lines": meta["lines"],
+            "name": meta["name"],
+            "walkingMeters": meters,
+            "walkingSeconds": seconds,
+            "band": band,
+        })
+
+    attached = 0
+    for fc in all_fcs.values():
+        for feat in fc["features"]:
+            entries = by_poi.get(feat["properties"]["id"])
+            if not entries:
+                continue
+            entries.sort(key=lambda s: (s["walkingSeconds"], s["walkingMeters"]))
+            feat["properties"]["stations"] = entries
+            attached += 1
+    print(f"  Attached stations to {attached:,} POIs "
+          f"({real:,} cached Matrix pairs, {estimated:,} straight-line estimates)")
+
+
 def _first(seq, key):
     for m in seq:
         if m.get(key):
@@ -213,7 +277,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    bbox = compute_bbox(load_station_index())
+    stations = load_station_index()
+    bbox = compute_bbox(stations)
 
     print("Loading OSM records (committed dump)...")
     osm = get_osm_records()
@@ -238,9 +303,9 @@ def main():
     print(f"\nRefined: {total:,} POIs (matched {both:,} | OSM-only {osm_only:,} | "
           f"Overture-only {ovt_only:,} | {collapsed:,} duplicates collapsed)")
 
-    # Mainline machinery: real walking distances from the committed cache, then
-    # the standard tag-categories manifest.
-    attach_station_distances(all_fcs)
+    # Attach nearby-station stop info to every in-walkshed POI (cached Matrix
+    # distance where available, straight-line estimate otherwise).
+    attach_stations(all_fcs, stations)
 
     with_hours = sum(1 for fc in all_fcs.values() for f in fc["features"] if f["properties"].get("hours"))
     with_st = sum(1 for fc in all_fcs.values() for f in fc["features"] if f["properties"].get("stations"))
