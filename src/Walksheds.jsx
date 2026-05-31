@@ -294,6 +294,9 @@ export default function Walksheds() {
   const handlePoiClick = useCallback((feature) => {
     const props = feature.properties
     const [lng, lat] = feature.geometry.coordinates
+    const station = stationsData?.features.find(
+      f => f.properties.name === props.nearest_station
+    )
     setPoiPopup({
       longitude: lng,
       latitude: lat,
@@ -304,8 +307,9 @@ export default function Walksheds() {
       address: props.address,
       nearestStation: props.nearest_station,
       walkMin: props.station_walk_min,
+      stationLines: station?.properties.lines ?? null,
     })
-  }, [])
+  }, [stationsData])
 
   const handlePoiSelect = useCallback((feature) => {
     const [lng, lat] = feature.geometry.coordinates
