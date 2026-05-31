@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Walksheds — Seattle light rail walkshed explorer. Interactive React SPA showing areas reachable within walking distance of Link Light Rail stations, with Mapbox isochrone visualization.
 
+## Design & House Style
+
+This is a transit project; the visual language must look like real transit cartography — the classic stuff: Vignelli/Beck-lineage diagrams, clean line-colored routes, station roundels/pills, restrained sans-serif type, the established Link light rail palette (1 Line `#4CAF50`, 2 Line `#0082C8`). When adding or changing any UI, default to that idiom and reuse the existing station-pill / line-color vocabulary rather than inventing new ornament.
+
+**No emoji.** Do not use emoji anywhere — not in the UI, popups, labels, docs, wiki, commit messages, or PR descriptions. They are not the house style. Use real iconography (inline SVG, the station sprite drawer) or plain typographic marks instead.
+
 ## Commands
 
 ```bash
