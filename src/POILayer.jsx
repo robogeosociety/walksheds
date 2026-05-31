@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Source, Layer, Popup } from 'react-map-gl'
-import { POI_CATEGORIES } from './constants'
+import { POI_CATEGORIES, LINE_COLORS } from './constants'
 
 const CATEGORY_KEYS = Object.keys(POI_CATEGORIES)
 
@@ -70,10 +70,18 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, da
             </div>
             {poiPopup.walkMin && poiPopup.nearestStation && (
               <div className="poi-popup-distance">
-                <svg className="poi-popup-distance-mark" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true">
-                  <circle cx="5.5" cy="5.5" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                </svg>
-                <span>{poiPopup.walkMin} min walk to {poiPopup.nearestStation}</span>
+                {(poiPopup.stationLines || '').split(',').filter(Boolean).map(n => (
+                  <span
+                    key={n}
+                    className="poi-popup-station-circle"
+                    style={{ background: LINE_COLORS[`${n.trim()}-line`]?.color || '#999' }}
+                  >
+                    {n.trim()}
+                  </span>
+                ))}
+                <span className="poi-popup-distance-text">
+                  {poiPopup.walkMin} min walk to {poiPopup.nearestStation}
+                </span>
               </div>
             )}
             {poiPopup.tags && poiPopup.tags.length > 0 && (

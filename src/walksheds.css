@@ -1063,23 +1063,36 @@ body,
   color: #5bb8f0;
 }
 
-/* Distance to nearest Link station — station-node mark + line-color text */
+/* Distance to nearest Link station — station line roundel(s) + label */
 .poi-popup-distance {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 11px;
   font-weight: 600;
-  color: #0082C8;
+  color: #333;
   margin-bottom: 5px;
 }
 
-.poi-popup-distance-mark {
-  flex: 0 0 auto;
+.poi-popup-station-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.poi-popup-distance-text {
+  margin-left: 1px;
 }
 
 .app.dark .poi-popup-distance {
-  color: #5bb8f0;
+  color: #ddd;
 }
 
 /* ── POI category pills (sit under the search input) ── */
