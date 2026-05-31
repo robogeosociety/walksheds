@@ -178,7 +178,7 @@ def attach_stations(all_fcs, stations):
     walkshed_payload = fws.load_dump()
     if not walkshed_payload:
         print("  No walkshed dump committed; skipping station attach.")
-        return
+        return set()
     cached_pairs = (fwd.load_dump() or {}).get("pairs", {})
     station_meta = {fws.station_key(s): s for s in stations}
 
@@ -218,6 +218,29 @@ def attach_stations(all_fcs, stations):
             attached += 1
     print(f"  Attached stations to {attached:,} POIs "
           f"({real:,} cached Matrix pairs, {estimated:,} straight-line estimates)")
+    return set(by_poi)  # poi ids that are inside at least one walkshed
+
+
+def verify_walkshed_invariant(all_fcs, members):
+    """Core invariant: every POI inside a 15-min walkshed must list >=1 station.
+
+    `members` is the set of POI ids that fall inside some station's walkshed
+    (from attach_stations). Any such POI with an empty/absent `stations` array
+    is a violation. Raises SystemExit so a regression fails the build loudly.
+    """
+    violations = []
+    for fc in all_fcs.values():
+        for feat in fc["features"]:
+            p = feat["properties"]
+            if p["id"] in members and not p.get("stations"):
+                violations.append(p.get("name", p["id"]))
+    if violations:
+        raise SystemExit(
+            f"INVARIANT VIOLATED: {len(violations):,} in-walkshed POIs list no "
+            f"station (e.g. {violations[:5]}). Every POI inside a walkshed must "
+            f"list >=1 nearby station."
+        )
+    print(f"  Invariant OK: all {len(members):,} in-walkshed POIs list >=1 station")
 
 
 def _first(seq, key):
@@ -304,8 +327,10 @@ def main():
           f"Overture-only {ovt_only:,} | {collapsed:,} duplicates collapsed)")
 
     # Attach nearby-station stop info to every in-walkshed POI (cached Matrix
-    # distance where available, straight-line estimate otherwise).
-    attach_stations(all_fcs, stations)
+    # distance where available, straight-line estimate otherwise), then enforce
+    # the core invariant: in-walkshed POI => lists >=1 station.
+    members = attach_stations(all_fcs, stations)
+    verify_walkshed_invariant(all_fcs, members)
 
     with_hours = sum(1 for fc in all_fcs.values() for f in fc["features"] if f["properties"].get("hours"))
     with_st = sum(1 for fc in all_fcs.values() for f in fc["features"] if f["properties"].get("stations"))

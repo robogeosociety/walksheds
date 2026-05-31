@@ -5,6 +5,7 @@ Points of interest within walking distance of a Seattle light rail station
 1. A clickable and scrollable map of Seattle light rail stations that displays dynamic walksheds (circles reachable within a given time walking from the station)
 2. These walksheds will include a sortable and filtered list of attractions (restaurants, shops, concert venues &c) within this walking range
 3. Attraction data relies as much as possible on existing open-source and user-provided location data
+4. **Walkshed–station listing invariant:** every POI that falls inside a station's 15-minute walkshed must list at least one nearby station (a non-empty "Stations within a 15 min walk" section). Walkshed membership ⇒ a non-empty nearby-stations list — no POI is ever shown inside a walkshed with nothing to walk to. Enforced at build time by `verify_walkshed_invariant` in `data/pois/build_refined.py`.
 
 ## POI selection logic
 

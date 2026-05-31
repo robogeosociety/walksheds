@@ -12,6 +12,10 @@ This is a transit project; the visual language must look like real transit carto
 
 **No emoji.** Do not use emoji anywhere — not in the UI, popups, labels, docs, wiki, commit messages, or PR descriptions. They are not the house style. Use real iconography (inline SVG, the station sprite drawer) or plain typographic marks instead.
 
+## Core Invariants
+
+- **Walkshed–station listing invariant.** Every POI that falls inside a station's 15-minute walkshed must list at least one nearby station — i.e. walkshed membership ⇒ a non-empty `stations[]` (the popup's "Stations within a 15 min walk" section). No POI may ever be shown inside a walkshed with nothing to walk to. A POI is in-walkshed by point-in-polygon against `walksheds.json.gz`; if Matrix can't route to it, fall back to a straight-line estimate rather than dropping it. Enforced at build time by `verify_walkshed_invariant` in `data/pois/build_refined.py` (the build fails loudly on violation). When changing the POI/distance pipeline, preserve this.
+
 ## Commands
 
 ```bash
