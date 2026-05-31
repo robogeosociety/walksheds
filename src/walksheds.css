@@ -1063,6 +1063,25 @@ body,
   color: #5bb8f0;
 }
 
+/* Distance to nearest Link station — station-node mark + line-color text */
+.poi-popup-distance {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0082C8;
+  margin-bottom: 5px;
+}
+
+.poi-popup-distance-mark {
+  flex: 0 0 auto;
+}
+
+.app.dark .poi-popup-distance {
+  color: #5bb8f0;
+}
+
 /* ── POI category pills (sit under the search input) ── */
 
 .poi-cat-pills {
