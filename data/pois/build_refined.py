@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""Conflate OSM and Overture POIs into one refined best-of-both dataset.
+
+Each source covers the other's weakness:
+  - Overture: more coverage, near-complete website/phone/address.
+  - OSM: opening hours, rich per-feature qualifier tags (diet, cuisine,
+    service style), an explicit closure filter, denser hand-mapping in places.
+
+POIs that are the same real-world place (same normalized name within
+MATCH_RADIUS_M) are clustered across both sources and emitted as one merged
+record, preferring each source's strength. Clustering also collapses each
+source's internal duplicates.
+
+Closure handling combines both signals: OSM features are already closure-filtered
+by fetch_pois; Overture rows with operating_status='closed' are dropped here.
+
+Output uses the mainline POI schema and machinery: merged records keep raw
+integer OSM ids where an OSM source is present, so the committed walking-distance
+cache (keyed by OSM id) attaches `stations` to them via attach_station_distances.
+Overture-only POIs (new coverage) carry no `stations` until a Matrix refresh.
+tag-categories.json is rebuilt with the mainline writer.
+
+Needs network (Overture S3 query); the OSM side reads the committed dump.
+
+Usage:
+    python3 data/pois/build_refined.py
+    python3 data/pois/build_refined.py --min-confidence 0.6 --dry-run
+"""
+import argparse
+import json
+import math
+import os
+import re
+from collections import defaultdict
+
+import duckdb
+
+from fetch_pois import (
+    CATEGORIES,
+    OUTPUT_DIR,
+    attach_station_distances,
+    build_category,
+    compute_bbox,
+    load_raw_dump,
+    load_station_index,
+    write_tag_categories_manifest,
+    _normalize,
+)
+from fetch_overture import (
+    CATEGORY_TO_FILE,
+    PLACES_GLOB,
+    classify,
+    derive_tags,
+)
+
+MATCH_RADIUS_M = 80
+BUCKETS = list(CATEGORIES.keys())
+OSM_VALUE_TO_BUCKET = {v: b for b, (_k, vals) in CATEGORIES.items() for v in vals}
+
+
+def hav(a, b):
+    r = 6371000
+    p1, p2 = math.radians(a[1]), math.radians(b[1])
+    dphi = math.radians(b[1] - a[1])
+    dl = math.radians(b[0] - a[0])
+    h = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(h))
+
+
+def norm_name(s):
+    return re.sub(r"[^a-z0-9]", "", _normalize(s or ""))
+
+
+def get_osm_records():
+    """OSM features (closure-filtered, hours + rich tags), keyed by integer id."""
+    elements = load_raw_dump().get("elements", [])
+    recs = []
+    for cat in BUCKETS:
+        for f in build_category(elements, cat)["features"]:
+            p = f["properties"]
+            recs.append({
+                "source": "osm",
+                "id": p["id"],  # int OSM id — matches the walking-distance cache
+                "name": p["name"],
+                "nname": norm_name(p["name"]),
+                "coord": f["geometry"]["coordinates"],
+                "category": p["category"],
+                "tags": p.get("tags", []),
+                "hours": p.get("hours"),
+                "website": p.get("website"),
+                "phone": p.get("phone"),
+                "address": p.get("address"),
+            })
+    return recs
+
+
+def get_overture_records(bbox, min_confidence):
+    """Overture features (dropping operating_status='closed'), keyed by GERS id."""
+    south, west, north, east = bbox
+    con = duckdb.connect()
+    con.execute("INSTALL spatial; LOAD spatial; INSTALL httpfs; LOAD httpfs;")
+    con.execute("SET s3_region='us-west-2';")
+    rows = con.execute(f"""
+        SELECT id, names.primary, categories.primary, categories.alternate,
+               ROUND(bbox.xmin, 7), ROUND(bbox.ymin, 7),
+               list_extract(websites, 1), list_extract(phones, 1), addresses[1].freeform,
+               operating_status
+        FROM read_parquet('{PLACES_GLOB}')
+        WHERE bbox.xmin BETWEEN {west} AND {east}
+          AND bbox.ymin BETWEEN {south} AND {north}
+          AND names.primary IS NOT NULL
+          AND confidence >= {min_confidence}
+          AND (operating_status IS NULL OR operating_status <> 'closed')
+    """).fetchall()
+    recs = []
+    for (oid, name, primary, alts, lon, lat, website, phone, address, _op) in rows:
+        cat = classify(primary)
+        if cat is None:
+            continue
+        recs.append({
+            "source": "overture",
+            "id": oid,  # GERS string id — not in the OSM-keyed distance cache
+            "name": name.strip(),
+            "nname": norm_name(name),
+            "coord": [lon, lat],
+            "category": cat,
+            "tags": derive_tags(primary, alts, cat),
+            "website": website,
+            "phone": phone,
+            "address": address,
+            "hours": None,
+        })
+    return recs
+
+
+def cluster(records):
+    """Group records that are the same place: same name key, within MATCH_RADIUS_M."""
+    by_name = defaultdict(list)
+    for r in records:
+        by_name[r["nname"]].append(r)
+    clusters = []
+    for nname, recs in by_name.items():
+        if not nname:
+            clusters.extend([r] for r in recs)
+            continue
+        groups = []
+        for r in recs:
+            for g in groups:
+                if any(hav(r["coord"], c) <= MATCH_RADIUS_M for c in g["coords"]):
+                    g["members"].append(r)
+                    g["coords"].append(r["coord"])
+                    break
+            else:
+                groups.append({"members": [r], "coords": [r["coord"]]})
+        clusters.extend(g["members"] for g in groups)
+    return clusters
+
+
+def _first(seq, key):
+    for m in seq:
+        if m.get(key):
+            return m[key]
+    return None
+
+
+def merge_cluster(members):
+    """Collapse a cluster into one best-of-both feature. Returns (bucket, feature)."""
+    osm = [m for m in members if m["source"] == "osm"]
+    ovt = [m for m in members if m["source"] == "overture"]
+    primary = osm[0] if osm else ovt[0]
+
+    coord = primary["coord"]
+    category = primary["category"]
+    bucket = (OSM_VALUE_TO_BUCKET.get(osm[0]["category"]) if osm else None) \
+        or (CATEGORY_TO_FILE.get(ovt[0]["category"]) if ovt else None) \
+        or OSM_VALUE_TO_BUCKET.get(category) or BUCKETS[0]
+
+    tags, seen = [], set()
+    for m in members:
+        for t in m.get("tags") or []:
+            if t not in seen:
+                seen.add(t)
+                tags.append(t)
+
+    props = {
+        # Prefer the OSM integer id so the distance cache attaches stations.
+        "id": osm[0]["id"] if osm else ovt[0]["id"],
+        "name": primary["name"],
+        "category": category,
+        "tags": tags or [category],
+        "sources": sorted({m["source"] for m in members}),
+    }
+    for key, val in (
+        ("website", _first(ovt, "website") or _first(osm, "website")),
+        ("phone", _first(ovt, "phone") or _first(osm, "phone")),
+        ("address", _first(ovt, "address") or _first(osm, "address")),
+        ("hours", _first(osm, "hours")),  # only OSM has hours
+    ):
+        if val:
+            props[key] = val
+
+    feature = {
+        "type": "Feature",
+        "properties": props,
+        "geometry": {"type": "Point", "coordinates": [round(coord[0], 7), round(coord[1], 7)]},
+    }
+    return bucket, feature
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Conflate OSM + Overture into a refined dataset")
+    ap.add_argument("--min-confidence", type=float, default=0.5)
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+
+    bbox = compute_bbox(load_station_index())
+
+    print("Loading OSM records (committed dump)...")
+    osm = get_osm_records()
+    print(f"  {len(osm):,} OSM features")
+    print(f"Querying Overture (confidence >= {args.min_confidence}, dropping closed)...")
+    ovt = get_overture_records(bbox, args.min_confidence)
+    print(f"  {len(ovt):,} Overture features")
+
+    clusters = cluster(osm + ovt)
+    all_fcs = {b: {"type": "FeatureCollection", "features": []} for b in BUCKETS}
+    both = osm_only = ovt_only = 0
+    for members in clusters:
+        srcs = {m["source"] for m in members}
+        both += srcs == {"osm", "overture"}
+        osm_only += srcs == {"osm"}
+        ovt_only += srcs == {"overture"}
+        bucket, feat = merge_cluster(members)
+        all_fcs[bucket]["features"].append(feat)
+
+    total = sum(len(fc["features"]) for fc in all_fcs.values())
+    collapsed = len(osm) + len(ovt) - len(clusters)
+    print(f"\nRefined: {total:,} POIs (matched {both:,} | OSM-only {osm_only:,} | "
+          f"Overture-only {ovt_only:,} | {collapsed:,} duplicates collapsed)")
+
+    # Mainline machinery: real walking distances from the committed cache, then
+    # the standard tag-categories manifest.
+    attach_station_distances(all_fcs)
+
+    with_hours = sum(1 for fc in all_fcs.values() for f in fc["features"] if f["properties"].get("hours"))
+    with_st = sum(1 for fc in all_fcs.values() for f in fc["features"] if f["properties"].get("stations"))
+    print(f"  with hours: {with_hours:,} | with stations (cache hit): {with_st:,}")
+    for b in BUCKETS:
+        print(f"    {b:12} {len(all_fcs[b]['features']):>6}")
+
+    if args.dry_run:
+        print("\n[dry-run] no files written")
+        return
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    for b in BUCKETS:
+        with open(os.path.join(OUTPUT_DIR, f"{b}.geojson"), "w") as f:
+            json.dump(all_fcs[b], f)
+    write_tag_categories_manifest(all_fcs)
+    print(f"\nWrote {len(BUCKETS)} GeoJSONs + tag-categories.json to {OUTPUT_DIR}")
+
+
+if __name__ == "__main__":
+    main()
