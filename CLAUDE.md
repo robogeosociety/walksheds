@@ -14,7 +14,26 @@ This is a transit project; the visual language must look like real transit carto
 
 ## Core Invariants
 
-- **Walkshed–station listing invariant.** Every POI that falls inside a station's 15-minute walkshed must list at least one nearby station — i.e. walkshed membership ⇒ a non-empty `stations[]` (the popup's "Stations within a 15 min walk" section). No POI may ever be shown inside a walkshed with nothing to walk to. A POI is in-walkshed by point-in-polygon against `walksheds.json.gz`; if Matrix can't route to it, fall back to a straight-line estimate rather than dropping it. Enforced at build time by `verify_walkshed_invariant` in `data/pois/build_refined.py` (the build fails loudly on violation). When changing the POI/distance pipeline, preserve this.
+IDs are **append-only and stable** (`INV-NNN` — never reused; a retired invariant keeps its number). Most are checked by `data/pois/test_invariants.py` (CI job "Data invariants") and the JS suite (`src/__tests__/invariants.test.js`); some are enforced inline. **When adding an invariant, append the next `INV` number and a test — never renumber.**
+
+- **INV-001 walkshed-listing** — every POI inside a station's 15-min walkshed lists ≥1 nearby station (non-empty `stations[]` / the popup's "Stations within a 15 min walk" section). Membership ⇒ a non-empty list; if Matrix can't route to a POI, fall back to a straight-line estimate rather than dropping it. Enforced by `verify_walkshed_invariant` in `data/pois/build_refined.py` and tested.
+- **INV-002 poi-fields** — every POI has a non-empty `name`, a `category` in `VALID_CATEGORIES`, and a non-empty `tags[]`. (`validate_geojson`)
+- **INV-003 unique-id** — POI `id` is unique within each category file. (`validate_geojson`)
+- **INV-004 coords-in-bbox** — POI coordinates fall within the padded station bbox. (`validate_geojson`)
+- **INV-005 stations-wellformed** — each `stations[]` entry has `stopCode, lines, name, walkingMeters, walkingSeconds, band`. (`validate_geojson`)
+- **INV-006 no-orphan-tags** — every tag on any POI exists in `tag-categories.json` `tag_to_category`.
+- **INV-007 stations-sorted** — `stations[]` is sorted ascending by `walkingSeconds`.
+- **INV-008 provenance** — every POI carries a non-empty `sources ⊆ {osm, overture}`.
+- **INV-009 cache-version-match** — the walking-distance cache `version` equals the walkshed dump `version`. (build warns/errors on mismatch)
+- **INV-010 band-matches-geometry** — a POI's `stations[]` (stopCode, band) set equals its walkshed membership by point-in-polygon — no spurious/missing stations, correct band.
+- **INV-011 distances-sane** — every `stations[]` entry has finite, non-negative meters/seconds and `band ∈ {5,10,15}`.
+- **INV-012 station-data** — `all-stations.geojson` has exactly 38 stations; each has an integer `stopCode` and `lines ∈ {"1","2","1,2"}`.
+- **INV-013 sprite-per-station** — the sprite manifest has a light and dark icon for every station.
+- **INV-014 deterministic-build** — regenerating the sprite manifest reproduces the committed one. (local test; needs `cairosvg`)
+- **INV-015 registry-append-only** — `filter-registry.json` IDs are stable and unique; position is the ID, never reordered or reused.
+- **INV-016 spotlight-references** — every spotlight pill's `matchCategories` / `matchTags` resolves to a real category / tag in the data. (JS suite)
+- **INV-017 schema-registry-consistency** — `filter_schema` ID maps match `filter-registry.json` positions and cover every live tag.
+- **INV-018 no-emoji** — no emoji anywhere (UI, docs, wiki, commits, PRs); see Design & House Style.
 
 ## Commands
 

@@ -222,7 +222,7 @@ def attach_stations(all_fcs, stations):
 
 
 def verify_walkshed_invariant(all_fcs, members):
-    """Core invariant: every POI inside a 15-min walkshed must list >=1 station.
+    """Core invariant INV-001: every POI inside a 15-min walkshed lists >=1 station.
 
     `members` is the set of POI ids that fall inside some station's walkshed
     (from attach_stations). Any such POI with an empty/absent `stations` array
