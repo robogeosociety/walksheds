@@ -7,9 +7,11 @@ Overture's category taxonomy onto the existing 8 Walksheds buckets + frontend
 category vocabulary, and writes byte-compatible GeoJSON to public/pois/ plus
 tag-categories.json.
 
-Output schema matches fetch_pois.py exactly: each feature carries
-id / name / category / tags[] (+ optional address / website / phone). Overture
-has no opening hours, so `hours` is omitted (see DATA_SOURCE_PROPOSAL.md §6).
+Output keeps fetch_pois.py's core schema — id / name / category / tags[]
+(+ optional address / website / phone) — and adds Overture-native fields
+(email / socials[] / brand / confidence) plus a computed nearest-station
+distance (nearest_station / station_m / station_walk_min). Overture has no
+opening hours, so `hours` is omitted (see DATA_SOURCE_PROPOSAL.md §6).
 
 Usage:
     python3 data/pois/fetch_overture.py            # build all buckets
@@ -18,6 +20,7 @@ Usage:
 """
 import argparse
 import json
+import math
 import os
 
 import duckdb
@@ -190,7 +193,10 @@ def fetch_rows(bbox, min_confidence):
             ROUND(bbox.ymin, 7)            AS lat,
             list_extract(websites, 1)      AS website,
             list_extract(phones, 1)        AS phone,
-            addresses[1].freeform          AS address
+            addresses[1].freeform          AS address,
+            list_extract(emails, 1)        AS email,
+            socials                        AS socials,
+            brand.names.primary            AS brand
         FROM read_parquet('{PLACES_GLOB}')
         WHERE bbox.xmin BETWEEN {west} AND {east}
           AND bbox.ymin BETWEEN {south} AND {north}
@@ -199,12 +205,33 @@ def fetch_rows(bbox, min_confidence):
     """).fetchall()
 
 
-def build(rows):
+def haversine_m(lon1, lat1, lon2, lat2):
+    """Great-circle distance in meters between two lon/lat points."""
+    r = 6371000
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dlmb/2)**2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def nearest_station(lon, lat, stations):
+    """Return (station_name, straight-line meters) for the closest station."""
+    best_name, best_m = None, float("inf")
+    for s in stations:
+        d = haversine_m(lon, lat, s["lng"], s["lat"])
+        if d < best_m:
+            best_name, best_m = s["name"], d
+    return best_name, round(best_m)
+
+
+def build(rows, stations):
     """Group rows into per-file FeatureCollections. Returns (fcs, unmapped_counts)."""
     fcs = {}
     seen_ids = set()
     unmapped = {}
-    for (oid, name, primary, alts, conf, lon, lat, website, phone, address) in rows:
+    for (oid, name, primary, alts, conf, lon, lat, website, phone, address,
+         email, socials, brand) in rows:
         category = classify(primary)
         if category is None:
             unmapped[primary] = unmapped.get(primary, 0) + 1
@@ -225,6 +252,20 @@ def build(rows):
             props["phone"] = phone
         if address:
             props["address"] = address
+        # Additional Overture-native fields.
+        if email:
+            props["email"] = email
+        if socials:
+            props["socials"] = list(socials)
+        if brand:
+            props["brand"] = brand
+        if conf is not None:
+            props["confidence"] = round(float(conf), 3)
+        # Computed nearest-station distance ("distance data pipeline").
+        st_name, st_m = nearest_station(lon, lat, stations)
+        props["nearest_station"] = st_name
+        props["station_m"] = st_m
+        props["station_walk_min"] = max(1, round(st_m / 80))  # ~80 m/min walking
 
         feat = {
             "type": "Feature",
@@ -274,13 +315,14 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    bbox = compute_bbox(load_station_index())
+    stations = load_station_index()
+    bbox = compute_bbox(stations)
     print(f"Bounding box: {bbox}")
 
     rows = fetch_rows(bbox, args.min_confidence)
     print(f"  {len(rows):,} Overture places in bbox")
 
-    fcs, unmapped = build(rows)
+    fcs, unmapped = build(rows, stations)
     total = sum(len(fc["features"]) for fc in fcs.values())
     print(f"\nBuilt {total:,} features across {len(fcs)} buckets:")
     for bucket, fc in sorted(fcs.items()):
