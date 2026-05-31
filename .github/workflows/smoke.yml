@@ -1,0 +1,38 @@
+name: Live smoke
+
+# Probes the live site with Playwright. Its run conclusions + the github-pages
+# deployment_status events are ingested into InfluxDB by the host-side
+# walksheds-uptime collector (observability repo) and shown on the Grafana
+# uptime dashboard. schedule + deployment_status fire from the default branch
+# once merged; workflow_dispatch works on any branch.
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # periodic uptime probe
+  deployment_status:          # probe right after a deploy
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Live smoke (walksheds.xyz)
+    # On deployment_status, only probe once a deploy actually succeeded.
+    if: ${{ github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm install
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Smoke the live site
+        run: npx playwright test e2e/uptime.spec.js --project=chromium
+        env:
+          BASE_URL: https://walksheds.xyz
