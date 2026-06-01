@@ -138,12 +138,12 @@ function invertMap(nameToId) {
  * caller-supplied defaults — so default views and "no filter" links stay
  * clean.
  */
-export function buildPoiFilterParam(enabledCategories, poiFilters, schema, defaultMainCategories = null) {
+export function buildPoiFilterParam(enabledCategories, poiFilters, schema, defaultMainCategories = null, defaultTags = []) {
   if (!schema || schema.version !== 1) return ''
   if (
-    poiFilters.size === 0 &&
     defaultMainCategories &&
-    sameMembers(enabledCategories, defaultMainCategories)
+    sameMembers(enabledCategories, defaultMainCategories) &&
+    sameMembers(poiFilters, defaultTags)
   ) {
     return ''
   }

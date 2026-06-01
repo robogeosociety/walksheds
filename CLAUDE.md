@@ -6,6 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Walksheds — Seattle light rail walkshed explorer. Interactive React SPA showing areas reachable within walking distance of Link Light Rail stations, with Mapbox isochrone visualization.
 
+## Design & House Style
+
+This is a transit project; the visual language must look like real transit cartography — the classic stuff: Vignelli/Beck-lineage diagrams, clean line-colored routes, station roundels/pills, restrained sans-serif type, the established Link light rail palette (1 Line `#4CAF50`, 2 Line `#0082C8`). When adding or changing any UI, default to that idiom and reuse the existing station-pill / line-color vocabulary rather than inventing new ornament.
+
+**No emoji.** Do not use emoji anywhere — not in the UI, popups, labels, docs, wiki, commit messages, or PR descriptions. They are not the house style. Use real iconography (inline SVG, the station sprite drawer) or plain typographic marks instead.
+
+## Core Invariants
+
+IDs are **append-only and stable** (`INV-NNN` — never reused; a retired invariant keeps its number). Most are checked by `data/pois/test_invariants.py` (CI job "Data invariants") and the JS suite (`src/__tests__/invariants.test.js`); some are enforced inline. **When adding an invariant, append the next `INV` number and a test — never renumber.**
+
+- **INV-001 walkshed-listing** — every POI inside a station's 15-min walkshed lists ≥1 nearby station (non-empty `stations[]` / the popup's "Stations within a 15 min walk" section). Membership ⇒ a non-empty list; if Matrix can't route to a POI, fall back to a straight-line estimate rather than dropping it. Enforced by `verify_walkshed_invariant` in `data/pois/build_refined.py` and tested.
+- **INV-002 poi-fields** — every POI has a non-empty `name`, a `category` in `VALID_CATEGORIES`, and a non-empty `tags[]`. (`validate_geojson`)
+- **INV-003 unique-id** — POI `id` is unique within each category file. (`validate_geojson`)
+- **INV-004 coords-in-bbox** — POI coordinates fall within the padded station bbox. (`validate_geojson`)
+- **INV-005 stations-wellformed** — each `stations[]` entry has `stopCode, lines, name, walkingMeters, walkingSeconds, band`. (`validate_geojson`)
+- **INV-006 no-orphan-tags** — every tag on any POI exists in `tag-categories.json` `tag_to_category`.
+- **INV-007 stations-sorted** — `stations[]` is sorted ascending by `walkingSeconds`.
+- **INV-008 provenance** — every POI carries a non-empty `sources ⊆ {osm, overture}`.
+- **INV-009 cache-version-match** — the walking-distance cache `version` equals the walkshed dump `version`. (build warns/errors on mismatch)
+- **INV-010 band-matches-geometry** — a POI's `stations[]` (stopCode, band) set equals its walkshed membership by point-in-polygon — no spurious/missing stations, correct band.
+- **INV-011 distances-sane** — every `stations[]` entry has finite, non-negative meters/seconds and `band ∈ {5,10,15}`.
+- **INV-012 station-data** — `all-stations.geojson` has exactly 38 stations; each has an integer `stopCode` and `lines ∈ {"1","2","1,2"}`.
+- **INV-013 sprite-per-station** — the sprite manifest has a light and dark icon for every station.
+- **INV-014 deterministic-build** — regenerating the sprite manifest reproduces the committed one. (local test; needs `cairosvg`)
+- **INV-015 registry-append-only** — `filter-registry.json` IDs are stable and unique; position is the ID, never reordered or reused.
+- **INV-016 spotlight-references** — every spotlight pill's `matchCategories` / `matchTags` resolves to a real category / tag in the data. (JS suite)
+- **INV-017 schema-registry-consistency** — `filter_schema` ID maps match `filter-registry.json` positions and cover every live tag.
+- **INV-018 no-emoji** — no emoji anywhere (UI, docs, wiki, commits, PRs); see Design & House Style.
+- **INV-019 tile-coverage** — the runtime streams POIs from a spatial grid (`public/pois/tiles/{col}_{row}.geojson` + `index.json`) instead of loading the full ~12 MB dataset. The union of all tiles must exactly equal the full POI set (no POI lost or duplicated), every feature must lie in its declared tile cell, and `index.json` must list precisely the populated tiles on disk. This keeps the full dataset (all tags, marginal POIs) while loading only the ~11 tiles overlapping the active walkshed (~20 KB). See `build_refined.py` `write_tiles` and `src/poiTiles.js`. (Surfacing marginal/just-outside POIs in the UI is tracked in issue #58.)
+- **INV-020 station-tile-lookup** — `index.json` carries a precomputed `station_tiles` map (station key `{lines}-{stopCode}` → tile keys), so the runtime maps a selected station straight to its tiles without bbox math (it still clips against the live isochrone). For every station the lookup must include the tile of every POI inside that station's walkshed (a correct superset of membership), and every listed tile must be a real populated tile.
+
 ## Commands
 
 ```bash
@@ -66,6 +97,10 @@ Tag categorization is config-driven via `EXPLICIT_TAG_CATEGORIES` (category id �
 Restaurants surface ~315 canonical tags (down from ~340 raw via alias compression); the frontend chip list (`getAvailableTags` in `src/poiUtils.js`) sorts by count desc, so common ones bubble up.
 
 Per-feature properties on output GeoJSON: `id` (OSM node/way id), `name`, `category`, `tags[]`, plus optional `address`, `website`, `phone`, `hours`, `stations[]` (see below).
+
+### Refined POIs (OSM + Overture → spatial tiles)
+
+`data/pois/build_refined.py` is the production POI build: it conflates the OSM dump with Overture Places (best-of-both — Overture contact data, OSM hours + qualifier tags), attaches real Matrix `stations[]`, and emits the dataset **only as a spatial tile grid** under `public/pois/tiles/` (`{col}_{row}.geojson` + `index.json`), plus `tag-categories.json`. There are no per-category `public/pois/*.geojson` files — the app streams tiles per-walkshed (`src/poiTiles.js`), loading ~11 tiles (~20 KB) for the active station instead of the full ~12 MB set. The full dataset (all 26k POIs, all tags) is preserved across the tiles; INV-019 guards exact coverage. Re-run with `python3 data/pois/build_refined.py` (needs network for the Overture S3 query; OSM side reads the committed dump).
 
 ### Walksheds + POI walking distances (Mapbox → committed dumps)
 

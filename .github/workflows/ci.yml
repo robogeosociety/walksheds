@@ -35,6 +35,22 @@ jobs:
         env:
           VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
 
+  data-invariants:
+    name: Data invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pytest
+
+      # Checks the committed POI data + dumps against the core invariants
+      # (data/pois/test_invariants.py, INV-NNN). INV-014 self-skips without cairosvg.
+      - run: pytest data/pois/test_invariants.py -q
+
   claude:
     name: Claude Code
     concurrency:
