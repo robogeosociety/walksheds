@@ -109,6 +109,11 @@ export const POI_GROUP_COLORS = {
 // filters still AND on top.
 export const EVERYTHING_CATEGORY_ID = 'everything'
 
+// `everything` is the only spotlight: it carries `matchAll: true` and short-
+// circuits the pool to every feature in the walkshed. The former curated pills
+// (restaurants/bars/coffee/parks) were removed — coffee and parks are now plain
+// default-enabled category tags (see DEFAULT_ENABLED_CATEGORY_TAGS), and any
+// other category is reached through the search box like every other tag.
 const MAIN_POI_CATEGORY_DEFS = {
   everything: {
     label: 'everything',
@@ -116,44 +121,18 @@ const MAIN_POI_CATEGORY_DEFS = {
     spotlight: true,
     matchAll: true,
   },
-  restaurants: {
-    label: 'restaurants',
-    color: '#E67E22',
-    spotlight: true,
-    matchCategories: ['restaurant', 'fast_food', 'ice_cream', 'bakery'],
-    matchTags: [],
-  },
-  bars: {
-    label: 'bars',
-    color: '#9B59B6',
-    spotlight: true,
-    matchCategories: ['bar', 'pub'],
-    matchTags: ['brewery', 'winery', 'distillery', 'has-bar'],
-  },
-  coffee: {
-    label: 'coffee',
-    color: '#7B4A2A',
-    spotlight: true,
-    matchCategories: ['cafe'],
-    matchTags: ['coffee', 'coffee-shop', 'coffee-roaster'],
-  },
-  parks: {
-    label: 'parks',
-    color: '#2ECC71',
-    spotlight: true,
-    matchCategories: ['park', 'playground', 'garden'],
-    matchTags: [],
-  },
 }
 
-export const MAIN_POI_CATEGORIES = MAIN_CATEGORY_IDS.map(id => ({
-  id,
-  ...MAIN_POI_CATEGORY_DEFS[id],
-}))
+export const MAIN_POI_CATEGORIES = MAIN_CATEGORY_IDS
+  .filter(id => MAIN_POI_CATEGORY_DEFS[id])
+  .map(id => ({ id, ...MAIN_POI_CATEGORY_DEFS[id] }))
 
 export const MAIN_POI_CATEGORY_IDS = MAIN_CATEGORY_IDS
 
-// Default-on main categories when no ?pois= filter is provided.
-export const DEFAULT_ENABLED_MAIN_CATEGORIES = ['parks', 'coffee']
+// Spotlights default to none enabled (only `everything` exists as a toggle).
+export const DEFAULT_ENABLED_MAIN_CATEGORIES = []
+
+// Category tags pinned on by default when no ?pois= filter is provided.
+export const DEFAULT_ENABLED_CATEGORY_TAGS = ['coffee', 'park']
 
 export const POI_INTERACTIVE_LAYERS = ['poi-circles']

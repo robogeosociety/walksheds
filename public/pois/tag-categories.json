@@ -2,11 +2,7 @@
   "filter_schema": {
     "version": 1,
     "cat": {
-      "everything": 0,
-      "restaurants": 1,
-      "bars": 2,
-      "coffee": 3,
-      "parks": 4
+      "everything": 0
     },
     "tag": {
       "1-star": 0,

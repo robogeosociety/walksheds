@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints, getTerminusInfo, getSwipeHint } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
-import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
+import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
@@ -214,7 +214,7 @@ export default function Walksheds() {
       const mergedTags = new Set([...activeCategories, ...activeFilters])
       const path = buildStationPath(lineNum, stopCode, base) + combineQuery(
         buildWalkshedParams(enabledWalksheds),
-        buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
+        buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS),
       )
       window.history.replaceState(null, '', path)
     }
@@ -536,10 +536,9 @@ export default function Walksheds() {
   // Restore POI filter state from `?pois=` once the schema is loaded.
   // Splits the parsed tag set into categories vs filters by the tag's
   // category-bucket — backward-compatible with URLs minted before this split.
-  // When no `?pois=` is present, seed the sandwich category pill so the
-  // empty-state landing on Westlake demonstrates the pill row alongside
-  // the parks + coffee spotlights. Filter checkboxes are left empty —
-  // users discover them via the dimmed hint in the overlay.
+  // When no `?pois=` is present, seed the default category pills (coffee +
+  // park) so the empty-state landing on Westlake shows a populated pill row.
+  // Filter checkboxes are left empty — users discover them via the overlay hint.
   useEffect(() => {
     if (!tagCategories || poisResolvedRef.current) return
     poisResolvedRef.current = true
@@ -557,7 +556,7 @@ export default function Walksheds() {
           if (filts.size) setActiveFilters(filts)
         }
       } else {
-        setActiveCategories(new Set(['sandwich']))
+        setActiveCategories(new Set(DEFAULT_ENABLED_CATEGORY_TAGS))
       }
     })
   }, [tagCategories, isFilterTag])

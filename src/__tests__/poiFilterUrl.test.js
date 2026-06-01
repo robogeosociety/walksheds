@@ -77,6 +77,14 @@ describe('buildPoiFilterParam', () => {
     expect(out).not.toBe('')
   })
 
+  it('omits the URL when spotlights + tags both match defaults (new model)', () => {
+    // No spotlights enabled, default category tags coffee+pizza selected.
+    const tagDefaults = ['coffee-shop', 'pizza']
+    expect(buildPoiFilterParam(new Set(), new Set(['coffee-shop', 'pizza']), SCHEMA, [], tagDefaults)).toBe('')
+    // Diverging tags -> encoded.
+    expect(buildPoiFilterParam(new Set(), new Set(['coffee-shop']), SCHEMA, [], tagDefaults)).not.toBe('')
+  })
+
   it('encodes when defaults are present but tags are also selected', () => {
     const defaults = ['parks', 'coffee']
     const out = buildPoiFilterParam(new Set(['parks', 'coffee']), new Set(['pizza']), SCHEMA, defaults)
