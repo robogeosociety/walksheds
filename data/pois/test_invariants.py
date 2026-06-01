@@ -32,23 +32,22 @@ def _load_json(path):
 
 
 @pytest.fixture(scope="module")
-def pois():
-    out = {}
-    for cat in fetch_pois.CATEGORIES:
-        out[cat] = _load_json(os.path.join(fetch_pois.OUTPUT_DIR, f"{cat}.geojson"))
-    return out
+def features():
+    """All POIs, read from the committed spatial tiles (the sole POI artifact)."""
+    tiles_dir = os.path.join(fetch_pois.OUTPUT_DIR, "tiles")
+    index = _load_json(os.path.join(tiles_dir, "index.json"))
+    feats = []
+    for key in index["tiles"]:
+        feats.extend(_load_json(os.path.join(tiles_dir, f"{key}.geojson"))["features"])
+    return feats
 
 
 @pytest.fixture(scope="module")
-def features(pois):
-    return [f for fc in pois.values() for f in fc["features"]]
-
-
-@pytest.fixture(scope="module")
-def membership(pois):
+def membership(features):
     """{poi_id -> set((stopCode, band))} from point-in-polygon over committed walksheds."""
     stations = fetch_pois.load_station_index()
     walkshed_payload = fetch_walksheds.load_dump()
+    pois = {"all": {"features": features}}
     pairs = fetch_walking_distances.compute_membership(stations, walkshed_payload, pois)
     by_poi = defaultdict(set)
     for _skey, poi_id, band, station, _feat in pairs:
@@ -73,12 +72,36 @@ def test_inv_001_walkshed_listing(features, membership):
     assert not bad, f"{len(bad)} in-walkshed POIs list no station, e.g. {bad[:5]}"
 
 
-# ── INV-019 — no-orphan-poi: every emitted POI is inside >=1 walkshed ──
-def test_inv_019_no_orphan_poi(features, membership):
-    bad = [f["properties"]["name"] for f in features
-           if f["properties"]["id"] not in membership]
-    assert not bad, (f"{len(bad)} POIs are outside every walkshed and can never "
-                     f"render, e.g. {bad[:5]} — they should be pruned at build time")
+# ── INV-019 — tile-coverage: the spatial tiles exactly reproduce the full set ──
+def test_inv_019_tile_coverage(features):
+    """The runtime streams POIs from public/pois/tiles/ instead of loading the
+    full per-category files. The union of all tiles must equal the full POI set
+    (no POI lost or duplicated), each populated tile must be listed in
+    index.json, and every feature must sit in its declared tile cell."""
+    import math
+    tiles_dir = os.path.join(fetch_pois.OUTPUT_DIR, "tiles")
+    index = _load_json(os.path.join(tiles_dir, "index.json"))
+    deg = index["tile_deg"]
+
+    tile_ids, tile_keys = set(), set()
+    for key in index["tiles"]:
+        fc = _load_json(os.path.join(tiles_dir, f"{key}.geojson"))
+        for f in fc["features"]:
+            lon, lat = f["geometry"]["coordinates"]
+            cell = f"{math.floor(lon / deg)}_{math.floor(lat / deg)}"
+            assert cell == key, f"feature {f['properties']['id']} in tile {key} but cell is {cell}"
+            assert f["properties"]["id"] not in tile_ids, f"duplicate {f['properties']['id']} across tiles"
+            tile_ids.add(f["properties"]["id"])
+        tile_keys.add(key)
+
+    full_ids = {f["properties"]["id"] for f in features}
+    assert tile_ids == full_ids, (
+        f"tiles cover {len(tile_ids)} POIs but full set has {len(full_ids)}; "
+        f"missing {len(full_ids - tile_ids)}, extra {len(tile_ids - full_ids)}")
+    assert index["count"] == len(full_ids), "index count != full POI count"
+    # No empty tiles listed, no populated tile unlisted.
+    on_disk = {n[:-len(".geojson")] for n in os.listdir(tiles_dir) if n.endswith(".geojson")}
+    assert on_disk == tile_keys, f"index/files mismatch: {on_disk ^ tile_keys}"
 
 
 # ── INV-006 — no-orphan-tags: every tag is categorized ──

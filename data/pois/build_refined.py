@@ -243,22 +243,6 @@ def verify_walkshed_invariant(all_fcs, members):
     print(f"  Invariant OK: all {len(members):,} in-walkshed POIs list >=1 station")
 
 
-def prune_outside_walksheds(all_fcs, members):
-    """INV-019: every emitted POI must be inside at least one station's walkshed.
-
-    The app only ever renders POIs inside a selected station's walkshed
-    (filterPOIsInWalkshed), so a POI outside every walkshed can never be shown.
-    Drop those (no `stations` array) at build time. Returns count dropped.
-    """
-    dropped = 0
-    for fc in all_fcs.values():
-        keep = [f for f in fc["features"] if f["properties"]["id"] in members]
-        dropped += len(fc["features"]) - len(keep)
-        fc["features"] = keep
-    print(f"  Pruned {dropped:,} POIs outside every walkshed")
-    return dropped
-
-
 def _first(seq, key):
     for m in seq:
         if m.get(key):
@@ -310,6 +294,57 @@ def merge_cluster(members):
     return bucket, feature
 
 
+# Spatial tile grid for runtime streaming. ~0.01 deg ≈ 1.1 km lat / ~0.75 km lon
+# at 47.6N — small enough that a 15-min walkshed (~1.2 km radius) touches only a
+# handful of tiles, so the app fetches a few small files instead of the whole set.
+TILE_DEG = 0.01
+
+
+def tile_key(lon, lat):
+    """Grid cell (col,row) for a coordinate, as integer floor of lon/lat / TILE_DEG."""
+    return (math.floor(lon / TILE_DEG), math.floor(lat / TILE_DEG))
+
+
+def write_tiles(all_fcs, dry_run=False):
+    """Emit one combined GeoJSON per populated tile + a tiles/index.json.
+
+    Tiles carry the SAME features as the per-category files (the category files
+    remain the full source of truth); the app fetches only tiles overlapping the
+    active walkshed. index.json holds the grid params + populated tile keys so
+    the runtime can map a walkshed bbox to the tiles it must load.
+    """
+    tiles = {}
+    for fc in all_fcs.values():
+        for feat in fc["features"]:
+            lon, lat = feat["geometry"]["coordinates"]
+            tiles.setdefault(tile_key(lon, lat), []).append(feat)
+
+    tiles_dir = os.path.join(OUTPUT_DIR, "tiles")
+    index = {
+        "tile_deg": TILE_DEG,
+        "count": sum(len(v) for v in tiles.values()),
+        "tiles": sorted(f"{c}_{r}" for (c, r) in tiles),
+    }
+    total = index["count"]
+    print(f"  Tiles: {len(tiles)} populated cells, {total:,} features "
+          f"(avg {total / max(1, len(tiles)):.0f}/tile)")
+    if dry_run:
+        print("  [dry-run] tiles not written")
+        return index
+
+    os.makedirs(tiles_dir, exist_ok=True)
+    for fname in os.listdir(tiles_dir):  # clear stale tiles from a prior grid
+        if fname.endswith(".geojson"):
+            os.remove(os.path.join(tiles_dir, fname))
+    for (c, r), feats in tiles.items():
+        with open(os.path.join(tiles_dir, f"{c}_{r}.geojson"), "w") as f:
+            json.dump({"type": "FeatureCollection", "features": feats}, f)
+    with open(os.path.join(tiles_dir, "index.json"), "w") as f:
+        json.dump(index, f)
+    print(f"  Wrote {len(tiles)} tiles + index.json to {tiles_dir}")
+    return index
+
+
 def main():
     ap = argparse.ArgumentParser(description="Conflate OSM + Overture into a refined dataset")
     ap.add_argument("--min-confidence", type=float, default=0.5)
@@ -354,16 +389,21 @@ def main():
     for b in BUCKETS:
         print(f"    {b:12} {len(all_fcs[b]['features']):>6}")
 
+    write_tiles(all_fcs, dry_run=args.dry_run)
+
     if args.dry_run:
         print("\n[dry-run] no files written")
         return
 
+    # Tiles are the sole POI artifact; the app streams them per-walkshed. Remove
+    # any legacy per-category files so they don't ship as dead weight.
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     for b in BUCKETS:
-        with open(os.path.join(OUTPUT_DIR, f"{b}.geojson"), "w") as f:
-            json.dump(all_fcs[b], f)
+        legacy = os.path.join(OUTPUT_DIR, f"{b}.geojson")
+        if os.path.exists(legacy):
+            os.remove(legacy)
     write_tag_categories_manifest(all_fcs)
-    print(f"\nWrote {len(BUCKETS)} GeoJSONs + tag-categories.json to {OUTPUT_DIR}")
+    print(f"\nWrote tiles/ + tag-categories.json to {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":

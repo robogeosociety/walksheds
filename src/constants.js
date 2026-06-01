@@ -99,11 +99,6 @@ export const POI_GROUP_COLORS = {
   fitness: '#E91E63',
 }
 
-export const POI_FILES = [
-  'restaurants', 'attractions', 'parks',
-  'lodging', 'shops', 'healthcare', 'services', 'fitness',
-]
-
 // Always-visible "spotlight" category pills. Each pill matches POIs by raw
 // OSM `properties.category` value and/or by `properties.tags` membership.
 // Order is driven by `mainCategories.json` (shared with the Python pipeline so

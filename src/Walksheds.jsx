@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints, getTerminusInfo, getSwipeHint } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
-import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, POI_FILES, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
+import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
-import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags, mergeFeatureCollections } from './poiUtils'
+import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
+import { loadTileIndex, loadPoisForWalkshed } from './poiTiles'
 import { useNavigation } from './useNavigation'
 import MapView from './MapView'
 import LineLegend from './LineLegend'
@@ -126,7 +127,8 @@ export default function Walksheds() {
 
   const [legendPosition, setLegendPosition] = useState('bottom-left')
   const [hintsVisible, setHintsVisible] = useState(() => shouldShowHints())
-  const [poiData, setPoiData] = useState({})
+  const [tileIndex, setTileIndex] = useState(null)
+  const [walkshedPois, setWalkshedPois] = useState({ type: 'FeatureCollection', features: [] })
   const [tagCategories, setTagCategories] = useState(null)
   // Three independent state sets per the category/filter/spotlight model
   // (see README.md → "POI selection logic"):
@@ -161,11 +163,9 @@ export default function Walksheds() {
     fetch(`${base}line1-alignment.geojson`).then(r => r.json()).then(setLine1Data)
     fetch(`${base}line2-alignment.geojson`).then(r => r.json()).then(setLine2Data)
     fetch(`${base}all-stations.geojson`).then(r => r.json()).then(setStationsData)
-    for (const cat of POI_FILES) {
-      fetch(`${base}pois/${cat}.geojson`)
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d) setPoiData(prev => ({ ...prev, [cat]: d })) })
-    }
+    // POIs stream per-walkshed from spatial tiles (see poiTiles.js); only the
+    // small tile index is loaded upfront instead of the full 11.7 MB dataset.
+    loadTileIndex(base).then(setTileIndex).catch(() => {})
     fetch(`${base}pois/tag-categories.json`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setTagCategories(d) })
@@ -257,25 +257,34 @@ export default function Walksheds() {
     }
   }, [enabledWalksheds, walksheds])
 
-  // Compute POIs visible within the largest enabled walkshed
-  const walkshedPois = useMemo(() => {
-    const hasWalksheds = Object.keys(walksheds).length > 0
-    const hasPoiData = Object.keys(poiData).length > 0
-    if (!hasWalksheds || !hasPoiData) return { type: 'FeatureCollection', features: [] }
-
-    // Use the largest enabled walkshed as the clipping polygon
+  // The largest enabled walkshed polygon — the clipping boundary for POIs.
+  const activeWalkshedFC = useMemo(() => {
     const sorted = [...enabledWalksheds].sort((a, b) => b - a)
-    let walkshedFC = null
     for (const min of sorted) {
-      if (walksheds[min]) { walkshedFC = walksheds[min]; break }
+      if (walksheds[min]) return walksheds[min]
     }
-    if (!walkshedFC) return { type: 'FeatureCollection', features: [] }
+    return null
+  }, [walksheds, enabledWalksheds])
 
-    const clipped = POI_FILES
-      .map(cat => poiData[cat] ? filterPOIsInWalkshed(poiData[cat], walkshedFC) : null)
-      .filter(Boolean)
-    return mergeFeatureCollections(...clipped)
-  }, [walksheds, enabledWalksheds, poiData])
+  // Stream POIs for the active walkshed: load the overlapping spatial tiles,
+  // then point-in-polygon clip. Async (tiles fetched on demand) — results land
+  // in walkshedPois state; the empty case resolves synchronously to [].
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      if (!tileIndex || !activeWalkshedFC) {
+        if (!cancelled) setWalkshedPois({ type: 'FeatureCollection', features: [] })
+        return
+      }
+      const base = import.meta.env.BASE_URL
+      const features = await loadPoisForWalkshed(base, activeWalkshedFC, tileIndex)
+      if (!cancelled) {
+        setWalkshedPois(filterPOIsInWalkshed({ type: 'FeatureCollection', features }, activeWalkshedFC))
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [activeWalkshedFC, tileIndex])
 
   const tagColors = useMemo(() => {
     if (!tagCategories) return {}
@@ -294,15 +303,14 @@ export default function Walksheds() {
 
   // Global (city-wide) tag list, for the search fallback when the typed term
   // doesn't match anything in the current walkshed — surfaces the tag as
-  // "not in walkshed" instead of an empty dropdown.
+  // "not in walkshed" instead of an empty dropdown. Derived from the full tag
+  // vocabulary (tag-categories.json) so it needs no full-POI load; counts are
+  // unused on this path so a placeholder count of 0 is fine.
   const globalAvailableTags = useMemo(() => {
-    const features = []
-    for (const cat of POI_FILES) {
-      const fc = poiData[cat]
-      if (fc?.features) features.push(...fc.features)
-    }
-    return getAvailableTags(features, tagColors)
-  }, [poiData, tagColors])
+    if (!tagCategories?.tag_to_category) return []
+    return Object.keys(tagCategories.tag_to_category)
+      .map(tag => ({ tag, count: 0, color: tagColors[tag] || null }))
+  }, [tagCategories, tagColors])
 
   const spotlightsById = useMemo(() => {
     const out = {}
@@ -636,7 +644,7 @@ export default function Walksheds() {
         units={units}
       />
 
-      {Object.keys(poiData).length > 0 && (
+      {tagCategories && (
         <POISearch
           availableTags={availableTags}
           globalAvailableTags={globalAvailableTags}
