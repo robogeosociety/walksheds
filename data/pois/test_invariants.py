@@ -104,6 +104,41 @@ def test_inv_019_tile_coverage(features):
     assert on_disk == tile_keys, f"index/files mismatch: {on_disk ^ tile_keys}"
 
 
+# ── INV-020 — station-tile-lookup is a correct superset of walkshed membership ──
+def test_inv_020_station_tile_lookup(features):
+    """index.json's precomputed station_tiles (station key -> tile keys) must,
+    for each station, include the tile of every POI inside that station's
+    walkshed — so loading those tiles then clipping reproduces the membership.
+    Every listed tile must also be a real populated tile."""
+    import math
+    tiles_dir = os.path.join(fetch_pois.OUTPUT_DIR, "tiles")
+    index = _load_json(os.path.join(tiles_dir, "index.json"))
+    deg = index["tile_deg"]
+    populated = set(index["tiles"])
+    station_tiles = index["station_tiles"]
+    assert station_tiles, "index.json missing station_tiles lookup"
+
+    id_to_tile = {}
+    for f in features:
+        lon, lat = f["geometry"]["coordinates"]
+        id_to_tile[f["properties"]["id"]] = f"{math.floor(lon / deg)}_{math.floor(lat / deg)}"
+
+    # Membership keyed by full station key (disambiguates shared stopCode 54).
+    stations = fetch_pois.load_station_index()
+    walkshed_payload = fetch_walksheds.load_dump()
+    pairs = fetch_walking_distances.compute_membership(
+        stations, walkshed_payload, {"all": {"features": features}})
+    by_station = defaultdict(set)
+    for skey, poi_id, _band, _station, _feat in pairs:
+        by_station[skey].add(poi_id)
+
+    for skey, listed in station_tiles.items():
+        listed_set = set(listed)
+        assert listed_set <= populated, f"{skey} lists non-populated tiles: {listed_set - populated}"
+        needed = {id_to_tile[i] for i in by_station.get(skey, set()) if i in id_to_tile}
+        assert needed <= listed_set, f"{skey}: walkshed POIs in tiles {needed - listed_set} not in lookup"
+
+
 # ── INV-006 — no-orphan-tags: every tag is categorized ──
 def test_inv_006_no_orphan_tags(features, tag_categories):
     known = set(tag_categories["tag_to_category"])

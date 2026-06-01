@@ -277,14 +277,17 @@ export default function Walksheds() {
         return
       }
       const base = import.meta.env.BASE_URL
-      const features = await loadPoisForWalkshed(base, activeWalkshedFC, tileIndex)
+      // Station key ({lines}-{stopCode}) lets the tile loader use the build's
+      // precomputed station->tiles lookup instead of recomputing the bbox.
+      const stationKey = popup?.stopCode != null ? `${popup.lines}-${popup.stopCode}` : null
+      const features = await loadPoisForWalkshed(base, activeWalkshedFC, tileIndex, stationKey)
       if (!cancelled) {
         setWalkshedPois(filterPOIsInWalkshed({ type: 'FeatureCollection', features }, activeWalkshedFC))
       }
     }
     run()
     return () => { cancelled = true }
-  }, [activeWalkshedFC, tileIndex])
+  }, [activeWalkshedFC, tileIndex, popup])
 
   const tagColors = useMemo(() => {
     if (!tagCategories) return {}

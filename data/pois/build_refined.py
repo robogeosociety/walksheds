@@ -36,6 +36,7 @@ from collections import defaultdict
 
 import duckdb
 
+import fetch_walksheds
 from fetch_pois import (
     CATEGORIES,
     OUTPUT_DIR,
@@ -305,13 +306,34 @@ def tile_key(lon, lat):
     return (math.floor(lon / TILE_DEG), math.floor(lat / TILE_DEG))
 
 
-def write_tiles(all_fcs, dry_run=False):
+def station_tile_keys(walkshed_fc, populated):
+    """Tile keys a station's walkshed overlaps — its bbox cells, populated only.
+
+    Precomputed per station so the runtime skips the bbox math; it still clips
+    against the live isochrone, so this only needs to be a superset (the bbox of
+    the committed walkshed). Uses the outermost (15-min) contour's extent.
+    """
+    lons, lats = [], []
+    for f in walkshed_fc.get("features", []):
+        for lon, lat in f["geometry"]["coordinates"][0]:
+            lons.append(lon)
+            lats.append(lat)
+    if not lons:
+        return []
+    c0, c1 = math.floor(min(lons) / TILE_DEG), math.floor(max(lons) / TILE_DEG)
+    r0, r1 = math.floor(min(lats) / TILE_DEG), math.floor(max(lats) / TILE_DEG)
+    keys = [f"{c}_{r}" for c in range(c0, c1 + 1) for r in range(r0, r1 + 1)]
+    return sorted(k for k in keys if k in populated)
+
+
+def write_tiles(all_fcs, stations=None, walkshed_payload=None, dry_run=False):
     """Emit one combined GeoJSON per populated tile + a tiles/index.json.
 
-    Tiles carry the SAME features as the per-category files (the category files
-    remain the full source of truth); the app fetches only tiles overlapping the
-    active walkshed. index.json holds the grid params + populated tile keys so
-    the runtime can map a walkshed bbox to the tiles it must load.
+    The app fetches only the tiles overlapping the active walkshed. index.json
+    holds the grid params, the populated tile keys, and a precomputed
+    `station_tiles` lookup (station key -> tile keys) so the runtime can map a
+    station straight to its tiles without bbox math (it still clips against the
+    live isochrone). `station_tiles` is omitted if the walkshed dump is absent.
     """
     tiles = {}
     for fc in all_fcs.values():
@@ -320,11 +342,23 @@ def write_tiles(all_fcs, dry_run=False):
             tiles.setdefault(tile_key(lon, lat), []).append(feat)
 
     tiles_dir = os.path.join(OUTPUT_DIR, "tiles")
+    populated = {f"{c}_{r}" for (c, r) in tiles}
     index = {
         "tile_deg": TILE_DEG,
         "count": sum(len(v) for v in tiles.values()),
-        "tiles": sorted(f"{c}_{r}" for (c, r) in tiles),
+        "tiles": sorted(populated),
     }
+    if stations and walkshed_payload:
+        walksheds = walkshed_payload["walksheds"]
+        station_tiles = {}
+        for s in stations:
+            key = fetch_walksheds.station_key(s)
+            fc = walksheds.get(key)
+            if fc:
+                station_tiles[key] = station_tile_keys(fc, populated)
+        index["station_tiles"] = station_tiles
+        print(f"  Station->tile lookup: {len(station_tiles)} stations, "
+              f"avg {sum(len(v) for v in station_tiles.values()) / max(1, len(station_tiles)):.1f} tiles/station")
     total = index["count"]
     print(f"  Tiles: {len(tiles)} populated cells, {total:,} features "
           f"(avg {total / max(1, len(tiles)):.0f}/tile)")
@@ -389,7 +423,8 @@ def main():
     for b in BUCKETS:
         print(f"    {b:12} {len(all_fcs[b]['features']):>6}")
 
-    write_tiles(all_fcs, dry_run=args.dry_run)
+    write_tiles(all_fcs, stations=stations,
+                walkshed_payload=fetch_walksheds.load_dump(), dry_run=args.dry_run)
 
     if args.dry_run:
         print("\n[dry-run] no files written")

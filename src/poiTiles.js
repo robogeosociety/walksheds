@@ -18,7 +18,15 @@ export async function loadTileIndex(base) {
   const res = await fetch(`${base}pois/tiles/index.json`)
   if (!res.ok) throw new Error(`tile index ${res.status}`)
   const raw = await res.json()
-  tileIndex = { tileDeg: raw.tile_deg, count: raw.count, tiles: new Set(raw.tiles) }
+  tileIndex = {
+    tileDeg: raw.tile_deg,
+    count: raw.count,
+    tiles: new Set(raw.tiles),
+    // station key ("{lines}-{stopCode}") -> precomputed tile keys, so a station
+    // selection skips the bbox math (the build already overlapped its walkshed
+    // against the grid). Runtime still clips against the live isochrone.
+    stationTiles: raw.station_tiles || {},
+  }
   return tileIndex
 }
 
@@ -67,13 +75,20 @@ function loadTile(base, key) {
 }
 
 /**
- * Load every POI feature whose tile overlaps the walkshed bbox. Returns a flat
+ * Load every POI feature in the tiles a walkshed touches. Returns a flat
  * Feature[] (a superset of the walkshed — caller still point-in-polygon clips).
+ *
+ * When `stationKey` is given and present in the precomputed `stationTiles`
+ * lookup, uses that directly (no bbox math). Otherwise falls back to computing
+ * the tiles from the walkshed polygon's bbox.
  */
-export async function loadPoisForWalkshed(base, walkshedFC, index) {
-  const bbox = walkshedBbox(walkshedFC)
-  if (!bbox) return []
-  const keys = tileKeysForBbox(bbox, index)
+export async function loadPoisForWalkshed(base, walkshedFC, index, stationKey) {
+  let keys = stationKey ? index.stationTiles?.[stationKey] : null
+  if (!keys) {
+    const bbox = walkshedBbox(walkshedFC)
+    if (!bbox) return []
+    keys = tileKeysForBbox(bbox, index)
+  }
   const chunks = await Promise.all(keys.map(k => loadTile(base, k)))
   return chunks.flat()
 }

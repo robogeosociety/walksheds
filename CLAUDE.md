@@ -35,6 +35,7 @@ IDs are **append-only and stable** (`INV-NNN` — never reused; a retired invari
 - **INV-017 schema-registry-consistency** — `filter_schema` ID maps match `filter-registry.json` positions and cover every live tag.
 - **INV-018 no-emoji** — no emoji anywhere (UI, docs, wiki, commits, PRs); see Design & House Style.
 - **INV-019 tile-coverage** — the runtime streams POIs from a spatial grid (`public/pois/tiles/{col}_{row}.geojson` + `index.json`) instead of loading the full ~12 MB dataset. The union of all tiles must exactly equal the full POI set (no POI lost or duplicated), every feature must lie in its declared tile cell, and `index.json` must list precisely the populated tiles on disk. This keeps the full dataset (all tags, marginal POIs) while loading only the ~11 tiles overlapping the active walkshed (~20 KB). See `build_refined.py` `write_tiles` and `src/poiTiles.js`. (Surfacing marginal/just-outside POIs in the UI is tracked in issue #58.)
+- **INV-020 station-tile-lookup** — `index.json` carries a precomputed `station_tiles` map (station key `{lines}-{stopCode}` → tile keys), so the runtime maps a selected station straight to its tiles without bbox math (it still clips against the live isochrone). For every station the lookup must include the tile of every POI inside that station's walkshed (a correct superset of membership), and every listed tile must be a real populated tile.
 
 ## Commands
 
