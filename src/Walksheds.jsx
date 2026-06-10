@@ -404,11 +404,14 @@ export default function Walksheds() {
     setPoiPopup({
       longitude: lng,
       latitude: lat,
+      id: props.id,
       name: props.name,
       category: props.category,
       tags: typeof props.tags === 'string' ? JSON.parse(props.tags) : props.tags,
       website: props.website,
       address: props.address,
+      phone: props.phone,
+      hours: props.hours,
       stations: typeof props.stations === 'string' ? JSON.parse(props.stations) : props.stations,
     })
     setExpandedPoiTag(null)
