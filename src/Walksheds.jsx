@@ -735,12 +735,7 @@ export default function Walksheds() {
       />
 
       {hintsVisible && stationsData && (
-        <HintOverlay
-          legendPosition={legendPosition}
-          legendCollapsed={legendCollapsed}
-          hasActiveFilters={activeFilters.size > 0}
-          swipeHint={swipeHint}
-        />
+        <HintOverlay swipeHint={swipeHint} />
       )}
     </div>
   )

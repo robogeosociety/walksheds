@@ -4,6 +4,8 @@ import { MAIN_POI_CATEGORIES } from '../constants'
 import {
   BENCHMARKS,
   PARKS_BENCHMARK_COLOR,
+  LIGHT_MAP_BG as LIGHT_MAP_BG_HEX,
+  DARK_MAP_BG as DARK_MAP_BG_HEX,
   contrastRatio,
   dimmedPillBg,
   enabledPillText,
@@ -77,6 +79,34 @@ describe(`pill visibility audit — every category >= parks benchmark (enabled $
   it.each(PALETTE)('dimmed pill text on $id ($color), dark mode', ({ color }) => {
     const text = dimmedPillText(color, true)
     expect(contrastRatio(text, dimmedPillBg(color, true))).toBeGreaterThanOrEqual(BENCHMARKS.dimmedDark - EPS)
+  })
+})
+
+// Hint-overlay ink (issue #45 follow-up): the labels float over arbitrary
+// map content with a text halo, so what matters is ink vs halo and ink vs
+// the basemap. Hex values mirror walksheds.css (.hint-overlay color and
+// .hint-label text-shadow); small handwritten text gets the WCAG AA 4.5
+// floor rather than the pill benchmark.
+describe('hint overlay ink visibility', () => {
+  const HINT_INK = { light: '#0a2540', dark: '#cfe6ff' }
+  const HALO = { light: compositeOver('#ffffff', 0.9, LIGHT_MAP_BG_HEX), dark: compositeOver('#0c0e1a', 0.85, DARK_MAP_BG_HEX) }
+  const AA = 4.5
+
+  it('light-mode ink clears AA on its halo and the day basemap', () => {
+    expect(contrastRatio(HINT_INK.light, HALO.light)).toBeGreaterThanOrEqual(AA)
+    expect(contrastRatio(HINT_INK.light, LIGHT_MAP_BG_HEX)).toBeGreaterThanOrEqual(AA)
+  })
+
+  it('dark-mode ink clears AA on its halo and the dusk basemap', () => {
+    expect(contrastRatio(HINT_INK.dark, HALO.dark)).toBeGreaterThanOrEqual(AA)
+    expect(contrastRatio(HINT_INK.dark, DARK_MAP_BG_HEX)).toBeGreaterThanOrEqual(AA)
+  })
+
+  it('inks beat AA even on bare basemap extremes (water/park fills trend lighter in day, darker at dusk)', () => {
+    // The halo guarantees the floor over busy content; this checks the
+    // ink alone is not riding the halo to pass.
+    expect(contrastRatio(HINT_INK.light, '#ffffff')).toBeGreaterThanOrEqual(AA)
+    expect(contrastRatio(HINT_INK.dark, '#0c0e1a')).toBeGreaterThanOrEqual(AA)
   })
 })
 

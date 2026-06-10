@@ -75,3 +75,90 @@ test.describe('Hints overlay + Westlake default', () => {
     await expect(page.locator('.hint-overlay')).toBeVisible({ timeout: 2000 })
   })
 })
+
+// Anchored hints (issue #45 follow-up): labels and arrows are generated
+// from live measurements of their target controls, so the tips must land
+// on the controls — and follow them when they move.
+test.describe('Hint anchoring + visibility', () => {
+  const TARGET_FOR = {
+    legend: '.line-legend',
+    search: '.poi-search-input-row',
+    pills: '.poi-cat-pills',
+    filters: '.poi-filter-list, .poi-cat-pills',
+  }
+
+  async function arrowTips(page) {
+    return page.evaluate(() => [...document.querySelectorAll('[data-hint-arrow]')].map(g => ({
+      id: g.getAttribute('data-hint-arrow'),
+      x: Number(g.getAttribute('data-x2')),
+      y: Number(g.getAttribute('data-y2')),
+    })))
+  }
+
+  async function expectTipsOnTargets(page) {
+    const tips = await arrowTips(page)
+    expect(tips.length).toBeGreaterThanOrEqual(3)
+    for (const tip of tips) {
+      const box = await page.locator(TARGET_FOR[tip.id]).first().boundingBox()
+      expect(box, `target for ${tip.id}`).toBeTruthy()
+      const pad = 16
+      // The dimmed filters fallback points just below the pill row.
+      const padBottom = tip.id === 'filters' ? 24 : pad
+      expect(tip.x, `${tip.id} arrow x`).toBeGreaterThanOrEqual(box.x - pad)
+      expect(tip.x, `${tip.id} arrow x`).toBeLessThanOrEqual(box.x + box.width + pad)
+      expect(tip.y, `${tip.id} arrow y`).toBeGreaterThanOrEqual(box.y - pad)
+      expect(tip.y, `${tip.id} arrow y`).toBeLessThanOrEqual(box.y + box.height + padBottom)
+    }
+  }
+
+  test('hint arrows point at their target controls', async ({ page }) => {
+    await page.goto('/?hints')
+    await page.waitForSelector('.hint-overlay', { timeout: 15000 })
+    await page.waitForSelector('.poi-cat-pills', { timeout: 15000 })
+    await page.waitForTimeout(600)
+    await expectTipsOnTargets(page)
+  })
+
+  test('hints follow the legend when it collapses', async ({ page }) => {
+    await page.goto('/?hints')
+    await page.waitForSelector('.hint-overlay', { timeout: 15000 })
+    await page.waitForTimeout(600)
+    const before = (await arrowTips(page)).find(t => t.id === 'legend')
+    // The collapse chevron is data-hint-keep, so hints survive the click.
+    await page.locator('[aria-label="Collapse legend"]').click()
+    await page.waitForSelector('.line-legend.collapsed', { timeout: 3000 })
+    await page.waitForTimeout(900)
+    await expect(page.locator('.hint-overlay')).toBeVisible()
+    const after = (await arrowTips(page)).find(t => t.id === 'legend')
+    expect(Math.abs(after.x - before.x) + Math.abs(after.y - before.y)).toBeGreaterThan(40)
+    await expectTipsOnTargets(page)
+  })
+
+  test('hint ink is readable over the basemap in both modes', async ({ page }) => {
+    await page.goto('/?hints')
+    await page.waitForSelector('.hint-label', { timeout: 15000 })
+    const MAP_BG = { light: [242, 239, 233], dark: [52, 52, 63] }
+    const audit = (mapBg) => {
+      const lum = ([r, g, b]) => {
+        const ch = v => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
+        return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+      }
+      const el = document.querySelector('.hint-label')
+      const cs = getComputedStyle(el)
+      const ink = cs.color.match(/\d+/g).map(Number).slice(0, 3)
+      const la = lum(ink); const lb = lum(mapBg)
+      return {
+        contrast: (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05),
+        hasHalo: cs.textShadow !== 'none',
+      }
+    }
+    const light = await page.evaluate(audit, MAP_BG.light)
+    expect(light.hasHalo, 'light halo present').toBe(true)
+    expect(light.contrast, 'light ink vs day basemap').toBeGreaterThanOrEqual(4.5)
+    await page.keyboard.press('d')
+    await page.waitForSelector('.app.dark', { timeout: 3000 })
+    const dark = await page.evaluate(audit, MAP_BG.dark)
+    expect(dark.hasHalo, 'dark halo present').toBe(true)
+    expect(dark.contrast, 'dark ink vs dusk basemap').toBeGreaterThanOrEqual(4.5)
+  })
+})
