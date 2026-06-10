@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { matchStations } from './stationSearch'
 import { StationPillBody } from './StationPill'
+import { enabledPillText, dimmedPillText } from './pillColors'
 
 // Mirror data/pois/fetch_pois.py:_normalize so search queries like "hot dog",
 // "café", or "drive thru" reach the hyphenated canonical tags / alias keys.
@@ -32,6 +33,7 @@ export default function POISearch({
   onCommit,
   stations,
   onStationSelect,
+  darkMode,
 }) {
   // Tags already pinned in either bucket — exclude from dropdown suggestions.
   const pinnedTags = useMemo(() => {
@@ -310,7 +312,7 @@ export default function POISearch({
                 style={{
                   borderColor: color,
                   background: enabled ? color : color + '40',
-                  color: enabled ? '#fff' : color,
+                  color: enabled ? enabledPillText(color) : dimmedPillText(color, darkMode),
                 }}
                 onClick={() => handleCategoryToggle(id)}
               >
@@ -331,7 +333,7 @@ export default function POISearch({
                 style={{
                   borderColor: color,
                   background: present ? color : color + '40',
-                  color: present ? '#fff' : color,
+                  color: present ? enabledPillText(color) : dimmedPillText(color, darkMode),
                 }}
               >
                 {present && (

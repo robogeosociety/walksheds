@@ -710,6 +710,7 @@ export default function Walksheds() {
           onCommit={focusMap}
           stations={stationsData?.features}
           onStationSelect={handleStationSearchSelect}
+          darkMode={darkMode}
         />
       )}
 
