@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import Map, { Source, Layer } from 'react-map-gl'
+import Map, { Source, Layer, GeolocateControl } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { registerStationIcons } from './stationIcons'
 import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
@@ -27,6 +27,9 @@ const MapView = forwardRef(function MapView({
   onPopupStationClick,
   onPopupFocus,
   onUserInteract,
+  onGeolocate,
+  onTrackUserLocationStart,
+  onTrackUserLocationEnd,
   units,
 }, ref) {
   const mapRef = useRef(null)
@@ -199,6 +202,19 @@ const MapView = forwardRef(function MapView({
         },
       }}
     >
+      {/* Locate control (issue #16): follow-mode puck with device heading.
+          Snapping to the nearest station + compass rotation live in
+          Walksheds via these callbacks. */}
+      <GeolocateControl
+        position="top-left"
+        positionOptions={{ enableHighAccuracy: true }}
+        trackUserLocation
+        showUserHeading
+        onGeolocate={onGeolocate}
+        onTrackUserLocationStart={onTrackUserLocationStart}
+        onTrackUserLocationEnd={onTrackUserLocationEnd}
+      />
+
       <WalkshedLayers
         walksheds={walksheds}
         enabledWalksheds={enabledWalksheds}

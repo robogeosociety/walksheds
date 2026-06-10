@@ -20,6 +20,7 @@ vi.mock('react-map-gl', () => ({
   Source: ({ children }) => <div>{children}</div>,
   Layer: () => null,
   Marker: ({ children }) => <div>{children}</div>,
+  GeolocateControl: () => null,
 }))
 
 import { render, screen } from '@testing-library/react'
