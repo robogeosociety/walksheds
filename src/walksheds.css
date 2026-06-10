@@ -618,7 +618,7 @@ body,
 
 /* Hand-drawn SVG arrows inline with the label text. Sized to match the
    cap-height of the surrounding sentence so they read as part of the
-   text flow on the same blurred transparent layer. */
+   text flow. */
 .hint-arrow {
   display: inline-block;
   color: inherit;
