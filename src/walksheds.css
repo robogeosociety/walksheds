@@ -910,6 +910,42 @@ body,
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* Station rows in the search dropdown (issue #18): reuse the inline
+ * station-pill vocabulary from the POI popup's nearest-stations list. */
+.poi-search-option.poi-search-station {
+  justify-content: flex-start;
+}
+
+.poi-search-station .station-pill.inline {
+  position: static;
+  transform: none;
+  box-shadow: none;
+  padding: 2px 6px 2px 2px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 999px;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.app.dark .poi-search-station .station-pill.inline {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.poi-search-station .station-pill.inline .pill-name {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.poi-search-station .station-pill.inline .pill-circle {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.poi-search-station .station-pill.inline .pill-code {
+  font-size: 10px;
+}
+
 /* ── POI list under search chips ── */
 
 .poi-chip-poi-list {

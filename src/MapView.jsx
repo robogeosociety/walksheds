@@ -88,14 +88,17 @@ const MapView = forwardRef(function MapView({
   // would otherwise sit above the station icons. JSX order alone doesn't
   // fix this because by the time walksheds mount, station-circles was
   // already added. The effect runs after the commit so the new walkshed
-  // layers are already in the stack when we re-order.
+  // layers are already in the stack when we re-order. `visiblePois` is a
+  // dep because POILayer unmounts at zero features and remounts above
+  // station-circles when features return — stations must stay on top
+  // (issue #18).
   useEffect(() => {
     const map = mapRef.current?.getMap()
     if (!map || !mapLoaded) return
     for (const id of ['poi-circles', 'poi-labels', 'station-circles']) {
       if (map.getLayer(id)) map.moveLayer(id)
     }
-  }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode])
+  }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode, visiblePois])
 
   // A user-initiated zoom (scroll-zoom, pinch, double-tap) carries an
   // originalEvent; programmatic fitBounds/flyTo/easeTo do not. We key off zoom

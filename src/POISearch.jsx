@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { matchStations } from './stationSearch'
+import { StationPillBody } from './StationPill'
 
 // Mirror data/pois/fetch_pois.py:_normalize so search queries like "hot dog",
 // "café", or "drive thru" reach the hyphenated canonical tags / alias keys.
@@ -28,6 +30,8 @@ export default function POISearch({
   onToggleCategory,
   tagAliases,
   onCommit,
+  stations,
+  onStationSelect,
 }) {
   // Tags already pinned in either bucket — exclude from dropdown suggestions.
   const pinnedTags = useMemo(() => {
@@ -115,6 +119,15 @@ export default function POISearch({
     return out.slice(0, 8)
   }, [query, availableTags, globalAvailableTags, pinnedTags, canonicalToAliases])
 
+  // Station rows (issue #18) sit above the tag rows in the dropdown and
+  // share the same highlight index: 0..stationMatches.length-1 are stations,
+  // the rest are tags.
+  const stationMatches = useMemo(
+    () => (onStationSelect ? matchStations(stations, query) : []),
+    [stations, query, onStationSelect],
+  )
+  const totalOptions = stationMatches.length + matches.length
+
   const handleSelect = useCallback((tag) => {
     onAddFilter(tag)
     setQuery('')
@@ -125,6 +138,15 @@ export default function POISearch({
     inputRef.current?.blur()
     onCommit?.()
   }, [onAddFilter, onCommit])
+
+  const handleStationSelect = useCallback((feature) => {
+    onStationSelect?.(feature)
+    setQuery('')
+    setShowDropdown(false)
+    setHighlightIdx(0)
+    inputRef.current?.blur()
+    onCommit?.()
+  }, [onStationSelect, onCommit])
 
   const handleCategoryToggle = useCallback((catId) => {
     onToggleCategory?.(catId)
@@ -142,7 +164,7 @@ export default function POISearch({
       e.preventDefault()
       e.stopPropagation()
       if (!showDropdown) setShowDropdown(true)
-      setHighlightIdx(i => Math.min(i + 1, matches.length - 1))
+      setHighlightIdx(i => Math.min(i + 1, totalOptions - 1))
       return
     }
     if (e.key === 'ArrowUp') {
@@ -152,12 +174,18 @@ export default function POISearch({
       setHighlightIdx(i => Math.max(i - 1, 0))
       return
     }
-    if (e.key === 'Enter' && matches.length > 0) {
+    if (e.key === 'Enter' && totalOptions > 0) {
       e.preventDefault()
-      handleSelect(matches[highlightIdx]?.tag || matches[0].tag)
+      if (highlightIdx < stationMatches.length) {
+        handleStationSelect(stationMatches[highlightIdx])
+      } else {
+        const tag = matches[highlightIdx - stationMatches.length]?.tag || matches[0]?.tag
+        if (tag) handleSelect(tag)
+        else if (stationMatches.length) handleStationSelect(stationMatches[0])
+      }
       return
     }
-  }, [matches, highlightIdx, handleSelect, showDropdown])
+  }, [matches, stationMatches, totalOptions, highlightIdx, handleSelect, handleStationSelect, showDropdown])
 
   const handleInput = useCallback((e) => {
     setQuery(e.target.value)
@@ -233,22 +261,40 @@ export default function POISearch({
         />
       </div>
 
-      {showDropdown && matches.length > 0 && (
+      {showDropdown && totalOptions > 0 && (
         <div className="poi-search-dropdown">
-          {matches.map(({ tag, label, count, color, outOfWalkshed }, i) => (
+          {stationMatches.map((f, i) => (
             <button
-              key={tag}
-              className={`poi-search-option ${i === highlightIdx ? 'highlighted' : ''}${outOfWalkshed ? ' out-of-walkshed' : ''}`}
-              onMouseDown={(e) => { e.preventDefault(); handleSelect(tag) }}
+              key={`station:${f.properties.lines}-${f.properties.stopCode}`}
+              className={`poi-search-option poi-search-station ${i === highlightIdx ? 'highlighted' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); handleStationSelect(f) }}
               onMouseEnter={() => setHighlightIdx(i)}
             >
-              {color && <span className="poi-search-option-dot" style={{ background: color }} />}
-              <span className="poi-search-option-tag">{label}</span>
-              {outOfWalkshed
-                ? <span className="poi-search-option-note">not in walkshed</span>
-                : <span className="poi-search-option-count">{count}</span>}
+              <StationPillBody
+                lines={f.properties.lines}
+                stopCode={f.properties.stopCode}
+                name={f.properties.name}
+                className="inline"
+              />
             </button>
           ))}
+          {matches.map(({ tag, label, count, color, outOfWalkshed }, i) => {
+            const idx = stationMatches.length + i
+            return (
+              <button
+                key={tag}
+                className={`poi-search-option ${idx === highlightIdx ? 'highlighted' : ''}${outOfWalkshed ? ' out-of-walkshed' : ''}`}
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(tag) }}
+                onMouseEnter={() => setHighlightIdx(idx)}
+              >
+                {color && <span className="poi-search-option-dot" style={{ background: color }} />}
+                <span className="poi-search-option-tag">{label}</span>
+                {outOfWalkshed
+                  ? <span className="poi-search-option-note">not in walkshed</span>
+                  : <span className="poi-search-option-count">{count}</span>}
+              </button>
+            )
+          })}
         </div>
       )}
 

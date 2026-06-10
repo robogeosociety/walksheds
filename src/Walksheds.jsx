@@ -455,6 +455,13 @@ export default function Walksheds() {
     mapViewRef.current?.getMap()?.getCanvas()?.focus()
   }, [])
 
+  // A station picked from the search dropdown behaves exactly like a click
+  // on its map icon: fly there, open the pill, fetch the walksheds.
+  const handleStationSearchSelect = useCallback((feature) => {
+    const [lng, lat] = feature.geometry.coordinates
+    selectStation(feature.properties.name, lng, lat, feature.properties.line)
+  }, [selectStation])
+
   // Trackpad / wheel scroll within the walkshed snaps back to the station
   // instead of transitioning to an adjacent one — mirroring the pan-snap on
   // dragend so wheel input feels the same as drag input. A POI popup, if
@@ -664,6 +671,8 @@ export default function Walksheds() {
           onToggleCategory={handleToggleCategory}
           tagAliases={tagCategories?.filter_schema?.aliases}
           onCommit={focusMap}
+          stations={stationsData?.features}
+          onStationSelect={handleStationSearchSelect}
         />
       )}
 

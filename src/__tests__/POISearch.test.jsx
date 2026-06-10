@@ -254,3 +254,90 @@ describe('POISearch category pills vs filter checkboxes', () => {
     expect(labels).not.toContain('child-friendly')
   })
 })
+
+describe('POISearch station results (issue #18)', () => {
+  const stationFeat = (name, stopCode, lines, line) => ({
+    type: 'Feature',
+    properties: { name, stopCode, lines, line },
+    geometry: { type: 'Point', coordinates: [-122.33, 47.61] },
+  })
+  const STATIONS = [
+    stationFeat('Westlake Station', 50, '1,2', '1-line'),
+    stationFeat('Roosevelt Station', 46, '1,2', '1-line'),
+    stationFeat('Judkins Park Station', 54, '2', '2-line'),
+  ]
+
+  it('shows matching stations above tag results', () => {
+    renderSearch({ stations: STATIONS, onStationSelect: vi.fn() })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: 'roosevelt' },
+    })
+    const rows = document.querySelectorAll('.poi-search-station')
+    expect(rows.length).toBe(1)
+    expect(rows[0].textContent).toMatch(/Roosevelt/)
+    // Station rows precede any tag rows in the dropdown.
+    const first = document.querySelector('.poi-search-dropdown').firstChild
+    expect(first.className).toMatch(/poi-search-station/)
+  })
+
+  it('matches stations by number', () => {
+    renderSearch({ stations: STATIONS, onStationSelect: vi.fn() })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: '254' },
+    })
+    const rows = document.querySelectorAll('.poi-search-station')
+    expect(rows.length).toBe(1)
+    expect(rows[0].textContent).toMatch(/Judkins Park/)
+  })
+
+  it('clicking a station row calls onStationSelect with the feature', () => {
+    const onStationSelect = vi.fn()
+    const onCommit = vi.fn()
+    renderSearch({ stations: STATIONS, onStationSelect, onCommit })
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: 'westlake' },
+    })
+    fireEvent.mouseDown(document.querySelector('.poi-search-station'))
+    expect(onStationSelect).toHaveBeenCalledTimes(1)
+    expect(onStationSelect.mock.calls[0][0].properties.name).toBe('Westlake Station')
+    expect(onCommit).toHaveBeenCalledTimes(1)
+  })
+
+  it('Enter selects the highlighted station when it is first in the list', () => {
+    const onStationSelect = vi.fn()
+    const onAddFilter = vi.fn()
+    renderSearch({ stations: STATIONS, onStationSelect, onAddFilter })
+    const input = screen.getByPlaceholderText(/Search places/)
+    fireEvent.change(input, { target: { value: 'roosevelt' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onStationSelect).toHaveBeenCalledTimes(1)
+    expect(onAddFilter).not.toHaveBeenCalled()
+  })
+
+  it('arrow keys move the highlight from stations into tag rows', () => {
+    const onStationSelect = vi.fn()
+    const onAddFilter = vi.fn()
+    renderSearch({
+      stations: [stationFeat('Pioneer Square Station', 52, '1,2', '1-line')],
+      onStationSelect,
+      onAddFilter,
+      availableTags: [{ tag: 'pizza', count: 12, color: '#bbb' }],
+    })
+    const input = screen.getByPlaceholderText(/Search places/)
+    // "pi" matches both Pioneer Square and pizza.
+    fireEvent.change(input, { target: { value: 'pi' } })
+    expect(document.querySelectorAll('.poi-search-station').length).toBe(1)
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onAddFilter).toHaveBeenCalledWith('pizza')
+    expect(onStationSelect).not.toHaveBeenCalled()
+  })
+
+  it('renders no station rows when stations are not provided', () => {
+    renderSearch({})
+    fireEvent.change(screen.getByPlaceholderText(/Search places/), {
+      target: { value: 'westlake' },
+    })
+    expect(document.querySelectorAll('.poi-search-station').length).toBe(0)
+  })
+})
