@@ -530,7 +530,12 @@ export default function Walksheds() {
   }, [walksheds, enabledWalksheds, popup, poiPopup, fitToWalkshed])
 
   // Resolve deep link on initial load, or default to Westlake with a
-  // full-system overview that flies in.
+  // full-system overview that flies in. selectStation is reached through a
+  // ref: its identity changes whenever filter state or tagCategories load
+  // settles, and with it in the dep array the effect's cleanup would cancel
+  // the pending 900ms auto-select timer before it ever fired.
+  const selectStationFnRef = useRef(selectStation)
+  useEffect(() => { selectStationFnRef.current = selectStation }, [selectStation])
   useEffect(() => {
     if (!stationsData || resolvedRef.current) return
     resolvedRef.current = true
@@ -539,7 +544,7 @@ export default function Walksheds() {
     if (parsed) {
       const station = findStationByCode(stationsData, parsed.line, parsed.stopCode)
       if (!station) return
-      queueMicrotask(() => selectStation(station.name, station.lng, station.lat, station.line))
+      queueMicrotask(() => selectStationFnRef.current(station.name, station.lng, station.lat, station.line))
       return
     }
     // No deep link: snap to system-wide overview, then fly into Westlake.
@@ -550,10 +555,10 @@ export default function Walksheds() {
       mapViewRef.current?.fitBounds(bounds, { padding: 80, duration: 0 })
     }
     const t = setTimeout(() => {
-      selectStation(station.name, station.lng, station.lat, station.line)
+      selectStationFnRef.current(station.name, station.lng, station.lat, station.line)
     }, 900)
     return () => clearTimeout(t)
-  }, [stationsData, selectStation])
+  }, [stationsData])
 
   // Sync walkshed + POI filter query params when toggles change. The URL
   // codec uses a single tag namespace, so categories and filters are merged

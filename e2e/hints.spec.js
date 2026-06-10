@@ -11,7 +11,7 @@ test.describe('Hints overlay + Westlake default', () => {
       try { localStorage.removeItem(key) } catch {}
     }, STORAGE_KEY)
 
-    await page.goto('/walksheds/')
+    await page.goto('/')
     await page.waitForSelector('.mapboxgl-canvas', { timeout: 15000 })
 
     // Hints overlay is rendered
@@ -23,8 +23,9 @@ test.describe('Hints overlay + Westlake default', () => {
     // Westlake auto-selects after the overview reveal
     await expect(page.locator('.station-pill')).toBeVisible({ timeout: 8000 })
 
-    // Sandwich tag pill is active alongside the default parks + coffee
-    await expect(page.locator('.poi-cat-pill', { hasText: 'sandwich' })).toBeVisible({ timeout: 8000 })
+    // Default category tag pills (coffee + park) are seeded
+    await expect(page.locator('.poi-cat-pill', { hasText: 'coffee' })).toBeVisible({ timeout: 8000 })
+    await expect(page.locator('.poi-cat-pill', { hasText: 'park' })).toBeVisible({ timeout: 8000 })
 
     expect(pageErrors, 'no uncaught page errors').toEqual([])
   })
@@ -34,7 +35,7 @@ test.describe('Hints overlay + Westlake default', () => {
       try { localStorage.removeItem(key) } catch {}
     }, STORAGE_KEY)
 
-    await page.goto('/walksheds/')
+    await page.goto('/')
     await page.waitForSelector('.hint-overlay', { timeout: 10000 })
 
     // Wait past the arming delay
@@ -55,7 +56,7 @@ test.describe('Hints overlay + Westlake default', () => {
       try { localStorage.setItem(key, '1') } catch {}
     }, STORAGE_KEY)
 
-    await page.goto('/walksheds/?hints')
+    await page.goto('/?hints')
     await page.waitForSelector('.mapboxgl-canvas', { timeout: 15000 })
     await expect(page.locator('.hint-overlay')).toBeVisible({ timeout: 5000 })
   })
@@ -65,7 +66,7 @@ test.describe('Hints overlay + Westlake default', () => {
       try { localStorage.setItem(key, '1') } catch {}
     }, STORAGE_KEY)
 
-    await page.goto('/walksheds/')
+    await page.goto('/')
     await page.waitForSelector('.mapboxgl-canvas', { timeout: 15000 })
     await expect(page.locator('.hint-overlay')).not.toBeVisible({ timeout: 2000 })
 
