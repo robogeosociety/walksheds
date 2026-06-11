@@ -33,14 +33,16 @@ const MapView = forwardRef(function MapView({
   units,
 }, ref) {
   const mapRef = useRef(null)
+  const geolocateRef = useRef(null)
   const isDraggingRef = useRef(false)
   const mapLoadedRef = useRef(false)
   const iconsReadyRef = useRef(false)
 
-  // Expose fitBounds and getMap to parent
+  // Expose fitBounds, getMap, and the geolocate control to parent
   useImperativeHandle(ref, () => ({
     fitBounds: (bounds, opts) => mapRef.current?.fitBounds(bounds, opts),
     getMap: () => mapRef.current?.getMap(),
+    getGeolocateControl: () => geolocateRef.current,
   }))
 
   // Track map loaded + icons ready for conditional rendering
@@ -206,6 +208,7 @@ const MapView = forwardRef(function MapView({
           Snapping to the nearest station + compass rotation live in
           Walksheds via these callbacks. */}
       <GeolocateControl
+        ref={geolocateRef}
         position="top-left"
         positionOptions={{ enableHighAccuracy: true }}
         trackUserLocation
