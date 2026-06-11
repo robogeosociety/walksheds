@@ -162,3 +162,44 @@ test.describe('Hint anchoring + visibility', () => {
     expect(dark.contrast, 'dark ink vs dusk basemap').toBeGreaterThanOrEqual(4.5)
   })
 })
+
+// Station d-pad (replaces the directional swipe hint): arms point the
+// direction of TRAVEL and name the destination, so eastbound reads as a
+// right-pointing arrow regardless of the inverted pan gesture.
+test.describe('Station d-pad', () => {
+  test('Judkins Park shows Mercer Island east and Intl District west', async ({ page }) => {
+    await page.goto('/2/54?hints')
+    await page.waitForSelector('.dpad-arm', { timeout: 20000 })
+    const right = page.locator('[data-dpad-direction="right"]')
+    const left = page.locator('[data-dpad-direction="left"]')
+    await expect(right).toContainText('Mercer Island')
+    await expect(left).toContainText('International District')
+    expect(await page.locator('.dpad-arm').count()).toBe(2)
+
+    // Arms render on the side they point: east arm right of the pill,
+    // west arm left of it.
+    const pill = await page.locator('.station-pill').first().boundingBox()
+    const rightBox = await right.boundingBox()
+    const leftBox = await left.boundingBox()
+    expect(rightBox.x).toBeGreaterThan(pill.x + pill.width - 1)
+    expect(leftBox.x + leftBox.width).toBeLessThan(pill.x + 1)
+  })
+
+  test('the junction shows three arms with a divergence roundel', async ({ page }) => {
+    // Intl District via Line 1: the east arm rides Line 2.
+    await page.goto('/1/53?hints')
+    await page.waitForSelector('.dpad-arm', { timeout: 20000 })
+    expect(await page.locator('.dpad-arm').count()).toBe(3)
+    const east = page.locator('[data-dpad-direction="right"]')
+    await expect(east).toContainText('Judkins Park')
+    await expect(east.locator('.pill-badge-line-circle')).toHaveText('2')
+  })
+
+  test('the d-pad dismisses with the hints', async ({ page }) => {
+    await page.goto('/2/54?hints')
+    await page.waitForSelector('.dpad-arm', { timeout: 20000 })
+    await page.waitForTimeout(400)
+    await page.locator('.mapboxgl-canvas').click({ position: { x: 200, y: 200 } })
+    await expect(page.locator('.dpad-arm')).toHaveCount(0, { timeout: 3000 })
+  })
+})
