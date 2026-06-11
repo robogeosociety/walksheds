@@ -7,6 +7,8 @@ import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
 import { loadTileIndex, loadPoisForWalkshed } from './poiTiles'
 import { useNavigation } from './useNavigation'
+import { findNearestStation, MAX_SNAP_METERS } from './locate'
+import { useCompassRotation } from './useCompass'
 import MapView from './MapView'
 import LineLegend from './LineLegend'
 import POISearch from './POISearch'
@@ -404,11 +406,14 @@ export default function Walksheds() {
     setPoiPopup({
       longitude: lng,
       latitude: lat,
+      id: props.id,
       name: props.name,
       category: props.category,
       tags: typeof props.tags === 'string' ? JSON.parse(props.tags) : props.tags,
       website: props.website,
       address: props.address,
+      phone: props.phone,
+      hours: props.hours,
       stations: typeof props.stations === 'string' ? JSON.parse(props.stations) : props.stations,
     })
     setExpandedPoiTag(null)
@@ -455,6 +460,42 @@ export default function Walksheds() {
     mapViewRef.current?.getMap()?.getCanvas()?.focus()
   }, [])
 
+  // A station picked from the search dropdown behaves exactly like a click
+  // on its map icon: fly there, open the pill, fetch the walksheds.
+  const handleStationSearchSelect = useCallback((feature) => {
+    const [lng, lat] = feature.geometry.coordinates
+    selectStation(feature.properties.name, lng, lat, feature.properties.line)
+  }, [selectStation])
+
+  // Locate control (issue #16). The first fix after the user activates
+  // tracking snaps to the nearest station — enabling every walkshed band —
+  // when the fix lands inside the Link corridor; later fixes from the same
+  // tracking session only move the puck. Live compass rotation runs for
+  // the whole tracking session.
+  const geoSnapPendingRef = useRef(false)
+  const compass = useCompassRotation(useCallback(() => mapViewRef.current?.getMap(), []))
+
+  const handleTrackUserLocationStart = useCallback(() => {
+    geoSnapPendingRef.current = true
+    compass.start()
+  }, [compass])
+
+  const handleTrackUserLocationEnd = useCallback(() => {
+    geoSnapPendingRef.current = false
+    compass.stop()
+  }, [compass])
+
+  const handleGeolocate = useCallback((position) => {
+    if (!geoSnapPendingRef.current || !stationsData) return
+    geoSnapPendingRef.current = false
+    const { longitude, latitude } = position.coords
+    const nearest = findNearestStation(stationsData, longitude, latitude)
+    if (!nearest || nearest.distanceMeters > MAX_SNAP_METERS) return
+    setEnabledWalksheds(new Set(WALKSHED_OPTIONS))
+    const [lng, lat] = nearest.feature.geometry.coordinates
+    selectStation(nearest.feature.properties.name, lng, lat, nearest.feature.properties.line)
+  }, [stationsData, selectStation])
+
   // Trackpad / wheel scroll within the walkshed snaps back to the station
   // instead of transitioning to an adjacent one — mirroring the pan-snap on
   // dragend so wheel input feels the same as drag input. A POI popup, if
@@ -489,7 +530,12 @@ export default function Walksheds() {
   }, [walksheds, enabledWalksheds, popup, poiPopup, fitToWalkshed])
 
   // Resolve deep link on initial load, or default to Westlake with a
-  // full-system overview that flies in.
+  // full-system overview that flies in. selectStation is reached through a
+  // ref: its identity changes whenever filter state or tagCategories load
+  // settles, and with it in the dep array the effect's cleanup would cancel
+  // the pending 900ms auto-select timer before it ever fired.
+  const selectStationFnRef = useRef(selectStation)
+  useEffect(() => { selectStationFnRef.current = selectStation }, [selectStation])
   useEffect(() => {
     if (!stationsData || resolvedRef.current) return
     resolvedRef.current = true
@@ -498,7 +544,7 @@ export default function Walksheds() {
     if (parsed) {
       const station = findStationByCode(stationsData, parsed.line, parsed.stopCode)
       if (!station) return
-      queueMicrotask(() => selectStation(station.name, station.lng, station.lat, station.line))
+      queueMicrotask(() => selectStationFnRef.current(station.name, station.lng, station.lat, station.line))
       return
     }
     // No deep link: snap to system-wide overview, then fly into Westlake.
@@ -509,10 +555,10 @@ export default function Walksheds() {
       mapViewRef.current?.fitBounds(bounds, { padding: 80, duration: 0 })
     }
     const t = setTimeout(() => {
-      selectStation(station.name, station.lng, station.lat, station.line)
+      selectStationFnRef.current(station.name, station.lng, station.lat, station.line)
     }, 900)
     return () => clearTimeout(t)
-  }, [stationsData, selectStation])
+  }, [stationsData])
 
   // Sync walkshed + POI filter query params when toggles change. The URL
   // codec uses a single tag namespace, so categories and filters are merged
@@ -643,6 +689,9 @@ export default function Walksheds() {
         onPopupStationClick={handlePopupStationClick}
         onPopupFocus={handlePopupFocus}
         onUserInteract={handleUserInteract}
+        onGeolocate={handleGeolocate}
+        onTrackUserLocationStart={handleTrackUserLocationStart}
+        onTrackUserLocationEnd={handleTrackUserLocationEnd}
         units={units}
       />
 
@@ -664,6 +713,9 @@ export default function Walksheds() {
           onToggleCategory={handleToggleCategory}
           tagAliases={tagCategories?.filter_schema?.aliases}
           onCommit={focusMap}
+          stations={stationsData?.features}
+          onStationSelect={handleStationSearchSelect}
+          darkMode={darkMode}
         />
       )}
 
@@ -683,12 +735,7 @@ export default function Walksheds() {
       />
 
       {hintsVisible && stationsData && (
-        <HintOverlay
-          legendPosition={legendPosition}
-          legendCollapsed={legendCollapsed}
-          hasActiveFilters={activeFilters.size > 0}
-          swipeHint={swipeHint}
-        />
+        <HintOverlay swipeHint={swipeHint} />
       )}
     </div>
   )

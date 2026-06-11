@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import Map, { Source, Layer } from 'react-map-gl'
+import Map, { Source, Layer, GeolocateControl } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { registerStationIcons } from './stationIcons'
 import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
@@ -27,6 +27,9 @@ const MapView = forwardRef(function MapView({
   onPopupStationClick,
   onPopupFocus,
   onUserInteract,
+  onGeolocate,
+  onTrackUserLocationStart,
+  onTrackUserLocationEnd,
   units,
 }, ref) {
   const mapRef = useRef(null)
@@ -88,14 +91,17 @@ const MapView = forwardRef(function MapView({
   // would otherwise sit above the station icons. JSX order alone doesn't
   // fix this because by the time walksheds mount, station-circles was
   // already added. The effect runs after the commit so the new walkshed
-  // layers are already in the stack when we re-order.
+  // layers are already in the stack when we re-order. `visiblePois` is a
+  // dep because POILayer unmounts at zero features and remounts above
+  // station-circles when features return — stations must stay on top
+  // (issue #18).
   useEffect(() => {
     const map = mapRef.current?.getMap()
     if (!map || !mapLoaded) return
     for (const id of ['poi-circles', 'poi-labels', 'station-circles']) {
       if (map.getLayer(id)) map.moveLayer(id)
     }
-  }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode])
+  }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode, visiblePois])
 
   // A user-initiated zoom (scroll-zoom, pinch, double-tap) carries an
   // originalEvent; programmatic fitBounds/flyTo/easeTo do not. We key off zoom
@@ -196,6 +202,19 @@ const MapView = forwardRef(function MapView({
         },
       }}
     >
+      {/* Locate control (issue #16): follow-mode puck with device heading.
+          Snapping to the nearest station + compass rotation live in
+          Walksheds via these callbacks. */}
+      <GeolocateControl
+        position="top-left"
+        positionOptions={{ enableHighAccuracy: true }}
+        trackUserLocation
+        showUserHeading
+        onGeolocate={onGeolocate}
+        onTrackUserLocationStart={onTrackUserLocationStart}
+        onTrackUserLocationEnd={onTrackUserLocationEnd}
+      />
+
       <WalkshedLayers
         walksheds={walksheds}
         enabledWalksheds={enabledWalksheds}

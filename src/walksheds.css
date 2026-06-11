@@ -595,30 +595,81 @@ body,
   to   { opacity: 1; }
 }
 
+/* Hints are positioned from live measurements of their target controls
+   (src/hintLayout.js) — left/top/max-width arrive inline; only type,
+   ink, and the readability halo live here. */
 .hint {
   position: absolute;
   pointer-events: none;
 }
 
+/* Halo: hint text floats directly over arbitrary map content (water,
+   parks, walkshed fills), so it gets a map-label halo — the transit-
+   cartography idiom — instead of a backdrop (the blur was removed per
+   issue #45). */
 .hint-label {
   display: inline-block;
   font-family: 'Architects Daughter', 'Comic Sans MS', cursive;
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 400;
-  line-height: 1.4;
-  max-width: 240px;
+  line-height: 1.35;
   color: inherit;
-  padding: 4px 10px;
-  border-radius: 10px;
+  text-shadow:
+    -1px -1px 0 rgba(255, 255, 255, 0.9),
+    1px -1px 0 rgba(255, 255, 255, 0.9),
+    -1px 1px 0 rgba(255, 255, 255, 0.9),
+    1px 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 6px rgba(255, 255, 255, 0.9);
+}
+
+.app.dark .hint-label {
+  text-shadow:
+    -1px -1px 0 rgba(12, 14, 26, 0.85),
+    1px -1px 0 rgba(12, 14, 26, 0.85),
+    -1px 1px 0 rgba(12, 14, 26, 0.85),
+    1px 1px 0 rgba(12, 14, 26, 0.85),
+    0 0 6px rgba(12, 14, 26, 0.85);
 }
 
 .hint.dimmed {
-  opacity: 0.45;
+  opacity: 0.55;
 }
 
-/* Hand-drawn SVG arrows inline with the label text. Sized to match the
-   cap-height of the surrounding sentence so they read as part of the
-   text flow on the same blurred transparent layer. */
+/* Full-viewport layer for the generated label-to-control arrows. The
+   halo stroke under the ink keeps arrows legible over map content,
+   mirroring the text halo. */
+.hint-arrows {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hint-arrows .dimmed {
+  opacity: 0.55;
+}
+
+.hint-arrow-halo {
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.app.dark .hint-arrow-halo {
+  stroke: rgba(12, 14, 26, 0.85);
+}
+
+.hint-arrow-ink {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+/* Inline gesture glyphs used by the swipe hint (finger motion, not a
+   control location). */
 .hint-arrow {
   display: inline-block;
   color: inherit;
@@ -640,70 +691,6 @@ body,
   transform: rotate(180deg);
 }
 
-/* Legend hint: card above the legend, ⤵ glyph inside the label points
-   the user's eye down at the legend itself. */
-.hint-legend.bottom-left {
-  bottom: 330px;
-  left: 18px;
-  text-align: left;
-}
-
-.hint-legend.bottom-right {
-  bottom: 330px;
-  right: 18px;
-  text-align: right;
-}
-
-/* Collapsed legend lives at bottom-center as a small pill — re-anchor
-   above it. */
-.hint-legend.collapsed.bottom-left,
-.hint-legend.collapsed.bottom-right {
-  bottom: 70px;
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-  text-align: center;
-}
-
-/* Right-column hints — each card sits to the LEFT of the search/pills/
-   filter column with an inline arrow pointing right at its target. The
-   .poi-search container is a fixed 220px wide (180px on phones), so the
-   `right` offset clears it on every viewport.
-
-   On wide screens the labels are wide enough to stay on a single line,
-   so the trailing arrow sits next to the label's own vertical center,
-   which keeps it aligned with the target row even when the rows are
-   stacked tightly. */
-.hint-search {
-  top: 18px;
-  right: 250px;
-  text-align: right;
-}
-
-.hint-search .hint-label {
-  max-width: 360px;
-}
-
-.hint-pills {
-  top: 58px;
-  right: 250px;
-  text-align: right;
-}
-
-.hint-pills .hint-label {
-  max-width: 380px;
-}
-
-.hint-filters {
-  top: 122px;
-  right: 250px;
-  text-align: right;
-}
-
-.hint-filters .hint-label {
-  max-width: 440px;
-}
-
 /* Swipe hint: floats over the lower-center of the map, away from the
    centered station pill and the bottom legend, naming the next stop you'd
    reach by swiping. The arrow shows the finger motion (see SWIPE_FOR_ARROW
@@ -719,38 +706,16 @@ body,
   max-width: 300px;
 }
 
-/* Tablet / phone-landscape (640–1024px): same fixed search-column
-   width and enough horizontal room to keep labels on a single line. */
 @media (max-width: 1024px) {
   .hint-label { font-size: 16px; }
-  .hint-search  { top: 22px;  right: 250px; }
-  .hint-pills   { top: 60px;  right: 250px; }
-  .hint-filters { top: 122px; right: 250px; }
-  .hint-search .hint-label  { max-width: 320px; }
-  .hint-pills .hint-label   { max-width: 340px; }
-  .hint-filters .hint-label { max-width: 400px; }
-  .hint-legend.bottom-left  { left: 14px; bottom: 300px; }
-  .hint-legend.bottom-right { right: 14px; bottom: 300px; }
   /* Pin to a fixed offset above the bottom legend instead of a percentage —
      on short landscape phones 26% lands on top of the collapsed legend hint. */
   .hint-swipe { bottom: 150px; }
   .hint-swipe .hint-label { max-width: 260px; }
 }
 
-/* Phone portrait (< 540px): the search column shrinks to 180px and
-   leaves only ~200px to the left of it. Stack hints in that narrow
-   column with tightly-wrapped labels and small font. */
 @media (max-width: 540px) {
-  .hint-label { font-size: 14px; line-height: 1.3; padding: 3px 8px; }
-  .hint-search  { top: 8px;   right: 200px; }
-  .hint-pills   { top: 56px;  right: 200px; }
-  .hint-filters { top: 116px; right: 200px; }
-  .hint-search .hint-label,
-  .hint-pills .hint-label,
-  .hint-filters .hint-label { max-width: 160px; }
-  .hint-legend.bottom-left  { left: 10px;  bottom: 280px; }
-  .hint-legend.bottom-right { right: 10px; bottom: 280px; }
-  .hint-arrow { font-size: 18px; }
+  .hint-label { font-size: 14px; line-height: 1.3; }
   .hint-swipe { bottom: 140px; }
   .hint-swipe .hint-label { max-width: 200px; }
 }
@@ -910,6 +875,42 @@ body,
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* Station rows in the search dropdown (issue #18): reuse the inline
+ * station-pill vocabulary from the POI popup's nearest-stations list. */
+.poi-search-option.poi-search-station {
+  justify-content: flex-start;
+}
+
+.poi-search-station .station-pill.inline {
+  position: static;
+  transform: none;
+  box-shadow: none;
+  padding: 2px 6px 2px 2px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 999px;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.app.dark .poi-search-station .station-pill.inline {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.poi-search-station .station-pill.inline .pill-name {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.poi-search-station .station-pill.inline .pill-circle {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.poi-search-station .station-pill.inline .pill-code {
+  font-size: 10px;
+}
+
 /* ── POI list under search chips ── */
 
 .poi-chip-poi-list {
@@ -993,15 +994,19 @@ body,
   z-index: 10;
 }
 
+/* Card chrome mirrors the legend (white card, hairline border, 10px
+ * radius) so the popup reads as part of the same control family. */
 .poi-popup-container .mapboxgl-popup-content {
   padding: 0;
   border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   background: #fff;
 }
 
 .app.dark .poi-popup-container .mapboxgl-popup-content {
   background: #1e1e2e;
+  border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
@@ -1037,16 +1042,42 @@ body,
   margin-bottom: 4px;
 }
 
-.poi-popup-name {
+/* Category roundel: white glyph on a category-color circle, the same
+ * roundel idiom as the legend's line circles. */
+.poi-category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.poi-popup-title {
   flex: 1;
+  min-width: 0;
+}
+
+.poi-popup-name {
   font-size: 13px;
   font-weight: 700;
   color: #222;
-  min-width: 0;
 }
 
 .app.dark .poi-popup-name {
   color: rgba(255, 255, 255, 0.95);
+}
+
+/* Category label under the name — the legend-title vocabulary. */
+.poi-popup-category {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.app.dark .poi-popup-category {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .poi-popup-close {
@@ -1123,29 +1154,92 @@ body,
   white-space: nowrap;
 }
 
-.poi-popup-address {
-  font-size: 11px;
-  color: #555;
-  margin-bottom: 4px;
+/* Info rows (address / hours / phone / website): icon + text lines
+ * stacking vertically from the top; rows beyond the collapsed count are
+ * revealed by the .poi-popup-expander toggle. */
+.poi-popup-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.app.dark .poi-popup-address {
+.app.dark .poi-popup-info {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.poi-popup-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.poi-popup-info-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.app.dark .poi-popup-info-icon {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.poi-popup-info-text {
+  color: #555;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.app.dark .poi-popup-info-text {
   color: #aaa;
 }
 
-.poi-popup-link {
-  display: inline-block;
-  font-size: 11px;
+.poi-popup-info-link {
   color: #0082C8;
   text-decoration: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.poi-popup-link:hover {
+.poi-popup-info-link:hover {
   text-decoration: underline;
 }
 
-.app.dark .poi-popup-link {
+.app.dark .poi-popup-info-link {
   color: #5bb8f0;
+}
+
+/* "N more" / "less" toggle for tags and info rows. */
+.poi-popup-expander {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.poi-popup-expander:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.app.dark .poi-popup-expander {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app.dark .poi-popup-expander:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* ── Nearest-stations section in POI popup ── */

@@ -9,11 +9,18 @@ const mockStations = {
     { type: 'Feature', properties: { name: 'Lynnwood City Center Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.2948, 47.8156] } },
     { type: 'Feature', properties: { name: 'Mountlake Terrace Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3148, 47.785] } },
     { type: 'Feature', properties: { name: 'Mountlake Terrace Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3148, 47.785] } },
-    // Shared stations (both lines)
+    // Shared stations (both lines). UW and Symphony bracket the Capitol
+    // Hill → Westlake segment, whose chord runs 236° (west-dominant: the
+    // downtown jog) between two southbound segments — the case the
+    // line-continuity correction in indexSegmentCardinals exists for.
+    { type: 'Feature', properties: { name: 'University of Washington Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.30376, 47.64982] } },
+    { type: 'Feature', properties: { name: 'University of Washington Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.30376, 47.64982] } },
     { type: 'Feature', properties: { name: 'Capitol Hill Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3202, 47.6191] } },
     { type: 'Feature', properties: { name: 'Capitol Hill Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3202, 47.6191] } },
     { type: 'Feature', properties: { name: 'Westlake Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3367, 47.6116] } },
     { type: 'Feature', properties: { name: 'Westlake Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3367, 47.6116] } },
+    { type: 'Feature', properties: { name: 'Symphony Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.33602, 47.60781] } },
+    { type: 'Feature', properties: { name: 'Symphony Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.33602, 47.60781] } },
     { type: 'Feature', properties: { name: 'Pioneer Square Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3312, 47.6026] } },
     { type: 'Feature', properties: { name: 'Pioneer Square Station', line: '2-line' }, geometry: { type: 'Point', coordinates: [-122.3312, 47.6026] } },
     { type: 'Feature', properties: { name: 'International District Station', line: '1-line' }, geometry: { type: 'Point', coordinates: [-122.3280, 47.5984] } },
@@ -35,8 +42,8 @@ describe('routeGraph', () => {
   const graph = buildGraph(mockStations)
 
   it('builds graph with unique station entries', () => {
-    // 14 unique station names (8 originals + 2 north termini + 2 south Line 1 + 2 east Line 2)
-    expect(graph.size).toBe(14)
+    // 16 unique station names
+    expect(graph.size).toBe(16)
   })
 
   it('shared stations belong to both lines', () => {
@@ -88,6 +95,28 @@ describe('routeGraph', () => {
       const result = getNextStation(graph, 'Pioneer Square Station', 'ArrowDown', '2-line')
       expect(result.name).toBe('International District Station')
       expect(result.line).toBe('2-line')
+    })
+
+    // The downtown jog: Capitol Hill → Westlake's chord (236°) bins to
+    // "left", but the segment sits between two southbound ones, so the
+    // indexed cardinal is Down — riding downtown stays one continuous
+    // gesture instead of a surprise sideways step.
+    it('ArrowDown from Capitol Hill goes to Westlake', () => {
+      const result = getNextStation(graph, 'Capitol Hill Station', 'ArrowDown', '1-line')
+      expect(result.name).toBe('Westlake Station')
+    })
+
+    it('ArrowLeft from Capitol Hill returns null (jog reads as southbound, not west)', () => {
+      expect(getNextStation(graph, 'Capitol Hill Station', 'ArrowLeft', '1-line')).toBeNull()
+    })
+
+    it('ArrowUp from Westlake goes back to Capitol Hill', () => {
+      const result = getNextStation(graph, 'Westlake Station', 'ArrowUp', '1-line')
+      expect(result.name).toBe('Capitol Hill Station')
+    })
+
+    it('ArrowRight from Westlake returns null', () => {
+      expect(getNextStation(graph, 'Westlake Station', 'ArrowRight', '1-line')).toBeNull()
     })
 
     it('returns null for invalid direction at terminal', () => {
@@ -181,6 +210,22 @@ describe('routeGraph', () => {
 
     it('returns null for unknown stations', () => {
       expect(getSwipeHint(graph, 'Not A Station', '1-line')).toBeNull()
+    })
+
+    it('at Capitol Hill hints Westlake as southbound — and the gesture it teaches works', () => {
+      const hint = getSwipeHint(graph, 'Capitol Hill Station', '1-line')
+      expect(hint).toEqual({ stationName: 'Westlake Station', label: 'Westlake', arrowKey: 'ArrowDown' })
+      // The hint and navigation read the same index: the taught arrow
+      // must land on the hinted station.
+      expect(getNextStation(graph, 'Capitol Hill Station', hint.arrowKey, '1-line').name).toBe('Westlake Station')
+    })
+
+    it('northbound from Westlake hints Capitol Hill via ArrowUp at a hypothetical terminus walk-back', () => {
+      // Westlake → Symphony is the onward hint southbound; the reverse
+      // segment (used when riding north) must read Up, not Right.
+      const node = graph.get('Westlake Station')
+      const back = node.neighbors.find(n => n.name === 'Capitol Hill Station' && n.line === '1-line')
+      expect(back.cardinal).toBe('ArrowUp')
     })
   })
 })
