@@ -480,25 +480,12 @@ body,
   transform: rotate(180deg);
 }
 
+/* Halo comes from the shared .hint-label / .dpad-label outline rule in
+   the hint-overlay section. */
 .dpad-label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  text-shadow:
-    -1px -1px 0 rgba(255, 255, 255, 0.9),
-    1px -1px 0 rgba(255, 255, 255, 0.9),
-    -1px 1px 0 rgba(255, 255, 255, 0.9),
-    1px 1px 0 rgba(255, 255, 255, 0.9),
-    0 0 6px rgba(255, 255, 255, 0.9);
-}
-
-.app.dark .dpad-label {
-  text-shadow:
-    -1px -1px 0 rgba(12, 14, 26, 0.85),
-    1px -1px 0 rgba(12, 14, 26, 0.85),
-    -1px 1px 0 rgba(12, 14, 26, 0.85),
-    1px 1px 0 rgba(12, 14, 26, 0.85),
-    0 0 6px rgba(12, 14, 26, 0.85);
 }
 
 /* Line roundel on an arm that diverges onto the other line needs no
@@ -686,10 +673,47 @@ body,
   pointer-events: none;
 }
 
-/* Halo: hint text floats directly over arbitrary map content (water,
-   parks, walkshed fills), so it gets a map-label halo — the transit-
-   cartography idiom — instead of a backdrop (the blur was removed per
-   issue #45). */
+/* Halo: hint and d-pad text floats directly over arbitrary map content
+   (water, parks, walkshed fills), so it gets a thick map-label outline —
+   the transit-cartography idiom — instead of a backdrop (the blur was
+   removed per issue #45). An 8-direction ring at 2px plus the inner 1px
+   diagonals reads as a solid ~2px stroke around the glyphs. */
+.hint-label,
+.dpad-label {
+  text-shadow:
+    -2px -2px 0 rgba(255, 255, 255, 0.95),
+    0 -2px 0 rgba(255, 255, 255, 0.95),
+    2px -2px 0 rgba(255, 255, 255, 0.95),
+    -2px 0 0 rgba(255, 255, 255, 0.95),
+    2px 0 0 rgba(255, 255, 255, 0.95),
+    -2px 2px 0 rgba(255, 255, 255, 0.95),
+    0 2px 0 rgba(255, 255, 255, 0.95),
+    2px 2px 0 rgba(255, 255, 255, 0.95),
+    -1px -1px 0 rgba(255, 255, 255, 0.95),
+    1px -1px 0 rgba(255, 255, 255, 0.95),
+    -1px 1px 0 rgba(255, 255, 255, 0.95),
+    1px 1px 0 rgba(255, 255, 255, 0.95),
+    0 0 8px rgba(255, 255, 255, 0.95);
+}
+
+.app.dark .hint-label,
+.app.dark .dpad-label {
+  text-shadow:
+    -2px -2px 0 rgba(12, 14, 26, 0.9),
+    0 -2px 0 rgba(12, 14, 26, 0.9),
+    2px -2px 0 rgba(12, 14, 26, 0.9),
+    -2px 0 0 rgba(12, 14, 26, 0.9),
+    2px 0 0 rgba(12, 14, 26, 0.9),
+    -2px 2px 0 rgba(12, 14, 26, 0.9),
+    0 2px 0 rgba(12, 14, 26, 0.9),
+    2px 2px 0 rgba(12, 14, 26, 0.9),
+    -1px -1px 0 rgba(12, 14, 26, 0.9),
+    1px -1px 0 rgba(12, 14, 26, 0.9),
+    -1px 1px 0 rgba(12, 14, 26, 0.9),
+    1px 1px 0 rgba(12, 14, 26, 0.9),
+    0 0 8px rgba(12, 14, 26, 0.9);
+}
+
 .hint-label {
   display: inline-block;
   font-family: 'Architects Daughter', 'Comic Sans MS', cursive;
@@ -697,21 +721,6 @@ body,
   font-weight: 400;
   line-height: 1.35;
   color: inherit;
-  text-shadow:
-    -1px -1px 0 rgba(255, 255, 255, 0.9),
-    1px -1px 0 rgba(255, 255, 255, 0.9),
-    -1px 1px 0 rgba(255, 255, 255, 0.9),
-    1px 1px 0 rgba(255, 255, 255, 0.9),
-    0 0 6px rgba(255, 255, 255, 0.9);
-}
-
-.app.dark .hint-label {
-  text-shadow:
-    -1px -1px 0 rgba(12, 14, 26, 0.85),
-    1px -1px 0 rgba(12, 14, 26, 0.85),
-    -1px 1px 0 rgba(12, 14, 26, 0.85),
-    1px 1px 0 rgba(12, 14, 26, 0.85),
-    0 0 6px rgba(12, 14, 26, 0.85);
 }
 
 .hint.dimmed {
@@ -732,8 +741,8 @@ body,
 }
 
 .hint-arrow-halo {
-  stroke: rgba(255, 255, 255, 0.9);
-  stroke-width: 4.5;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 6;
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
