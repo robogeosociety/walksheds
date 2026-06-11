@@ -137,7 +137,59 @@ export function buildGraph(stationsGeoJSON) {
   wireAdjacency(LINE_1_ORDER, '1-line')
   wireAdjacency(LINE_2_ORDER, '2-line')
 
+  indexSegmentCardinals(stations, LINE_1_ORDER, '1-line')
+  indexSegmentCardinals(stations, LINE_2_ORDER, '2-line')
+
   return stations
+}
+
+// A chord more than this far off a cardinal axis is "ambiguous" — eligible
+// for the line-continuity correction below.
+const AMBIGUOUS_OFF_DEG = 30
+
+/**
+ * Precompute the cardinal direction of every directed segment along a
+ * line and stamp it on the neighbor entries, so navigation and the swipe
+ * hint share one indexed answer.
+ *
+ * The cardinal is the chord bearing binned to the nearest axis — except
+ * for ambiguous diagonals sandwiched between two segments that agree on a
+ * different direction, which inherit that direction. This keeps the
+ * gesture continuous along a line where the track jogs: Capitol Hill →
+ * Westlake runs 236° (chord says "left") between two southbound segments,
+ * so riders keep swiping the same way to continue downtown instead of
+ * hitting a surprise sideways step. Genuine bends (Chinatown junction,
+ * SODO → Beacon Hill, the Bellevue elbow) have unambiguous chords or
+ * disagreeing surroundings and keep their geometric direction.
+ */
+function indexSegmentCardinals(stations, order, lineId) {
+  const coord = (name) => stations.get(name)?.coords
+
+  const segmentCardinal = (i, j) => {
+    const a = coord(order[i])
+    const b = coord(order[j])
+    const brg = bearing(a[0], a[1], b[0], b[1])
+    const chord = nearestCardinal(brg)
+    if (angleDiff(brg, ARROW_BEARINGS[chord]) <= AMBIGUOUS_OFF_DEG) return chord
+    const step = j - i
+    const beforeA = coord(order[i - step])
+    const afterB = coord(order[j + step])
+    if (!beforeA || !afterB) return chord
+    const prev = nearestCardinal(bearing(beforeA[0], beforeA[1], a[0], a[1]))
+    const next = nearestCardinal(bearing(b[0], b[1], afterB[0], afterB[1]))
+    if (prev === next && prev !== chord) return prev
+    return chord
+  }
+
+  for (let i = 0; i < order.length; i++) {
+    const cur = stations.get(order[i])
+    if (!cur) continue
+    for (const j of [i - 1, i + 1]) {
+      if (j < 0 || j >= order.length || !stations.get(order[j])) continue
+      const neighbor = cur.neighbors.find(n => n.name === order[j] && n.line === lineId)
+      if (neighbor) neighbor.cardinal = segmentCardinal(i, j)
+    }
+  }
 }
 
 export function isJunction(graph, stationName) {
@@ -198,21 +250,14 @@ export function getJunctionHints(graph, stationName) {
     if (seen.has(key)) continue
     seen.add(key)
 
-    const b = bearing(current.coords[0], current.coords[1], neighbor.coords[0], neighbor.coords[1])
-
-    let bestKey = null
-    let bestDiff = Infinity
-    for (const [arrow, target] of Object.entries(ARROW_BEARINGS)) {
-      const diff = angleDiff(b, target)
-      if (diff < bestDiff) {
-        bestDiff = diff
-        bestKey = arrow
-      }
-    }
+    // Indexed at build time (see indexSegmentCardinals), so the hint
+    // arrow matches what getNextStation will actually do.
+    const arrowKey = neighbor.cardinal
+      || nearestCardinal(bearing(current.coords[0], current.coords[1], neighbor.coords[0], neighbor.coords[1]))
 
     const lineLabel = neighbor.line === '1-line' ? '1 Line' : '2 Line'
     hints.push({
-      arrowKey: bestKey,
+      arrowKey,
       line: neighbor.line,
       stationName: neighbor.name,
       label: `${lineLabel} → ${neighbor.name.replace(' Station', '')}`,
@@ -231,9 +276,9 @@ export function getJunctionHints(graph, stationName) {
  * cardinal arrow key that reaches it. Walks the current line's order toward
  * the far terminus (the next index); at the terminus it falls back to the
  * prior station so the hint always names a real, navigable neighbor. The
- * arrowKey is derived from the actual bearing the same way getNextStation
- * bins it, so the gesture the hint teaches is guaranteed to land on the
- * returned station.
+ * arrowKey is read from the same per-segment cardinal index getNextStation
+ * matches against, so the gesture the hint teaches is guaranteed to land
+ * on the returned station.
  *
  * Returns `{ stationName, label, arrowKey }`, or null when the station isn't
  * on the current line (or the line has no neighbor to move to).
@@ -251,11 +296,15 @@ export function getSwipeHint(graph, stationName, currentLine) {
   const target = graph.get(targetName)
   if (!current || !target) return null
 
-  const b = bearing(current.coords[0], current.coords[1], target.coords[0], target.coords[1])
+  const lineId = currentLine === '2-line' ? '2-line' : '1-line'
+  const neighbor = current.neighbors.find(n => n.name === targetName && n.line === lineId)
+    || current.neighbors.find(n => n.name === targetName)
+  const arrowKey = neighbor?.cardinal
+    || nearestCardinal(bearing(current.coords[0], current.coords[1], target.coords[0], target.coords[1]))
   return {
     stationName: targetName,
     label: targetName.replace(' Station', ''),
-    arrowKey: nearestCardinal(b),
+    arrowKey,
   }
 }
 
@@ -280,12 +329,14 @@ function nearestCardinal(b) {
 /**
  * Navigate to the next station in the direction of `arrowKey`.
  *
- * Only neighbors whose bearing's *nearest cardinal* matches `arrowKey`
- * are eligible — so at Pioneer Square (north + south neighbors only) a
- * left/right swipe returns null and the caller can let the gesture fall
- * through to map panning. At Chinatown the same logic admits both south
- * (Line 1 to Stadium) and east (Line 2 to Judkins Park) as separate
- * arrow-key results, which is exactly the junction behavior we want.
+ * Only neighbors whose *indexed segment cardinal* (see
+ * indexSegmentCardinals; falls back to the chord's nearest cardinal)
+ * matches `arrowKey` are eligible — so at Pioneer Square (north + south
+ * neighbors only) a left/right swipe returns null and the caller can let
+ * the gesture fall through to map panning. At Chinatown the same logic
+ * admits both south (Line 1 to Stadium) and east (Line 2 to Judkins
+ * Park) as separate arrow-key results, which is exactly the junction
+ * behavior we want.
  *
  * When multiple neighbors share the same cardinal (a shared-trunk
  * station has duplicate up/down neighbors, one per line), prefer the
@@ -299,8 +350,9 @@ export function getNextStation(graph, currentStationName, arrowKey, currentLine)
   let best = null
   let bestScore = Infinity
   for (const neighbor of current.neighbors) {
-    const b = bearing(current.coords[0], current.coords[1], neighbor.coords[0], neighbor.coords[1])
-    if (nearestCardinal(b) !== arrowKey) continue
+    const cardinal = neighbor.cardinal
+      || nearestCardinal(bearing(current.coords[0], current.coords[1], neighbor.coords[0], neighbor.coords[1]))
+    if (cardinal !== arrowKey) continue
     const lineBonus = (currentLine && neighbor.line === currentLine) ? -0.1 : 0
     if (lineBonus < bestScore) {
       bestScore = lineBonus
