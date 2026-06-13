@@ -727,6 +727,13 @@ body,
   opacity: 0.55;
 }
 
+/* Resolved out by the safe-area collision pass (a d-pad arm landed on
+   it): kept in the DOM so its rect is still measurable next tick, but
+   invisible and inert. */
+.hint.hint-hidden {
+  visibility: hidden;
+}
+
 /* Full-viewport layer for the generated label-to-control arrows. The
    halo stroke under the ink keeps arrows legible over map content,
    mirroring the text halo. */

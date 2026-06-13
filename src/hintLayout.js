@@ -115,6 +115,62 @@ function separateLabels(hints) {
   return hints
 }
 
+// ── Safe-area collision resolution ───────────────────────────────────
+// Anchored hint labels share the screen with the station d-pad (arms
+// rendered around the active pill) and the fixed swipe caption. Those
+// are immovable obstacles — the d-pad arm direction is semantically
+// fixed (down = south) and the caption is screen-pinned — so each
+// anchored hint registers its safe-area box and yields: it slides
+// vertically to the nearest clear slot, hiding only when no slot fits
+// within its bounds. The d-pad overlap on a tall phone (down arm vs the
+// legend hint) is the case this exists for. Pure, so the no-overlap
+// guarantee is unit-tested; HintOverlay supplies measured rects.
+
+export function rectsOverlap(a, b, pad = 2) {
+  return a.left < b.right - pad && a.right > b.left + pad
+    && a.top < b.bottom - pad && a.bottom > b.top + pad
+}
+
+// Smallest vertical shift in [minDy, maxDy] that clears every obstacle,
+// preferring no move then the nearest in either direction; null if none.
+function shiftedClearDy(box, obstacles, minDy, maxDy, step = 4) {
+  const clears = (dy) => {
+    const moved = { left: box.left, right: box.right, top: box.top + dy, bottom: box.bottom + dy }
+    return !obstacles.some(o => rectsOverlap(moved, o))
+  }
+  if (clears(0)) return 0
+  const span = Math.max(maxDy, -minDy)
+  for (let d = step; d <= span; d += step) {
+    if (d <= maxDy && clears(d)) return d
+    if (-d >= minDy && clears(-d)) return -d
+  }
+  return null
+}
+
+/**
+ * Resolve each item's box against the fixed obstacles and the items
+ * already committed before it (so earlier items in the list win the
+ * space). Each item: { id, box, minDy, maxDy }. Returns
+ * { [id]: { dy, hidden } } — apply dy to the label's top + arrow start.
+ */
+export function resolveAgainstObstacles(items, obstacles) {
+  const committed = obstacles.slice()
+  const out = {}
+  for (const item of items) {
+    const dy = shiftedClearDy(item.box, committed, item.minDy ?? -90, item.maxDy ?? 90)
+    if (dy === null) {
+      out[item.id] = { dy: 0, hidden: true }
+    } else {
+      out[item.id] = { dy, hidden: false }
+      committed.push({
+        left: item.box.left, right: item.box.right,
+        top: item.box.top + dy, bottom: item.box.bottom + dy,
+      })
+    }
+  }
+  return out
+}
+
 /**
  * A hand-drawn arrow as SVG path data: a gently wobbled cubic from
  * (x1,y1) to (x2,y2) plus a two-stroke head, matching the Architects
