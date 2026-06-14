@@ -272,40 +272,32 @@ export function getJunctionHints(graph, stationName) {
 }
 
 /**
- * Pick a representative onward station for the swipe/keyboard hint, plus the
- * cardinal arrow key that reaches it. Walks the current line's order toward
- * the far terminus (the next index); at the terminus it falls back to the
- * prior station so the hint always names a real, navigable neighbor. The
- * arrowKey is read from the same per-segment cardinal index getNextStation
- * matches against, so the gesture the hint teaches is guaranteed to land
- * on the returned station.
+ * The onboarding d-pad for the active station: one arm per navigable
+ * cardinal, each pointing the direction of TRAVEL (screen direction of
+ * the destination) and naming the station it reaches. Built directly on
+ * getNextStation, so an arm can never disagree with what the arrow key
+ * or swipe actually does. Order is clockwise from north.
  *
- * Returns `{ stationName, label, arrowKey }`, or null when the station isn't
- * on the current line (or the line has no neighbor to move to).
+ * Returns [{ arrowKey, stationName, label, line }] — two arms at a
+ * typical mid-line station, three at the Chinatown junction, one at a
+ * terminus, [] for unknown stations.
  */
-export function getSwipeHint(graph, stationName, currentLine) {
-  if (!graph) return null
-  const order = currentLine === '2-line' ? LINE_2_ORDER : LINE_1_ORDER
-  const idx = order.indexOf(stationName)
-  if (idx === -1) return null
+const DPAD_ORDER = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft']
 
-  const targetName = idx < order.length - 1 ? order[idx + 1] : order[idx - 1]
-  if (!targetName) return null
-
-  const current = graph.get(stationName)
-  const target = graph.get(targetName)
-  if (!current || !target) return null
-
-  const lineId = currentLine === '2-line' ? '2-line' : '1-line'
-  const neighbor = current.neighbors.find(n => n.name === targetName && n.line === lineId)
-    || current.neighbors.find(n => n.name === targetName)
-  const arrowKey = neighbor?.cardinal
-    || nearestCardinal(bearing(current.coords[0], current.coords[1], target.coords[0], target.coords[1]))
-  return {
-    stationName: targetName,
-    label: targetName.replace(' Station', ''),
-    arrowKey,
+export function getDpadHints(graph, stationName, currentLine) {
+  if (!graph || !graph.has(stationName)) return []
+  const out = []
+  for (const arrowKey of DPAD_ORDER) {
+    const next = getNextStation(graph, stationName, arrowKey, currentLine)
+    if (!next) continue
+    out.push({
+      arrowKey,
+      stationName: next.name,
+      label: next.name.replace(' Station', ''),
+      line: next.line,
+    })
   }
+  return out
 }
 
 /**

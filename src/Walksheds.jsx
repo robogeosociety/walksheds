@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { buildGraph, isJunction, getJunctionHints, getTerminusInfo, getSwipeHint } from './routeGraph'
+import { buildGraph, isJunction, getJunctionHints, getTerminusInfo, getDpadHints } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
 import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS } from './constants'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
@@ -194,7 +194,17 @@ export default function Walksheds() {
     }
   }, [enabledWalksheds, walksheds])
 
+  // Compass orientation session (issue #16). Declared above selectStation
+  // because every station navigation except the locate snap itself ends
+  // the session — swiping to another station while the map rotates with
+  // your facing is disorienting.
+  const compass = useCompassRotation(useCallback(() => mapViewRef.current?.getMap(), []))
+  const locateSnapRef = useRef(false)
+
   const selectStation = useCallback((name, lng, lat, line) => {
+    // Any navigation that isn't the locate snap ends the orientation
+    // session (no-op if rotation isn't active).
+    if (!locateSnapRef.current) compass.stop()
     selectedStationRef.current = { name, lng, lat }
     // A new selection re-frames the map programmatically; treat the view as
     // "untouched" until the user zooms in again.
@@ -248,7 +258,7 @@ export default function Walksheds() {
       setLegendPosition(computeLegendPosition(map, results, enabledWalksheds))
       setAutoCollapsed(legendOverlapsWalkshed(map, results, enabledWalksheds))
     })
-  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories])
+  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories, compass])
 
   // Re-fit map when walkshed toggles change
   useEffect(() => {
@@ -470,10 +480,10 @@ export default function Walksheds() {
   // Locate control (issue #16). The first fix after the user activates
   // tracking snaps to the nearest station — enabling every walkshed band —
   // when the fix lands inside the Link corridor; later fixes from the same
-  // tracking session only move the puck. Live compass rotation runs for
-  // the whole tracking session.
+  // tracking session only move the puck. The compass session starts here
+  // and ends on station navigation (see selectStation) or when the user
+  // switches the control fully off.
   const geoSnapPendingRef = useRef(false)
-  const compass = useCompassRotation(useCallback(() => mapViewRef.current?.getMap(), []))
 
   const handleTrackUserLocationStart = useCallback(() => {
     geoSnapPendingRef.current = true
@@ -481,6 +491,13 @@ export default function Walksheds() {
   }, [compass])
 
   const handleTrackUserLocationEnd = useCallback(() => {
+    // Mapbox fires trackuserlocationend for any non-geolocate camera move
+    // while position-locked — our own snap fitBounds and each compass
+    // setBearing tick demote the control to its "background" state. Only a
+    // real switch-off ends the orientation session; the watch state is a
+    // private field, so when it's unreadable we err on stopping.
+    const state = mapViewRef.current?.getGeolocateControl()?._watchState
+    if (state === 'BACKGROUND' || state === 'BACKGROUND_ERROR') return
     geoSnapPendingRef.current = false
     compass.stop()
   }, [compass])
@@ -493,7 +510,14 @@ export default function Walksheds() {
     if (!nearest || nearest.distanceMeters > MAX_SNAP_METERS) return
     setEnabledWalksheds(new Set(WALKSHED_OPTIONS))
     const [lng, lat] = nearest.feature.geometry.coordinates
-    selectStation(nearest.feature.properties.name, lng, lat, nearest.feature.properties.line)
+    // Flag the snap so selectStation knows this navigation belongs to the
+    // orientation session and must not end it.
+    locateSnapRef.current = true
+    try {
+      selectStation(nearest.feature.properties.name, lng, lat, nearest.feature.properties.line)
+    } finally {
+      locateSnapRef.current = false
+    }
   }, [stationsData, selectStation])
 
   // Trackpad / wheel scroll within the walkshed snaps back to the station
@@ -651,12 +675,12 @@ export default function Walksheds() {
     }
   }, [hintsVisible])
 
-  // Onward station for the swipe hint, recomputed whenever the selected
-  // station (popup) or current line changes so the label tracks the user as
-  // they ride along the line. Only needed while the hints are on screen.
-  const swipeHint = useMemo(() => {
+  // D-pad arms for the active station: travel-direction arrows labeled
+  // with the stations they reach, recomputed as the user rides along the
+  // line. Only rendered while the hints are on screen.
+  const dpadHints = useMemo(() => {
     if (!hintsVisible || !popup || !graph) return null
-    return getSwipeHint(graph, popup.name, currentLine)
+    return getDpadHints(graph, popup.name, currentLine)
   }, [hintsVisible, popup, currentLine, graph])
 
   const handleHintsToggle = useCallback(() => {
@@ -675,6 +699,7 @@ export default function Walksheds() {
         walksheds={walksheds}
         enabledWalksheds={enabledWalksheds}
         popup={popup}
+        dpadHints={dpadHints}
         junctionHints={junctionHints}
         terminusInfo={terminusInfo}
         line1Data={line1Data}
@@ -734,9 +759,7 @@ export default function Walksheds() {
         position={legendPosition}
       />
 
-      {hintsVisible && stationsData && (
-        <HintOverlay swipeHint={swipeHint} />
-      )}
+      {hintsVisible && stationsData && <HintOverlay />}
     </div>
   )
 }

@@ -424,6 +424,76 @@ body,
   color: #999;
 }
 
+/* ── Station d-pad (onboarding) ──
+   Arms radiate from the active station's pill, one per navigable
+   direction; arrows point the direction of travel and name the
+   destination. Same hand-drawn ink + halo vocabulary as the hint
+   overlay; shown only while hints are visible. */
+
+.station-pill-anchor {
+  position: relative;
+  pointer-events: none;
+}
+
+.station-pill-anchor > .station-pill {
+  pointer-events: auto;
+}
+
+.dpad-arm {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  color: #0a2540;
+  font-family: 'Architects Daughter', 'Comic Sans MS', cursive;
+  font-size: 15px;
+  white-space: nowrap;
+  animation: hint-fade-in 0.4s ease-out;
+}
+
+.app.dark .dpad-arm {
+  color: #cfe6ff;
+}
+
+.dpad-up,
+.dpad-down {
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dpad-up { bottom: calc(100% + 8px); }
+.dpad-down { top: calc(100% + 8px); }
+
+.dpad-left,
+.dpad-right {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.dpad-left { right: calc(100% + 10px); }
+.dpad-right { left: calc(100% + 10px); }
+
+.dpad-arrow.flip {
+  transform: rotate(180deg);
+}
+
+/* Halo comes from the shared .hint-label / .dpad-label outline rule in
+   the hint-overlay section. */
+.dpad-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Line roundel on an arm that diverges onto the other line needs no
+   halo of its own — it is a filled chip (see .pill-badge-line-circle). */
+.dpad-label .pill-badge-line-circle {
+  text-shadow: none;
+}
+
 /* ── Station pill (compact → expanded via CSS transition) ── */
 
 .station-pill {
@@ -603,10 +673,47 @@ body,
   pointer-events: none;
 }
 
-/* Halo: hint text floats directly over arbitrary map content (water,
-   parks, walkshed fills), so it gets a map-label halo — the transit-
-   cartography idiom — instead of a backdrop (the blur was removed per
-   issue #45). */
+/* Halo: hint and d-pad text floats directly over arbitrary map content
+   (water, parks, walkshed fills), so it gets a thick map-label outline —
+   the transit-cartography idiom — instead of a backdrop (the blur was
+   removed per issue #45). An 8-direction ring at 2px plus the inner 1px
+   diagonals reads as a solid ~2px stroke around the glyphs. */
+.hint-label,
+.dpad-label {
+  text-shadow:
+    -2px -2px 0 rgba(255, 255, 255, 0.95),
+    0 -2px 0 rgba(255, 255, 255, 0.95),
+    2px -2px 0 rgba(255, 255, 255, 0.95),
+    -2px 0 0 rgba(255, 255, 255, 0.95),
+    2px 0 0 rgba(255, 255, 255, 0.95),
+    -2px 2px 0 rgba(255, 255, 255, 0.95),
+    0 2px 0 rgba(255, 255, 255, 0.95),
+    2px 2px 0 rgba(255, 255, 255, 0.95),
+    -1px -1px 0 rgba(255, 255, 255, 0.95),
+    1px -1px 0 rgba(255, 255, 255, 0.95),
+    -1px 1px 0 rgba(255, 255, 255, 0.95),
+    1px 1px 0 rgba(255, 255, 255, 0.95),
+    0 0 8px rgba(255, 255, 255, 0.95);
+}
+
+.app.dark .hint-label,
+.app.dark .dpad-label {
+  text-shadow:
+    -2px -2px 0 rgba(12, 14, 26, 0.9),
+    0 -2px 0 rgba(12, 14, 26, 0.9),
+    2px -2px 0 rgba(12, 14, 26, 0.9),
+    -2px 0 0 rgba(12, 14, 26, 0.9),
+    2px 0 0 rgba(12, 14, 26, 0.9),
+    -2px 2px 0 rgba(12, 14, 26, 0.9),
+    0 2px 0 rgba(12, 14, 26, 0.9),
+    2px 2px 0 rgba(12, 14, 26, 0.9),
+    -1px -1px 0 rgba(12, 14, 26, 0.9),
+    1px -1px 0 rgba(12, 14, 26, 0.9),
+    -1px 1px 0 rgba(12, 14, 26, 0.9),
+    1px 1px 0 rgba(12, 14, 26, 0.9),
+    0 0 8px rgba(12, 14, 26, 0.9);
+}
+
 .hint-label {
   display: inline-block;
   font-family: 'Architects Daughter', 'Comic Sans MS', cursive;
@@ -614,25 +721,17 @@ body,
   font-weight: 400;
   line-height: 1.35;
   color: inherit;
-  text-shadow:
-    -1px -1px 0 rgba(255, 255, 255, 0.9),
-    1px -1px 0 rgba(255, 255, 255, 0.9),
-    -1px 1px 0 rgba(255, 255, 255, 0.9),
-    1px 1px 0 rgba(255, 255, 255, 0.9),
-    0 0 6px rgba(255, 255, 255, 0.9);
-}
-
-.app.dark .hint-label {
-  text-shadow:
-    -1px -1px 0 rgba(12, 14, 26, 0.85),
-    1px -1px 0 rgba(12, 14, 26, 0.85),
-    -1px 1px 0 rgba(12, 14, 26, 0.85),
-    1px 1px 0 rgba(12, 14, 26, 0.85),
-    0 0 6px rgba(12, 14, 26, 0.85);
 }
 
 .hint.dimmed {
   opacity: 0.55;
+}
+
+/* Resolved out by the safe-area collision pass (a d-pad arm landed on
+   it): kept in the DOM so its rect is still measurable next tick, but
+   invisible and inert. */
+.hint.hint-hidden {
+  visibility: hidden;
 }
 
 /* Full-viewport layer for the generated label-to-control arrows. The
@@ -649,8 +748,8 @@ body,
 }
 
 .hint-arrow-halo {
-  stroke: rgba(255, 255, 255, 0.9);
-  stroke-width: 4.5;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 6;
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
@@ -668,33 +767,9 @@ body,
   fill: none;
 }
 
-/* Inline gesture glyphs used by the swipe hint (finger motion, not a
-   control location). */
-.hint-arrow {
-  display: inline-block;
-  color: inherit;
-  vertical-align: -3px;
-}
-
-.hint-arrow-right {
-  margin-inline-start: 6px;
-}
-
-.hint-arrow-down {
-  margin-inline-start: 6px;
-  vertical-align: -10px;
-}
-
-/* Flipped variant: a 180° rotation reuses the same glyph (and its layout
-   box) for the opposite swipe direction — left from right, up from down. */
-.hint-arrow.flip {
-  transform: rotate(180deg);
-}
-
-/* Swipe hint: floats over the lower-center of the map, away from the
-   centered station pill and the bottom legend, naming the next stop you'd
-   reach by swiping. The arrow shows the finger motion (see SWIPE_FOR_ARROW
-   in HintOverlay.jsx), so it can point any direction inline with the text. */
+/* Gesture caption: floats over the lower-center of the map, away from
+   the centered station pill (whose d-pad shows the travel directions)
+   and the bottom legend. */
 .hint-swipe {
   left: 50%;
   bottom: 26%;

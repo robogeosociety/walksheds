@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeHintLayout, arrowPaths, measureHints, HINT_DEFS } from '../hintLayout'
+import { computeHintLayout, arrowPaths, measureHints, resolveAgainstObstacles, rectsOverlap, HINT_DEFS } from '../hintLayout'
 
 const VIEWPORT = { width: 1280, height: 800 }
 
@@ -160,5 +160,64 @@ describe('measureHints — DOM binding and fallback', () => {
       expect(def.copy.length).toBeGreaterThan(10)
       if (def.fallback) expect(def.fallbackCopy.length).toBeGreaterThan(10)
     }
+  })
+})
+
+describe('resolveAgainstObstacles — safe-area collision', () => {
+  const box = (left, top, right, bottom) => ({ left, top, right, bottom })
+  const apply = (b, dy) => ({ ...b, top: b.top + dy, bottom: b.bottom + dy })
+
+  it('leaves a hint untouched when nothing overlaps it', () => {
+    const items = [{ id: 'legend', box: box(8, 493, 288, 529), minDy: -60, maxDy: 60 }]
+    const res = resolveAgainstObstacles(items, [box(0, 0, 50, 50)])
+    expect(res.legend).toEqual({ dy: 0, hidden: false })
+  })
+
+  it('slides a hint down off an overlapping obstacle (the legend vs down-arm case)', () => {
+    // Legend hint y[493-529] overlapped by the d-pad down arm y[486-506].
+    const items = [{ id: 'legend', box: box(8, 493, 288, 529), minDy: -40, maxDy: 60 }]
+    const obstacles = [box(172, 486, 235, 506)]
+    const res = resolveAgainstObstacles(items, obstacles)
+    expect(res.legend.hidden).toBe(false)
+    expect(res.legend.dy).toBeGreaterThan(0)
+    // The shifted label clears the obstacle.
+    expect(rectsOverlap(apply(items[0].box, res.legend.dy), obstacles[0])).toBe(false)
+  })
+
+  it('prefers the smaller shift (up vs down) to clear', () => {
+    // Obstacle clips only the top edge: a tiny downward nudge clears it.
+    const items = [{ id: 'h', box: box(100, 100, 200, 140), minDy: -100, maxDy: 100 }]
+    const res = resolveAgainstObstacles(items, [box(100, 80, 200, 104)])
+    expect(res.h.dy).toBeGreaterThan(0)
+    expect(res.h.dy).toBeLessThanOrEqual(12)
+  })
+
+  it('hides a hint that cannot clear within its bounds', () => {
+    // A tall obstacle covers the whole slide range.
+    const items = [{ id: 'legend', box: box(8, 490, 288, 526), minDy: -20, maxDy: 20 }]
+    const res = resolveAgainstObstacles(items, [box(0, 400, 380, 600)])
+    expect(res.legend).toEqual({ dy: 0, hidden: true })
+  })
+
+  it('earlier items win the space; later items yield around them', () => {
+    // Two stacked hints and an obstacle on the first: the first slides,
+    // the second must avoid both the obstacle and the moved first.
+    const items = [
+      { id: 'a', box: box(0, 100, 100, 130), minDy: -80, maxDy: 80 },
+      { id: 'b', box: box(0, 135, 100, 165), minDy: -80, maxDy: 80 },
+    ]
+    const obstacles = [box(0, 90, 100, 120)]
+    const res = resolveAgainstObstacles(items, obstacles)
+    const ra = apply(items[0].box, res.a.dy)
+    const rb = apply(items[1].box, res.b.dy)
+    expect(rectsOverlap(ra, obstacles[0])).toBe(false)
+    expect(rectsOverlap(rb, obstacles[0])).toBe(false)
+    expect(rectsOverlap(ra, rb)).toBe(false)
+  })
+
+  it('a zero-range item (the swipe caption) hides on overlap, stays on clear', () => {
+    const pinned = box(98, 668, 293, 704)
+    expect(resolveAgainstObstacles([{ id: 'swipe', box: pinned, minDy: 0, maxDy: 0 }], [box(150, 660, 200, 690)]).swipe.hidden).toBe(true)
+    expect(resolveAgainstObstacles([{ id: 'swipe', box: pinned, minDy: 0, maxDy: 0 }], [box(0, 0, 50, 50)]).swipe.hidden).toBe(false)
   })
 })

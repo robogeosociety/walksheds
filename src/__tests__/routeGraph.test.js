@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildGraph, getNextStation, isJunction, getJunctionHints, getTerminusInfo, getSwipeHint } from '../routeGraph'
+import { buildGraph, getNextStation, isJunction, getJunctionHints, getTerminusInfo, getDpadHints } from '../routeGraph'
 
 const mockStations = {
   type: 'FeatureCollection',
@@ -184,45 +184,59 @@ describe('routeGraph', () => {
     })
   })
 
-  describe('getSwipeHint', () => {
-    it('points at the onward (toward-terminus) station on the current line', () => {
-      // Southbound from International District on Line 1 → Stadium.
-      const hint = getSwipeHint(graph, 'International District Station', '1-line')
-      expect(hint).toEqual({ stationName: 'Stadium Station', label: 'Stadium', arrowKey: 'ArrowDown' })
+  describe('getDpadHints', () => {
+    const arms = (station, line) => Object.fromEntries(
+      getDpadHints(graph, station, line).map(h => [h.arrowKey, h.stationName]),
+    )
+
+    it('Judkins Park shows travel-direction arms: east to Mercer Island, west to Intl District', () => {
+      expect(arms('Judkins Park Station', '2-line')).toEqual({
+        ArrowRight: 'Mercer Island Station',
+        ArrowLeft: 'International District Station',
+      })
     })
 
-    it('follows the current line through the junction', () => {
-      // Same station on Line 2 diverges east → Judkins Park.
-      const hint = getSwipeHint(graph, 'International District Station', '2-line')
-      expect(hint).toEqual({ stationName: 'Judkins Park Station', label: 'Judkins Park', arrowKey: 'ArrowRight' })
+    it('a mid-trunk station shows both line directions (Capitol Hill reads north/south across the jog)', () => {
+      expect(arms('Capitol Hill Station', '1-line')).toEqual({
+        ArrowUp: 'University of Washington Station',
+        ArrowDown: 'Westlake Station',
+      })
     })
 
-    it('falls back to the prior station at a terminus', () => {
-      const hint = getSwipeHint(graph, 'Federal Way Downtown Station', '1-line')
-      expect(hint.stationName).toBe('Star Lake Station')
-      expect(hint.label).toBe('Star Lake')
+    it('the junction shows all three directions', () => {
+      expect(arms('International District Station', '2-line')).toEqual({
+        ArrowUp: 'Pioneer Square Station',
+        ArrowRight: 'Judkins Park Station',
+        ArrowDown: 'Stadium Station',
+      })
     })
 
-    it('defaults to Line 1 when no current line is set', () => {
-      const hint = getSwipeHint(graph, 'International District Station', null)
-      expect(hint.stationName).toBe('Stadium Station')
+    it('a terminus shows a single arm back up the line', () => {
+      expect(arms('Federal Way Downtown Station', '1-line')).toEqual({
+        ArrowUp: 'Star Lake Station',
+      })
     })
 
-    it('returns null for unknown stations', () => {
-      expect(getSwipeHint(graph, 'Not A Station', '1-line')).toBeNull()
+    it('every arm agrees with what the arrow key actually does', () => {
+      for (const station of ['Judkins Park Station', 'Capitol Hill Station', 'International District Station']) {
+        for (const hint of getDpadHints(graph, station, '2-line')) {
+          expect(getNextStation(graph, station, hint.arrowKey, '2-line').name).toBe(hint.stationName)
+        }
+      }
     })
 
-    it('at Capitol Hill hints Westlake as southbound — and the gesture it teaches works', () => {
-      const hint = getSwipeHint(graph, 'Capitol Hill Station', '1-line')
-      expect(hint).toEqual({ stationName: 'Westlake Station', label: 'Westlake', arrowKey: 'ArrowDown' })
-      // The hint and navigation read the same index: the taught arrow
-      // must land on the hinted station.
-      expect(getNextStation(graph, 'Capitol Hill Station', hint.arrowKey, '1-line').name).toBe('Westlake Station')
+    it('arms carry the line they ride, for divergence roundels', () => {
+      const junction = getDpadHints(graph, 'International District Station', '1-line')
+      expect(junction.find(h => h.arrowKey === 'ArrowRight').line).toBe('2-line')
+      expect(junction.find(h => h.arrowKey === 'ArrowDown').line).toBe('1-line')
     })
 
-    it('northbound from Westlake hints Capitol Hill via ArrowUp at a hypothetical terminus walk-back', () => {
-      // Westlake → Symphony is the onward hint southbound; the reverse
-      // segment (used when riding north) must read Up, not Right.
+    it('returns [] for unknown stations or a missing graph', () => {
+      expect(getDpadHints(graph, 'Not A Station', '1-line')).toEqual([])
+      expect(getDpadHints(null, 'Westlake Station', '1-line')).toEqual([])
+    })
+
+    it('northbound from Westlake reads Up, not Right (reverse of the downtown jog)', () => {
       const node = graph.get('Westlake Station')
       const back = node.neighbors.find(n => n.name === 'Capitol Hill Station' && n.line === '1-line')
       expect(back.cardinal).toBe('ArrowUp')
