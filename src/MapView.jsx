@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import Map, { Source, Layer, GeolocateControl } from 'react-map-gl'
+import Map, { Source, Layer, Popup, GeolocateControl } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { registerStationIcons } from './stationIcons'
 import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
@@ -7,6 +7,10 @@ import { computeSnapTarget } from './mapbox'
 import WalkshedLayers from './WalkshedLayers'
 import POILayer from './POILayer'
 import StationPill from './StationPill'
+import StationDetailPanel from './StationDetailPanel'
+
+// Exit dots painted for the selected station; clickable to fly to an exit.
+const STATION_EXIT_LAYER = 'station-exit-circles'
 
 const MapView = forwardRef(function MapView({
   darkMode,
@@ -27,6 +31,12 @@ const MapView = forwardRef(function MapView({
   onPoiTagClick,
   onPopupStationClick,
   onPopupFocus,
+  stationDetailOpen,
+  stationExitsFC,
+  selectedExits,
+  onToggleStationDetail,
+  onStationDetailClose,
+  onExitClick,
   onUserInteract,
   onGeolocate,
   onTrackUserLocationStart,
@@ -101,10 +111,10 @@ const MapView = forwardRef(function MapView({
   useEffect(() => {
     const map = mapRef.current?.getMap()
     if (!map || !mapLoaded) return
-    for (const id of ['poi-circles', 'poi-labels', 'station-circles']) {
+    for (const id of ['poi-circles', 'poi-labels', STATION_EXIT_LAYER, 'station-circles']) {
       if (map.getLayer(id)) map.moveLayer(id)
     }
-  }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode, visiblePois])
+  }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode, visiblePois, stationExitsFC])
 
   // A user-initiated zoom (scroll-zoom, pinch, double-tap) carries an
   // originalEvent; programmatic fitBounds/flyTo/easeTo do not. We key off zoom
@@ -146,6 +156,12 @@ const MapView = forwardRef(function MapView({
     const features = e.features
     if (features && features.length > 0) {
       const f = features[0]
+      // Exit dot click: fly to the tapped exit (keeps the station selected).
+      if (f.layer?.id === STATION_EXIT_LAYER) {
+        const exit = selectedExits?.find(x => x.id === f.properties?.id)
+        if (exit) onExitClick?.(exit)
+        return
+      }
       // POI click
       if (f.layer?.id && POI_INTERACTIVE_LAYERS.includes(f.layer.id)) {
         onPoiClick(f)
@@ -163,7 +179,7 @@ const MapView = forwardRef(function MapView({
     // Popup's closeOnClick avoids a race where a fresh POI click would both
     // open a new popup AND immediately close it.
     onPoiClose?.()
-  }, [onStationClick, onPoiClick, onPoiClose])
+  }, [onStationClick, onPoiClick, onPoiClose, onExitClick, selectedExits])
 
   const handleMouseEnter = useCallback(() => {
     const map = mapRef.current
@@ -186,7 +202,7 @@ const MapView = forwardRef(function MapView({
       style={{ width: '100%', height: '100%' }}
       mapStyle="mapbox://styles/mapbox/standard"
       mapboxAccessToken={MAPBOX_TOKEN}
-      interactiveLayerIds={mapLoaded ? ['station-circles', ...POI_INTERACTIVE_LAYERS] : []}
+      interactiveLayerIds={mapLoaded ? ['station-circles', STATION_EXIT_LAYER, ...POI_INTERACTIVE_LAYERS] : []}
       onClick={handleMapClick}
       onZoomStart={handleZoomStart}
       onDragStart={handleDragStart}
@@ -254,6 +270,23 @@ const MapView = forwardRef(function MapView({
         />
       )}
 
+      {mapLoaded && stationExitsFC && stationExitsFC.features.length > 0 && (
+        <Source id="station-exits" type="geojson" data={stationExitsFC}>
+          <Layer
+            id={STATION_EXIT_LAYER}
+            type="circle"
+            paint={{
+              'circle-radius': ['case', ['==', ['get', 'best'], 1], 7, 4.5],
+              'circle-color': ['case', ['==', ['get', 'best'], 1], '#FF6A00', darkMode ? '#cfd3dc' : '#3a3f4b'],
+              'circle-stroke-width': 1.5,
+              'circle-stroke-color': darkMode ? '#1a1a2a' : '#ffffff',
+              'circle-opacity': 0.95,
+              'circle-emissive-strength': 1.0,
+            }}
+          />
+        </Source>
+      )}
+
       {mapLoaded && iconsReady && stationsData && (
         <Source id="stations" type="geojson" data={stationsData}>
           <Layer
@@ -282,7 +315,32 @@ const MapView = forwardRef(function MapView({
           terminusInfo={terminusInfo}
           dpad={dpadHints}
           currentLine={popup.line}
+          onOpenDetail={onToggleStationDetail}
         />
+      )}
+
+      {popup && stationDetailOpen && (
+        <Popup
+          longitude={popup.longitude}
+          latitude={popup.latitude}
+          anchor="top"
+          onClose={onStationDetailClose}
+          closeButton={false}
+          closeOnClick={false}
+          className="poi-popup-container station-detail-container"
+          offset={18}
+        >
+          <StationDetailPanel
+            key={popup.name}
+            station={{ name: popup.name, lines: popup.lines || popup.line.replace('-line', ''), stopCode: popup.stopCode }}
+            exits={selectedExits}
+            contextPoi={poiPopup}
+            onClose={onStationDetailClose}
+            onExitClick={onExitClick}
+            onPopupFocus={onPopupFocus}
+            units={units}
+          />
+        </Popup>
       )}
     </Map>
   )

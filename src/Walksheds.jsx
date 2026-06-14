@@ -6,6 +6,7 @@ import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedPar
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
 import { loadTileIndex, loadPoisForWalkshed } from './poiTiles'
+import { indexExitsByStation, exitsForStation, nearestExit } from './stationExits'
 import { useNavigation } from './useNavigation'
 import { findNearestStation, MAX_SNAP_METERS } from './locate'
 import { useCompassRotation } from './useCompass'
@@ -141,6 +142,8 @@ export default function Walksheds() {
   const [activeFilters, setActiveFilters] = useState(new Set())
   const [enabledSpotlights, setEnabledSpotlights] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
   const [poiPopup, setPoiPopup] = useState(null)
+  const [stationExits, setStationExits] = useState(null)
+  const [stationDetailOpen, setStationDetailOpen] = useState(false)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
   // Z-order toggle: when the user opens a chip's POI list, lift the search/list
   // above any open popup; clicking the popup body or a POI dot puts the popup
@@ -171,6 +174,12 @@ export default function Walksheds() {
     fetch(`${base}pois/tag-categories.json`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setTagCategories(d) })
+    // Station exits/entrances: a small flat point set (~113 features), loaded
+    // upfront and grouped per station for the station detail panel + map dots.
+    fetch(`${base}station-exits.geojson`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setStationExits(d) })
+      .catch(() => {})
   }, [])
 
   // Build the adjacency graph once per stations payload. Kept both as a
@@ -445,6 +454,49 @@ export default function Walksheds() {
   // user lands back in "station view" instead of stuck zoomed on the POI.
   const handlePoiClose = useCallback(() => fitToWalkshed(), [fitToWalkshed])
 
+  // ── Station exits/entrances ───────────────────────────────────────────────
+  // Group the flat exit point set by station key once, then derive the selected
+  // station's exits, the on-map exit dots, and (when a POI popup is open) the
+  // exit physically closest to that POI — so the detail panel and the map agree
+  // on the "best exit" highlight.
+  const exitIndex = useMemo(() => indexExitsByStation(stationExits), [stationExits])
+  const selectedStationKey = popup?.stopCode != null ? `${popup.lines}-${popup.stopCode}` : null
+  const selectedExits = useMemo(
+    () => exitsForStation(exitIndex, selectedStationKey),
+    [exitIndex, selectedStationKey],
+  )
+  const bestExitId = useMemo(() => {
+    if (!poiPopup || selectedExits.length === 0) return null
+    const found = nearestExit(selectedExits, [poiPopup.longitude, poiPopup.latitude])
+    return found?.exit.id ?? null
+  }, [poiPopup, selectedExits])
+  const stationExitsFC = useMemo(() => ({
+    type: 'FeatureCollection',
+    features: selectedExits.map(e => ({
+      type: 'Feature',
+      properties: { id: e.id, best: e.id === bestExitId ? 1 : 0 },
+      geometry: { type: 'Point', coordinates: e.coordinates },
+    })),
+  }), [selectedExits, bestExitId])
+
+  // A station tapped on the map selects it (existing flow) and expands its
+  // detail panel. Keyboard/swipe navigation, search, deep links and the locate
+  // snap call selectStation directly, so they don't force the panel open.
+  const handleStationMapClick = useCallback((name, lng, lat, line) => {
+    selectStation(name, lng, lat, line)
+    setStationDetailOpen(true)
+  }, [selectStation])
+
+  const toggleStationDetail = useCallback(() => setStationDetailOpen(v => !v), [])
+  const closeStationDetail = useCallback(() => setStationDetailOpen(false), [])
+
+  // Tapping an exit (panel row or map dot) flies to it so the rider can see
+  // exactly where it lets out, without dropping the station selection.
+  const handleExitClick = useCallback((exit) => {
+    const [lng, lat] = exit.coordinates
+    mapViewRef.current?.getMap()?.flyTo({ center: [lng, lat], zoom: 17, duration: 700 })
+  }, [])
+
   // Expanding a chip's POI list raises the list above any open popup. Passing
   // null collapses the list; the z-order doesn't matter once the list is gone
   // but we clear the flag to keep state tidy.
@@ -705,7 +757,7 @@ export default function Walksheds() {
         line1Data={line1Data}
         line2Data={line2Data}
         stationsData={stationsData}
-        onStationClick={selectStation}
+        onStationClick={handleStationMapClick}
         visiblePois={visiblePois}
         poiPopup={poiPopup}
         onPoiClick={handlePoiClick}
@@ -713,6 +765,12 @@ export default function Walksheds() {
         onPoiTagClick={handleAddPoiFilter}
         onPopupStationClick={handlePopupStationClick}
         onPopupFocus={handlePopupFocus}
+        stationDetailOpen={stationDetailOpen}
+        stationExitsFC={stationExitsFC}
+        selectedExits={selectedExits}
+        onToggleStationDetail={toggleStationDetail}
+        onStationDetailClose={closeStationDetail}
+        onExitClick={handleExitClick}
         onUserInteract={handleUserInteract}
         onGeolocate={handleGeolocate}
         onTrackUserLocationStart={handleTrackUserLocationStart}

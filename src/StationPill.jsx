@@ -179,7 +179,7 @@ function DpadArm({ hint, currentLine }) {
   )
 }
 
-export default function StationPill({ longitude, latitude, lines, stopCode, name, junctionHints, terminusInfo, dpad, currentLine }) {
+export default function StationPill({ longitude, latitude, lines, stopCode, name, junctionHints, terminusInfo, dpad, currentLine, onOpenDetail }) {
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
@@ -190,7 +190,12 @@ export default function StationPill({ longitude, latitude, lines, stopCode, name
   return (
     <Marker longitude={longitude} latitude={latitude} anchor="center">
       <div className="station-pill-anchor">
-        <div className={`station-pill ${expanded ? 'expanded' : ''}`}>
+        <div
+          className={`station-pill ${expanded ? 'expanded' : ''}${onOpenDetail ? ' clickable' : ''}`}
+          onClick={onOpenDetail}
+          role={onOpenDetail ? 'button' : undefined}
+          aria-label={onOpenDetail ? `${name.replace(' Station', '')} station details` : undefined}
+        >
           <div className="pill-lines">
             {lines.split(',').map(num => (
               <span
