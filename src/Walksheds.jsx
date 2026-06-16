@@ -443,17 +443,6 @@ export default function Walksheds() {
     setListOnTop(false)
   }, [])
 
-  // Click handler for a station row inside a POI popup: jump to that station.
-  const handlePopupStationClick = useCallback((s) => {
-    if (!stationsData) return
-    const feat = stationsData.features.find(f =>
-      f.properties.stopCode === s.stopCode && (f.properties.lines || '').trim() === (s.lines || '').trim()
-    )
-    if (!feat) return
-    const [lng, lat] = feat.geometry.coordinates
-    selectStation(feat.properties.name, lng, lat, feat.properties.line)
-  }, [stationsData, selectStation])
-
   // Closing the popup re-frames the walkshed at its original padding so the
   // user lands back in "station view" instead of stuck zoomed on the POI.
   const handlePoiClose = useCallback(() => fitToWalkshed(), [fitToWalkshed])
@@ -474,6 +463,30 @@ export default function Walksheds() {
     const found = nearestExit(selectedExits, [poiPopup.longitude, poiPopup.latitude])
     return found?.exit.id ?? null
   }, [poiPopup, selectedExits])
+
+  // Click handler for a station row inside a POI popup. When a POI popup is open
+  // and the tapped station has a suggested exit for it (the "best exit" the row
+  // badges), fly straight to that exit so the rider sees exactly where to
+  // surface — not the station roundel. With no exit data, fall back to selecting
+  // the station and framing its walkshed.
+  const handlePopupStationClick = useCallback((s) => {
+    if (!stationsData) return
+    if (poiPopup) {
+      const exits = exitIndex.get(`${s.lines}-${s.stopCode}`)
+      const best = exits?.length ? nearestExit(exits, [poiPopup.longitude, poiPopup.latitude]) : null
+      if (best) {
+        const [lng, lat] = best.exit.coordinates
+        mapViewRef.current?.getMap()?.flyTo({ center: [lng, lat], zoom: 17, duration: 700 })
+        return
+      }
+    }
+    const feat = stationsData.features.find(f =>
+      f.properties.stopCode === s.stopCode && (f.properties.lines || '').trim() === (s.lines || '').trim()
+    )
+    if (!feat) return
+    const [lng, lat] = feat.geometry.coordinates
+    selectStation(feat.properties.name, lng, lat, feat.properties.line)
+  }, [stationsData, selectStation, poiPopup, exitIndex])
 
   // Tapping empty map puts the popped-out exit badges away again.
   const dismissExits = useCallback(() => setExitsRevealed(false), [])
