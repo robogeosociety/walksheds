@@ -19,11 +19,13 @@ sys.path.insert(0, HERE)
 import fetch_pois  # noqa: E402
 import fetch_walksheds  # noqa: E402
 import fetch_walking_distances  # noqa: E402
+import fetch_station_exits  # noqa: E402
 
 PUBLIC = os.path.dirname(fetch_pois.OUTPUT_DIR)
 ICONS = os.path.join(PUBLIC, "icons")
 TAG_CATEGORIES = os.path.join(fetch_pois.OUTPUT_DIR, "tag-categories.json")
 ALL_STATIONS = os.path.join(PUBLIC, "all-stations.geojson")
+STATION_EXITS = os.path.join(PUBLIC, "station-exits.geojson")
 
 
 def _load_json(path):
@@ -216,6 +218,51 @@ def test_inv_017_schema_registry_consistency(tag_categories, registry):
         assert registry["tag"][idx] == name, f"tag id {idx} -> {name} != registry"
     for name, idx in schema["cat"].items():
         assert registry["cat"][idx] == name, f"cat id {idx} -> {name} != registry"
+
+
+# ── INV-021 — station-exits-wellformed ──
+@pytest.fixture(scope="module")
+def station_exits():
+    return _load_json(STATION_EXITS)["features"]
+
+
+def test_inv_021_station_exits_wellformed(station_exits):
+    """Every station-exits.geojson feature has a unique id, a stationKey resolving
+    to a real station, a non-empty name, a finite bearing in [0,360), sources in
+    {osm}, and coordinates inside the padded station bbox."""
+    stations = fetch_pois.load_station_index()
+    keys = {fetch_walksheds.station_key(s) for s in stations}
+    south, west, north, east = fetch_pois.compute_bbox(stations)
+
+    seen = set()
+    for f in station_exits:
+        p = f["properties"]
+        assert p["id"] not in seen, f"duplicate exit id {p['id']}"
+        seen.add(p["id"])
+        assert p["stationKey"] in keys, f"exit {p['id']} references unknown station {p['stationKey']}"
+        assert p.get("name"), f"exit {p['id']} has no name"
+        b = p["bearingFromStation"]
+        assert math.isfinite(b) and 0 <= b < 360, f"exit {p['id']} bad bearing {b}"
+        assert p.get("source") in ("osm",), f"exit {p['id']} bad source {p.get('source')}"
+        lon, lat = f["geometry"]["coordinates"]
+        assert west <= lon <= east and south <= lat <= north, \
+            f"exit {p['id']} ({lon},{lat}) outside station bbox"
+
+
+# ── INV-022 — exit-nearest-station: each exit is assigned to its nearest station ──
+def test_inv_022_exit_nearest_station(station_exits):
+    """Each exit's stationKey is the nearest Link station to its coordinates, and
+    within the build cutoff — so the panel never lists an exit under a station a
+    closer station should own."""
+    stations = fetch_pois.load_station_index()
+    for f in station_exits:
+        p = f["properties"]
+        coord = f["geometry"]["coordinates"]
+        nearest, meters = fetch_station_exits.nearest_station(coord, stations)
+        assert meters <= fetch_station_exits.NEAREST_CUTOFF_M, \
+            f"exit {p['id']} is {meters:.0f}m from nearest station (> cutoff)"
+        assert fetch_walksheds.station_key(nearest) == p["stationKey"], \
+            f"exit {p['id']} assigned {p['stationKey']} but nearest is {fetch_walksheds.station_key(nearest)}"
 
 
 # ── INV-014 — deterministic-build: sprite manifest reproducible (local; needs cairosvg) ──

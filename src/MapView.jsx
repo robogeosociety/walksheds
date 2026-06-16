@@ -7,6 +7,7 @@ import { computeSnapTarget } from './mapbox'
 import WalkshedLayers from './WalkshedLayers'
 import POILayer from './POILayer'
 import StationPill from './StationPill'
+import StationExitMarkers from './StationExitMarkers'
 
 const MapView = forwardRef(function MapView({
   darkMode,
@@ -27,6 +28,11 @@ const MapView = forwardRef(function MapView({
   onPoiTagClick,
   onPopupStationClick,
   onPopupFocus,
+  selectedExits,
+  bestExitId,
+  selectedStationKey,
+  exitIndex,
+  onExitClick,
   onUserInteract,
   onGeolocate,
   onTrackUserLocationStart,
@@ -251,6 +257,7 @@ const MapView = forwardRef(function MapView({
           onPopupFocus={onPopupFocus}
           darkMode={darkMode}
           units={units}
+          exitIndex={exitIndex}
         />
       )}
 
@@ -268,6 +275,16 @@ const MapView = forwardRef(function MapView({
             }}
           />
         </Source>
+      )}
+
+      {mapLoaded && popup && selectedExits?.length > 0 && (
+        <StationExitMarkers
+          exits={selectedExits}
+          bestExitId={bestExitId}
+          stationsData={stationsData}
+          selectedStationKey={selectedStationKey}
+          onExitClick={onExitClick}
+        />
       )}
 
       {popup && (

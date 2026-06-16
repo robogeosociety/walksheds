@@ -36,6 +36,8 @@ IDs are **append-only and stable** (`INV-NNN` — never reused; a retired invari
 - **INV-018 no-emoji** — no emoji anywhere (UI, docs, wiki, commits, PRs); see Design & House Style.
 - **INV-019 tile-coverage** — the runtime streams POIs from a spatial grid (`public/pois/tiles/{col}_{row}.geojson` + `index.json`) instead of loading the full ~12 MB dataset. The union of all tiles must exactly equal the full POI set (no POI lost or duplicated), every feature must lie in its declared tile cell, and `index.json` must list precisely the populated tiles on disk. This keeps the full dataset (all tags, marginal POIs) while loading only the ~11 tiles overlapping the active walkshed (~20 KB). See `build_refined.py` `write_tiles` and `src/poiTiles.js`. (Surfacing marginal/just-outside POIs in the UI is tracked in issue #58.)
 - **INV-020 station-tile-lookup** — `index.json` carries a precomputed `station_tiles` map (station key `{lines}-{stopCode}` → tile keys), so the runtime maps a selected station straight to its tiles without bbox math (it still clips against the live isochrone). For every station the lookup must include the tile of every POI inside that station's walkshed (a correct superset of membership), and every listed tile must be a real populated tile.
+- **INV-021 station-exits-wellformed** — every feature in `public/station-exits.geojson` has a unique `id`, a `stationKey` resolving to a real station in `all-stations.geojson`, a non-empty `name`, a finite `bearingFromStation ∈ [0,360)`, `source ⊆ {osm}`, and coordinates inside the padded station bbox. (`test_invariants.py`)
+- **INV-022 exit-nearest-station** — each exit's `stationKey` is the nearest Link station to its coordinates and within the build cutoff (`NEAREST_CUTOFF_M`), so the panel never lists an exit under a station a closer one should own. (`test_invariants.py`)
 
 ## Commands
 
@@ -52,6 +54,8 @@ python3 data/pois/fetch_pois.py  # Rebuild POI GeoJSONs from committed OSM dump 
 python3 data/pois/fetch_pois.py --refresh  # Refetch OSM dump from Overpass, then rebuild
 python3 data/pois/fetch_walksheds.py --refresh           # Refetch walkshed polygons from Mapbox Isochrone
 python3 data/pois/fetch_walking_distances.py --refresh   # Refetch POI↔station walking distances from Mapbox Matrix
+python3 data/pois/fetch_station_exits.py                 # Rebuild station-exits.geojson from the committed OSM entrance dump (no network)
+python3 data/pois/fetch_station_exits.py --refresh       # Refetch station entrances from Overpass, then rebuild
 python3 data/icons/fetch_app_icon.py                     # Rebuild iOS home-screen icons from the committed walksheds dump
 ```
 
@@ -115,6 +119,15 @@ Two committed dumps power the "Nearest stations" section of POI popups:
 **Refresh order when POIs change:** `fetch_pois.py --refresh` → `fetch_walking_distances.py --refresh` (the latter re-fetches Matrix entries for any new POI ids inside a walkshed). `fetch_walksheds.py --refresh` is only needed when station coordinates change.
 
 **Mapbox token for refresh scripts:** set `MAPBOX_TOKEN` (or `MAPBOX_ACCESS_TOKEN`) in the environment. Public (`pk.`) and secret (`sk.`) tokens have identical capability for Isochrone + Matrix (both are read endpoints); the practical reason for a build-only token is URL restrictions — if the browser-side `VITE_MAPBOX_ACCESS_TOKEN` is restricted to `walksheds.xyz`, calls from a Python script will fail the referrer check. Easiest fix: add the build host's URL (or leave unrestricted) on that token, or mint a separate token for the scripts.
+
+### Station exits/entrances (OSM → public/station-exits.geojson)
+
+`public/station-exits.geojson` is a flat point set of station exits/entrances rendered as **floating green "EXIT" badges** on the map (`src/StationExitMarkers.jsx`) — one over each exit of the selected station, above the POI dots and below the station pill, with a label from the exit ref or compass bearing. When a POI popup is open, the exit physically closest to it turns orange ("best exit"). Two phases mirror the POI pipeline, with the raw Overpass dump committed:
+
+1. **Refresh** (needs network to `overpass-api.de`): `python3 data/pois/fetch_station_exits.py --refresh` runs one Overpass query for every `railway=subway_entrance` / `railway=train_station_entrance` node in the station bbox, writing `data/pois/raw/station-exits.json.gz`.
+2. **Build** (no network, default): `python3 data/pois/fetch_station_exits.py` reads the dump, assigns each entrance to its nearest Link station (within 400 m; drops unrelated nodes), precomputes `bearingFromStation`, and writes `public/station-exits.geojson`.
+
+Per-feature properties: `id` (OSM node id), `stationKey` (`{lines}-{stopCode}`), `stationName`, `name`, `bearingFromStation` (degrees, 0 = north), optional `accessible` (`wheelchair=yes`), `source` (`osm`). **Best-exit logic** is straight-line nearest (haversine), computed live in the browser (`nearestExit` in `src/stationExits.js`) — no API cost. **Coverage is partial**: ~33/38 stations have OSM-mapped exits; the newest south + east-end stations have none yet, so no badges show for them. Seattle has no other subway, so `subway_entrance` nodes are effectively all Link; nearest-station assignment also disambiguates the two stations sharing stopCode 54 (Stadium / Judkins Park).
 
 ## Deployment
 
