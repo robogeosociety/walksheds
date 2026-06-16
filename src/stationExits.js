@@ -80,3 +80,12 @@ export function compassLabel(deg) {
   if (deg == null || !isFinite(deg)) return ''
   return COMPASS_8[Math.round(deg / 45) % 8]
 }
+
+// Short code for an exit badge: a station exit ref ("A1", "B", "Exit C2") if the
+// name carries one, otherwise the exit's compass direction.
+export function exitCode(exit) {
+  const name = (exit?.name || '').trim()
+  const m = name.match(/^(?:exit\s+)?([A-Z]\d?)$/i)
+  if (m) return m[1].toUpperCase()
+  return compassLabel(exit?.bearing) || 'EXIT'
+}

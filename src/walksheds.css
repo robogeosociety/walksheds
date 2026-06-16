@@ -1399,6 +1399,33 @@ body,
   font-size: 10px;
 }
 
+/* Left group of a station row: the station pill + its best-exit badge. */
+.poi-popup-station-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Inline best-exit badge — the same green EXIT-sign idiom as the map markers,
+   sized down to sit beside the station roundel in the POI card. */
+.poi-popup-exit-badge {
+  display: inline-flex;
+  align-items: stretch;
+  height: 15px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  font-weight: 800;
+  font-size: 9px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.app.dark .poi-popup-exit-badge {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 .poi-popup-station-dist {
   font-size: 11px;
   color: #555;
@@ -1409,184 +1436,6 @@ body,
 
 .app.dark .poi-popup-station-dist {
   color: rgba(255, 255, 255, 0.65);
-}
-
-/* ── Station detail panel (exits/entrances) ── */
-
-.station-pill.clickable {
-  cursor: pointer;
-}
-
-.station-detail-header {
-  align-items: center;
-}
-
-/* The header station pill renders statically (not as an on-map marker). */
-.station-detail-header .station-pill.inline {
-  position: static;
-  transform: none;
-  box-shadow: none;
-  padding: 2px 8px 2px 2px;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 999px;
-  font-size: 12px;
-  pointer-events: none;
-}
-
-.app.dark .station-detail-header .station-pill.inline {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.station-detail-header .station-pill.inline .pill-name {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.station-detail-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.station-detail-meta-label {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.app.dark .station-detail-meta-label {
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.station-detail-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.station-detail-line .pill-circle {
-  width: 16px;
-  height: 16px;
-  font-size: 10px;
-}
-
-.station-detail-line-text {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.7);
-}
-
-.app.dark .station-detail-line-text {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.station-detail-access-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.55);
-}
-
-.app.dark .station-detail-access-note {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.station-detail-arrow {
-  flex-shrink: 0;
-  color: rgba(0, 0, 0, 0.55);
-}
-
-.app.dark .station-detail-arrow {
-  color: rgba(255, 255, 255, 0.65);
-}
-
-.station-detail-exit-row {
-  gap: 6px;
-}
-
-.station-detail-exit-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.8);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.app.dark .station-detail-exit-name {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.station-detail-access {
-  flex-shrink: 0;
-  color: #0082c8;
-}
-
-.station-detail-exit-dir {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.4);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
-.app.dark .station-detail-exit-dir {
-  color: rgba(255, 255, 255, 0.45);
-}
-
-/* Best exit for the POI in context — orange accent, echoed by the map dot. */
-.station-detail-exit-row.best {
-  background: rgba(255, 106, 0, 0.1);
-}
-
-.station-detail-exit-row.best .station-detail-arrow {
-  color: #ff6a00;
-}
-
-.station-detail-best {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: #d35400;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.app.dark .station-detail-best {
-  color: #ff8c42;
-}
-
-.station-detail-empty {
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
-  font-style: italic;
-  padding: 4px;
-}
-
-.app.dark .station-detail-empty {
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.station-detail-context {
-  font-size: 10px;
-  color: rgba(0, 0, 0, 0.4);
-  margin-top: 4px;
-  padding: 0 4px;
-}
-
-.app.dark .station-detail-context {
-  color: rgba(255, 255, 255, 0.4);
 }
 
 /* Floating exit markers — the green "EXIT" wayfinding-sign idiom, dropped over

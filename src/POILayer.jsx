@@ -5,7 +5,7 @@ import POIPopupCard from './POIPopupCard'
 
 const CATEGORY_KEYS = Object.keys(POI_CATEGORIES)
 
-export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, onStationClick, onPopupFocus, darkMode, units }) {
+export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, onStationClick, onPopupFocus, darkMode, units, exitIndex }) {
   const colorMatch = useMemo(() => [
     'match', ['get', 'category'],
     ...CATEGORY_KEYS.flatMap(k => [k, POI_CATEGORIES[k].color]),
@@ -68,6 +68,7 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, on
             onStationClick={onStationClick}
             onPopupFocus={onPopupFocus}
             units={units}
+            exitIndex={exitIndex}
           />
         </Popup>
       )}

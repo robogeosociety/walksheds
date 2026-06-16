@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer } from 'react'
 import { Marker, useMap } from 'react-map-gl'
-import { compassLabel } from './stationExits'
+import { exitCode } from './stationExits'
 
 // Floating exit markers styled as the green "EXIT" wayfinding signs at Link
 // stations (see the Westlake exit board). One badge per exit of the selected
@@ -11,15 +11,6 @@ import { compassLabel } from './stationExits'
 // Center-to-center pixel gap below which an exit badge is treated as overlapping
 // a station icon (station roundel half + badge half + breathing room).
 const STATION_CLEAR_PX = 30
-
-// Short code for the badge: a station exit ref ("A1", "B", "Exit C2") if the
-// name carries one, otherwise the exit's compass direction.
-function exitCode(exit) {
-  const name = (exit.name || '').trim()
-  const m = name.match(/^(?:exit\s+)?([A-Z]\d?)$/i)
-  if (m) return m[1].toUpperCase()
-  return compassLabel(exit.bearing) || 'EXIT'
-}
 
 // Re-render this component on every map move so the overlap test re-projects
 // against the live camera. Returns a tick the projection memo depends on, so it

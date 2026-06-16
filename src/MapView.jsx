@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import Map, { Source, Layer, Popup, GeolocateControl } from 'react-map-gl'
+import Map, { Source, Layer, GeolocateControl } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { registerStationIcons } from './stationIcons'
 import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
@@ -7,7 +7,6 @@ import { computeSnapTarget } from './mapbox'
 import WalkshedLayers from './WalkshedLayers'
 import POILayer from './POILayer'
 import StationPill from './StationPill'
-import StationDetailPanel from './StationDetailPanel'
 import StationExitMarkers from './StationExitMarkers'
 
 const MapView = forwardRef(function MapView({
@@ -29,12 +28,10 @@ const MapView = forwardRef(function MapView({
   onPoiTagClick,
   onPopupStationClick,
   onPopupFocus,
-  stationDetailOpen,
   selectedExits,
   bestExitId,
   selectedStationKey,
-  onToggleStationDetail,
-  onStationDetailClose,
+  exitIndex,
   onExitClick,
   onUserInteract,
   onGeolocate,
@@ -260,6 +257,7 @@ const MapView = forwardRef(function MapView({
           onPopupFocus={onPopupFocus}
           darkMode={darkMode}
           units={units}
+          exitIndex={exitIndex}
         />
       )}
 
@@ -301,32 +299,7 @@ const MapView = forwardRef(function MapView({
           terminusInfo={terminusInfo}
           dpad={dpadHints}
           currentLine={popup.line}
-          onOpenDetail={onToggleStationDetail}
         />
-      )}
-
-      {popup && stationDetailOpen && (
-        <Popup
-          longitude={popup.longitude}
-          latitude={popup.latitude}
-          anchor="top"
-          onClose={onStationDetailClose}
-          closeButton={false}
-          closeOnClick={false}
-          className="poi-popup-container station-detail-container"
-          offset={18}
-        >
-          <StationDetailPanel
-            key={popup.name}
-            station={{ name: popup.name, lines: popup.lines || popup.line.replace('-line', ''), stopCode: popup.stopCode }}
-            exits={selectedExits}
-            contextPoi={poiPopup}
-            onClose={onStationDetailClose}
-            onExitClick={onExitClick}
-            onPopupFocus={onPopupFocus}
-            units={units}
-          />
-        </Popup>
       )}
     </Map>
   )

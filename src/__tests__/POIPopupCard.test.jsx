@@ -112,4 +112,24 @@ describe('POIPopupCard stations section', () => {
     fireEvent.click(document.querySelector('.poi-popup-station-row'))
     expect(onStationClick).toHaveBeenCalledWith(FULL_POI.stations[0])
   })
+
+  it('renders the best-exit badge inline with the roundel when exits are known', () => {
+    const poi = { ...FULL_POI, longitude: -122.32, latitude: 47.619 }
+    const exitIndex = new Map([
+      ['1,2-49', [
+        { id: 1, name: 'Exit B', bearing: 90, coordinates: [-122.319, 47.6191] },
+        { id: 2, name: 'Denny', bearing: 270, coordinates: [-122.325, 47.6189] },
+      ]],
+    ])
+    renderCard(poi, { exitIndex })
+    const badge = document.querySelector('.poi-popup-exit-badge')
+    expect(badge).toBeTruthy()
+    // Closest exit to the POI is "Exit B" → code "B".
+    expect(badge.textContent).toBe('EXITB')
+  })
+
+  it('omits the exit badge when no exit data is supplied', () => {
+    renderCard()
+    expect(document.querySelector('.poi-popup-exit-badge')).toBeNull()
+  })
 })

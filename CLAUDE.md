@@ -122,12 +122,12 @@ Two committed dumps power the "Nearest stations" section of POI popups:
 
 ### Station exits/entrances (OSM → public/station-exits.geojson)
 
-`public/station-exits.geojson` is a flat point set of station exits/entrances powering the **station detail panel** (`src/StationDetailPanel.jsx`) — a card that expands from a selected station showing the lines served, accessibility, and exits, and (when a POI popup is open) the exit physically closest to that POI. Two phases mirror the POI pipeline, with the raw Overpass dump committed:
+`public/station-exits.geojson` is a flat point set of station exits/entrances rendered as **floating green "EXIT" badges** on the map (`src/StationExitMarkers.jsx`) — one over each exit of the selected station, above the POI dots and below the station pill, with a label from the exit ref or compass bearing. When a POI popup is open, the exit physically closest to it turns orange ("best exit"). Two phases mirror the POI pipeline, with the raw Overpass dump committed:
 
 1. **Refresh** (needs network to `overpass-api.de`): `python3 data/pois/fetch_station_exits.py --refresh` runs one Overpass query for every `railway=subway_entrance` / `railway=train_station_entrance` node in the station bbox, writing `data/pois/raw/station-exits.json.gz`.
 2. **Build** (no network, default): `python3 data/pois/fetch_station_exits.py` reads the dump, assigns each entrance to its nearest Link station (within 400 m; drops unrelated nodes), precomputes `bearingFromStation`, and writes `public/station-exits.geojson`.
 
-Per-feature properties: `id` (OSM node id), `stationKey` (`{lines}-{stopCode}`), `stationName`, `name`, `bearingFromStation` (degrees, 0 = north), optional `accessible` (`wheelchair=yes`), `source` (`osm`). **Best-exit logic** is straight-line nearest (haversine), computed live in the browser (`nearestExit` in `src/stationExits.js`) — no API cost. **Coverage is partial**: ~33/38 stations have OSM-mapped exits; the newest south + east-end stations have none yet, and the panel shows "Exits not yet mapped" for them. Seattle has no other subway, so `subway_entrance` nodes are effectively all Link; nearest-station assignment also disambiguates the two stations sharing stopCode 54 (Stadium / Judkins Park).
+Per-feature properties: `id` (OSM node id), `stationKey` (`{lines}-{stopCode}`), `stationName`, `name`, `bearingFromStation` (degrees, 0 = north), optional `accessible` (`wheelchair=yes`), `source` (`osm`). **Best-exit logic** is straight-line nearest (haversine), computed live in the browser (`nearestExit` in `src/stationExits.js`) — no API cost. **Coverage is partial**: ~33/38 stations have OSM-mapped exits; the newest south + east-end stations have none yet, so no badges show for them. Seattle has no other subway, so `subway_entrance` nodes are effectively all Link; nearest-station assignment also disambiguates the two stations sharing stopCode 54 (Stadium / Judkins Park).
 
 ## Deployment
 

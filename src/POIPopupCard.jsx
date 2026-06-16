@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { POI_CATEGORIES } from './constants'
 import { StationPillBody } from './StationPill'
 import { formatWalk } from './formatDistance'
+import { nearestExit, exitCode } from './stationExits'
 import CategoryIcon from './poiIcons'
 
 // Expandable POI card (issue #19), styled to match the legend: a category
@@ -71,9 +72,25 @@ function buildInfoRows(poi) {
   return rows
 }
 
-export default function POIPopupCard({ poi, onClose, onTagClick, onStationClick, onPopupFocus, units }) {
+// The green "EXIT" badge for the station's best exit to this POI, rendered
+// inline with the roundel so the card tells the rider which door to leave by.
+function ExitBadge({ exit }) {
+  return (
+    <span className="poi-popup-exit-badge" aria-label={`best exit ${exitCode(exit)}`}>
+      <span className="exit-badge-exit">EXIT</span>
+      <span className="exit-badge-code">{exitCode(exit)}</span>
+    </span>
+  )
+}
+
+export default function POIPopupCard({ poi, onClose, onTagClick, onStationClick, onPopupFocus, units, exitIndex }) {
   const [tagsExpanded, setTagsExpanded] = useState(false)
   const [infoExpanded, setInfoExpanded] = useState(false)
+
+  // The POI's own coordinates, used to pick each station's closest exit.
+  const poiCoord = poi.longitude != null && poi.latitude != null
+    ? [poi.longitude, poi.latitude]
+    : null
 
   const tags = Array.isArray(poi.tags) ? poi.tags : []
   const visibleTags = tagsExpanded ? tags : tags.slice(0, COLLAPSED_TAGS)
@@ -146,19 +163,26 @@ export default function POIPopupCard({ poi, onClose, onTagClick, onStationClick,
       {Array.isArray(poi.stations) && poi.stations.length > 0 && (
         <div className="poi-popup-stations">
           <div className="poi-popup-stations-label">Stations within a 15 min walk</div>
-          {poi.stations.map(s => (
-            <button
-              key={`${s.lines}-${s.stopCode}`}
-              className="poi-popup-station-row"
-              onClick={() => onStationClick?.(s)}
-              aria-label={`${s.name}, ${formatWalk(s.walkingMeters, s.walkingSeconds, units)}`}
-            >
-              <StationPillBody lines={s.lines} stopCode={s.stopCode} name={s.name} className="inline" />
-              <span className="poi-popup-station-dist">
-                {formatWalk(s.walkingMeters, s.walkingSeconds, units)}
-              </span>
-            </button>
-          ))}
+          {poi.stations.map(s => {
+            const exits = poiCoord ? exitIndex?.get(`${s.lines}-${s.stopCode}`) : null
+            const best = exits?.length ? nearestExit(exits, poiCoord) : null
+            return (
+              <button
+                key={`${s.lines}-${s.stopCode}`}
+                className="poi-popup-station-row"
+                onClick={() => onStationClick?.(s)}
+                aria-label={`${s.name}, ${formatWalk(s.walkingMeters, s.walkingSeconds, units)}`}
+              >
+                <span className="poi-popup-station-left">
+                  <StationPillBody lines={s.lines} stopCode={s.stopCode} name={s.name} className="inline" />
+                  {best && <ExitBadge exit={best.exit} />}
+                </span>
+                <span className="poi-popup-station-dist">
+                  {formatWalk(s.walkingMeters, s.walkingSeconds, units)}
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

@@ -143,7 +143,6 @@ export default function Walksheds() {
   const [enabledSpotlights, setEnabledSpotlights] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
   const [poiPopup, setPoiPopup] = useState(null)
   const [stationExits, setStationExits] = useState(null)
-  const [stationDetailOpen, setStationDetailOpen] = useState(false)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
   // Z-order toggle: when the user opens a chip's POI list, lift the search/list
   // above any open popup; clicking the popup body or a POI dot puts the popup
@@ -471,19 +470,8 @@ export default function Walksheds() {
     return found?.exit.id ?? null
   }, [poiPopup, selectedExits])
 
-  // A station tapped on the map selects it (existing flow) and expands its
-  // detail panel. Keyboard/swipe navigation, search, deep links and the locate
-  // snap call selectStation directly, so they don't force the panel open.
-  const handleStationMapClick = useCallback((name, lng, lat, line) => {
-    selectStation(name, lng, lat, line)
-    setStationDetailOpen(true)
-  }, [selectStation])
-
-  const toggleStationDetail = useCallback(() => setStationDetailOpen(v => !v), [])
-  const closeStationDetail = useCallback(() => setStationDetailOpen(false), [])
-
-  // Tapping an exit (panel row or map dot) flies to it so the rider can see
-  // exactly where it lets out, without dropping the station selection.
+  // Tapping an exit badge on the map flies to it so the rider can see exactly
+  // where it lets out, without dropping the station selection.
   const handleExitClick = useCallback((exit) => {
     const [lng, lat] = exit.coordinates
     mapViewRef.current?.getMap()?.flyTo({ center: [lng, lat], zoom: 17, duration: 700 })
@@ -749,7 +737,7 @@ export default function Walksheds() {
         line1Data={line1Data}
         line2Data={line2Data}
         stationsData={stationsData}
-        onStationClick={handleStationMapClick}
+        onStationClick={selectStation}
         visiblePois={visiblePois}
         poiPopup={poiPopup}
         onPoiClick={handlePoiClick}
@@ -757,12 +745,10 @@ export default function Walksheds() {
         onPoiTagClick={handleAddPoiFilter}
         onPopupStationClick={handlePopupStationClick}
         onPopupFocus={handlePopupFocus}
-        stationDetailOpen={stationDetailOpen}
         selectedExits={selectedExits}
         bestExitId={bestExitId}
         selectedStationKey={selectedStationKey}
-        onToggleStationDetail={toggleStationDetail}
-        onStationDetailClose={closeStationDetail}
+        exitIndex={exitIndex}
         onExitClick={handleExitClick}
         onUserInteract={handleUserInteract}
         onGeolocate={handleGeolocate}
