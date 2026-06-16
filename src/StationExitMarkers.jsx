@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from 'react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
 import { Marker, useMap } from 'react-map-gl'
 import { exitCode } from './stationExits'
 
@@ -35,6 +35,10 @@ function useMapTick(mapRef) {
 export default function StationExitMarkers({ exits, bestExitId, stationsData, selectedStationKey, onExitClick }) {
   const mapRef = useMap().current
   const tick = useMapTick(mapRef)
+  // The exit currently hovered/pressed is lifted above every other icon so its
+  // label reads clearly when badges overlap. Set on pointer enter (mouse hover
+  // and tap both fire it), cleared on leave.
+  const [liftedId, setLiftedId] = useState(null)
 
   // Collision is tested against *other* stations only. The exits belong to the
   // selected station and intentionally pop out over its own pill, so that
@@ -63,11 +67,20 @@ export default function StationExitMarkers({ exits, bestExitId, stationsData, se
 
   return visible.map(exit => {
     const isBest = exit.id === bestExitId
+    const lifted = exit.id === liftedId
     return (
-      <Marker key={exit.id} longitude={exit.coordinates[0]} latitude={exit.coordinates[1]} anchor="center" style={{ zIndex: 6 }}>
+      <Marker
+        key={exit.id}
+        longitude={exit.coordinates[0]}
+        latitude={exit.coordinates[1]}
+        anchor="center"
+        style={{ zIndex: lifted ? 20 : 6 }}
+      >
         <div
           className={`station-exit-badge${isBest ? ' best' : ''}`}
           onClick={() => onExitClick?.(exit)}
+          onPointerEnter={() => setLiftedId(exit.id)}
+          onPointerLeave={() => setLiftedId(prev => (prev === exit.id ? null : prev))}
           role="button"
           aria-label={`Exit ${exitCode(exit)}${isBest ? ', best exit' : ''}`}
         >
