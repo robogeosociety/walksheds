@@ -6,7 +6,7 @@ import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedPar
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
 import { loadTileIndex, loadPoisForWalkshed } from './poiTiles'
-import { indexExitsByStation, exitsForStation, nearestExit } from './stationExits'
+import { indexExitsByStation, exitsForStation, nearestExit, exitBoundsWithMargin } from './stationExits'
 import { useNavigation } from './useNavigation'
 import { findNearestStation, MAX_SNAP_METERS } from './locate'
 import { useCompassRotation } from './useCompass'
@@ -143,6 +143,9 @@ export default function Walksheds() {
   const [enabledSpotlights, setEnabledSpotlights] = useState(() => new Set(DEFAULT_ENABLED_MAIN_CATEGORIES))
   const [poiPopup, setPoiPopup] = useState(null)
   const [stationExits, setStationExits] = useState(null)
+  // Exit badges are hidden until the rider taps the selected station's roundel,
+  // which pops them out over the station and zooms to their bounds.
+  const [exitsRevealed, setExitsRevealed] = useState(false)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
   // Z-order toggle: when the user opens a chip's POI list, lift the search/list
   // above any open popup; clicking the popup body or a POI dot puts the popup
@@ -225,6 +228,8 @@ export default function Walksheds() {
     setWalksheds({})
     // Any in-flight POI popup belongs to the previous station — drop it.
     setPoiPopup(null)
+    // A fresh selection hides the exit badges again until the rider taps the pill.
+    setExitsRevealed(false)
 
     // Sync URL
     if (stopCode != null) {
@@ -470,12 +475,30 @@ export default function Walksheds() {
     return found?.exit.id ?? null
   }, [poiPopup, selectedExits])
 
+  // Tapping empty map puts the popped-out exit badges away again.
+  const dismissExits = useCallback(() => setExitsRevealed(false), [])
+
   // Tapping an exit badge on the map flies to it so the rider can see exactly
   // where it lets out, without dropping the station selection.
   const handleExitClick = useCallback((exit) => {
     const [lng, lat] = exit.coordinates
     mapViewRef.current?.getMap()?.flyTo({ center: [lng, lat], zoom: 17, duration: 700 })
   }, [])
+
+  // Tapping the selected station's roundel pops the exit badges out over the
+  // station and zooms to their bounding box with a 50% safety margin; tapping
+  // again hides them. A single exit (or a tight cluster) still gets a sensible
+  // close-up via a minimum half-extent.
+  const toggleExitsReveal = useCallback(() => {
+    setExitsRevealed(prev => {
+      const next = !prev
+      if (next) {
+        const bounds = exitBoundsWithMargin(selectedExits)
+        if (bounds) mapViewRef.current?.fitBounds(bounds, { padding: 40, duration: 600 })
+      }
+      return next
+    })
+  }, [selectedExits])
 
   // Expanding a chip's POI list raises the list above any open popup. Passing
   // null collapses the list; the z-order doesn't matter once the list is gone
@@ -749,6 +772,9 @@ export default function Walksheds() {
         bestExitId={bestExitId}
         selectedStationKey={selectedStationKey}
         exitIndex={exitIndex}
+        exitsRevealed={exitsRevealed}
+        onToggleExits={toggleExitsReveal}
+        onDismissExits={dismissExits}
         onExitClick={handleExitClick}
         onUserInteract={handleUserInteract}
         onGeolocate={handleGeolocate}

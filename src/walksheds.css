@@ -1438,6 +1438,15 @@ body,
   color: rgba(255, 255, 255, 0.65);
 }
 
+/* The selected station's pill is tappable to pop its exits out. */
+.station-pill.clickable {
+  cursor: pointer;
+}
+
+.station-pill.exits-open {
+  box-shadow: 0 0 0 2px rgba(255, 106, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
 /* Floating exit markers — the green "EXIT" wayfinding-sign idiom, dropped over
    each exit coordinate of the selected station (see StationExitMarkers). */
 .station-exit-badge {

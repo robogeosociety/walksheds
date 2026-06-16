@@ -5,6 +5,8 @@ import {
   exitsForStation,
   nearestExit,
   compassLabel,
+  exitCode,
+  exitBoundsWithMargin,
 } from '../stationExits'
 
 const GEOJSON = {
@@ -95,5 +97,46 @@ describe('compassLabel', () => {
   it('returns empty for non-finite input', () => {
     expect(compassLabel(null)).toBe('')
     expect(compassLabel(Infinity)).toBe('')
+  })
+})
+
+describe('exitCode', () => {
+  it('extracts a ref from the name', () => {
+    expect(exitCode({ name: 'Exit A1', bearing: 10 })).toBe('A1')
+    expect(exitCode({ name: 'B', bearing: 200 })).toBe('B')
+  })
+
+  it('falls back to the compass direction', () => {
+    expect(exitCode({ name: '5th Avenue & Pine St', bearing: 90 })).toBe('E')
+    expect(exitCode({ name: '', bearing: 0 })).toBe('N')
+  })
+})
+
+describe('exitBoundsWithMargin', () => {
+  it('returns null for no exits', () => {
+    expect(exitBoundsWithMargin([])).toBeNull()
+    expect(exitBoundsWithMargin(null)).toBeNull()
+  })
+
+  it('expands the bounds by the margin around the center', () => {
+    const exits = [
+      { coordinates: [-122.34, 47.61] },
+      { coordinates: [-122.32, 47.63] },
+    ]
+    // center (-122.33, 47.62), half-extent (0.01, 0.01) * 1.5 margin = 0.015.
+    const [[minLng, minLat], [maxLng, maxLat]] = exitBoundsWithMargin(exits)
+    expect(minLng).toBeCloseTo(-122.345, 6)
+    expect(maxLng).toBeCloseTo(-122.315, 6)
+    expect(minLat).toBeCloseTo(47.605, 6)
+    expect(maxLat).toBeCloseTo(47.635, 6)
+  })
+
+  it('applies a minimum half-extent for a lone exit', () => {
+    const [[minLng, minLat], [maxLng, maxLat]] = exitBoundsWithMargin(
+      [{ coordinates: [-122.33, 47.62] }],
+    )
+    // half = max(0, 0.0008) * 1.5 = 0.0012.
+    expect(maxLng - minLng).toBeCloseTo(0.0024, 6)
+    expect(maxLat - minLat).toBeCloseTo(0.0024, 6)
   })
 })
