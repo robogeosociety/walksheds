@@ -115,8 +115,12 @@ describe('routeGraph', () => {
       expect(result.name).toBe('Capitol Hill Station')
     })
 
-    it('ArrowRight from Westlake returns null', () => {
-      expect(getNextStation(graph, 'Westlake Station', 'ArrowRight', '1-line')).toBeNull()
+    // Capitol Hill sits up-and-to-the-right of Westlake (the NE downtown jog),
+    // so the northbound swipe is accepted both as Up and as Right; the
+    // southbound reverse stays Down-only (see the ArrowLeft test above).
+    it('ArrowRight from Westlake also goes to Capitol Hill (NE jog accepts up or right)', () => {
+      const result = getNextStation(graph, 'Westlake Station', 'ArrowRight', '1-line')
+      expect(result.name).toBe('Capitol Hill Station')
     })
 
     it('returns null for invalid direction at terminal', () => {
@@ -200,6 +204,14 @@ describe('routeGraph', () => {
       expect(arms('Capitol Hill Station', '1-line')).toEqual({
         ArrowUp: 'University of Washington Station',
         ArrowDown: 'Westlake Station',
+      })
+    })
+
+    it('Westlake offers Capitol Hill on both Up and Right (the NE jog)', () => {
+      expect(arms('Westlake Station', '1-line')).toEqual({
+        ArrowUp: 'Capitol Hill Station',
+        ArrowRight: 'Capitol Hill Station',
+        ArrowDown: 'Symphony Station',
       })
     })
 
