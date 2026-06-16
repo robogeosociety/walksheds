@@ -4,9 +4,10 @@ import { exitCode } from './stationExits'
 
 // Floating exit markers styled as the green "EXIT" wayfinding signs at Link
 // stations (see the Westlake exit board). One badge per exit of the selected
-// station, rendered as a Mapbox Marker so it sits in the marker pane — above
-// the canvas POI dots, peer to the station pill. A badge is suppressed when it
-// would project on top of a station roundel, so exits never cover a station.
+// station, rendered (only once the rider taps the station roundel) as a Mapbox
+// Marker that pops out over the station pill (z-index 6 > 5). A badge is
+// suppressed when it would project onto *another* station's roundel, so exits
+// never cover a different station.
 
 // Center-to-center pixel gap below which an exit badge is treated as overlapping
 // a station icon (station roundel half + badge half + breathing room).
@@ -36,8 +37,8 @@ export default function StationExitMarkers({ exits, bestExitId, stationsData, se
   const tick = useMapTick(mapRef)
 
   // Collision is tested against *other* stations only. The exits belong to the
-  // selected station, so its own roundel must not hide them — the station pill
-  // already paints over any exit tucked behind it (DOM order).
+  // selected station and intentionally pop out over its own pill, so that
+  // station is excluded from the test.
   const stationPoints = useMemo(
     () => (stationsData?.features || [])
       .filter(f => `${f.properties.lines}-${f.properties.stopCode}` !== selectedStationKey)
@@ -63,7 +64,7 @@ export default function StationExitMarkers({ exits, bestExitId, stationsData, se
   return visible.map(exit => {
     const isBest = exit.id === bestExitId
     return (
-      <Marker key={exit.id} longitude={exit.coordinates[0]} latitude={exit.coordinates[1]} anchor="center" style={{ zIndex: 1 }}>
+      <Marker key={exit.id} longitude={exit.coordinates[0]} latitude={exit.coordinates[1]} anchor="center" style={{ zIndex: 6 }}>
         <div
           className={`station-exit-badge${isBest ? ' best' : ''}`}
           onClick={() => onExitClick?.(exit)}

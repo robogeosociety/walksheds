@@ -32,6 +32,9 @@ const MapView = forwardRef(function MapView({
   bestExitId,
   selectedStationKey,
   exitIndex,
+  exitsRevealed,
+  onToggleExits,
+  onDismissExits,
   onExitClick,
   onUserInteract,
   onGeolocate,
@@ -144,7 +147,28 @@ const MapView = forwardRef(function MapView({
     }
   }, [walksheds, enabledWalksheds, popup, poiPopup])
 
+  // A click on a Marker (station pill, exit badge) bubbles to the map's click
+  // handler too. These markers set this flag so the map handler skips its
+  // empty-click behavior (which would otherwise re-fit the walkshed and dismiss
+  // the exits the pill click just popped out). The pill/badge onClick runs
+  // before the map click, so the flag is set in time.
+  const suppressMapClickRef = useRef(false)
+
+  const handlePillClick = useCallback(() => {
+    suppressMapClickRef.current = true
+    onToggleExits?.()
+  }, [onToggleExits])
+
+  const handleExitBadgeClick = useCallback((exit) => {
+    suppressMapClickRef.current = true
+    onExitClick?.(exit)
+  }, [onExitClick])
+
   const handleMapClick = useCallback((e) => {
+    if (suppressMapClickRef.current) {
+      suppressMapClickRef.current = false
+      return
+    }
     if (isDraggingRef.current) {
       isDraggingRef.current = false
       return
@@ -165,11 +189,14 @@ const MapView = forwardRef(function MapView({
     }
     // Empty-map click: keep the station/walkshed (walkshed stays open until
     // the user picks another station) but dismiss any open POI popup so the
-    // user gets back to station view. Doing this here rather than via the
-    // Popup's closeOnClick avoids a race where a fresh POI click would both
-    // open a new popup AND immediately close it.
+    // user gets back to station view, and hide the exit badges (they pop out
+    // over the pill, so tapping the map is the natural way to put them away).
+    // Doing this here rather than via the Popup's closeOnClick avoids a race
+    // where a fresh POI click would both open a new popup AND immediately close
+    // it.
+    onDismissExits?.()
     onPoiClose?.()
-  }, [onStationClick, onPoiClick, onPoiClose])
+  }, [onStationClick, onPoiClick, onPoiClose, onDismissExits])
 
   const handleMouseEnter = useCallback(() => {
     const map = mapRef.current
@@ -277,13 +304,13 @@ const MapView = forwardRef(function MapView({
         </Source>
       )}
 
-      {mapLoaded && popup && selectedExits?.length > 0 && (
+      {mapLoaded && popup && exitsRevealed && selectedExits?.length > 0 && (
         <StationExitMarkers
           exits={selectedExits}
           bestExitId={bestExitId}
           stationsData={stationsData}
           selectedStationKey={selectedStationKey}
-          onExitClick={onExitClick}
+          onExitClick={handleExitBadgeClick}
         />
       )}
 
@@ -299,6 +326,8 @@ const MapView = forwardRef(function MapView({
           terminusInfo={terminusInfo}
           dpad={dpadHints}
           currentLine={popup.line}
+          onClick={selectedExits?.length ? handlePillClick : undefined}
+          exitsRevealed={exitsRevealed}
         />
       )}
     </Map>

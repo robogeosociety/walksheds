@@ -89,3 +89,24 @@ export function exitCode(exit) {
   if (m) return m[1].toUpperCase()
   return compassLabel(exit?.bearing) || 'EXIT'
 }
+
+// Bounding box of a station's exits, padded by a safety margin, as
+// [[minLng, minLat], [maxLng, maxLat]] ready for map.fitBounds. A minimum
+// half-extent keeps a lone exit (or a tight cluster) from zooming to the max.
+// margin = 1.5 expands the box by 50% around its center. Returns null if empty.
+export function exitBoundsWithMargin(exits, margin = 1.5, minHalf = 0.0008) {
+  if (!Array.isArray(exits) || exits.length === 0) return null
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+  for (const e of exits) {
+    const [lng, lat] = e.coordinates
+    if (lng < minLng) minLng = lng
+    if (lng > maxLng) maxLng = lng
+    if (lat < minLat) minLat = lat
+    if (lat > maxLat) maxLat = lat
+  }
+  const cLng = (minLng + maxLng) / 2
+  const cLat = (minLat + maxLat) / 2
+  const halfLng = Math.max((maxLng - minLng) / 2, minHalf) * margin
+  const halfLat = Math.max((maxLat - minLat) / 2, minHalf) * margin
+  return [[cLng - halfLng, cLat - halfLat], [cLng + halfLng, cLat + halfLat]]
+}
