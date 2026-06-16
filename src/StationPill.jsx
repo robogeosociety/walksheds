@@ -188,7 +188,7 @@ export default function StationPill({ longitude, latitude, lines, stopCode, name
   }, [])
 
   return (
-    <Marker longitude={longitude} latitude={latitude} anchor="center">
+    <Marker longitude={longitude} latitude={latitude} anchor="center" style={{ zIndex: 5 }}>
       <div className="station-pill-anchor">
         <div
           className={`station-pill ${expanded ? 'expanded' : ''}${onOpenDetail ? ' clickable' : ''}`}

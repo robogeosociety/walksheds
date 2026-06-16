@@ -470,14 +470,6 @@ export default function Walksheds() {
     const found = nearestExit(selectedExits, [poiPopup.longitude, poiPopup.latitude])
     return found?.exit.id ?? null
   }, [poiPopup, selectedExits])
-  const stationExitsFC = useMemo(() => ({
-    type: 'FeatureCollection',
-    features: selectedExits.map(e => ({
-      type: 'Feature',
-      properties: { id: e.id, best: e.id === bestExitId ? 1 : 0 },
-      geometry: { type: 'Point', coordinates: e.coordinates },
-    })),
-  }), [selectedExits, bestExitId])
 
   // A station tapped on the map selects it (existing flow) and expands its
   // detail panel. Keyboard/swipe navigation, search, deep links and the locate
@@ -766,8 +758,9 @@ export default function Walksheds() {
         onPopupStationClick={handlePopupStationClick}
         onPopupFocus={handlePopupFocus}
         stationDetailOpen={stationDetailOpen}
-        stationExitsFC={stationExitsFC}
         selectedExits={selectedExits}
+        bestExitId={bestExitId}
+        selectedStationKey={selectedStationKey}
         onToggleStationDetail={toggleStationDetail}
         onStationDetailClose={closeStationDetail}
         onExitClick={handleExitClick}
