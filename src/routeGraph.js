@@ -161,24 +161,34 @@ const AMBIGUOUS_OFF_DEG = 30
  * hitting a surprise sideways step. Genuine bends (Chinatown junction,
  * SODO → Beacon Hill, the Bellevue elbow) have unambiguous chords or
  * disagreeing surroundings and keep their geometric direction.
+ *
+ * A corrected diagonal also keeps its geometric chord as an *alternate*
+ * accepted direction when heading up the line (toward the earlier station,
+ * step < 0): Westlake → Capitol Hill (a NE jog) takes an Up OR a Right
+ * swipe, since Capitol Hill sits up-and-to-the-right. The reverse
+ * (southbound) keeps only its single continuity cardinal, so riding
+ * downtown stays one direction (Capitol Hill → Westlake is Down, not Left).
  */
 function indexSegmentCardinals(stations, order, lineId) {
   const coord = (name) => stations.get(name)?.coords
 
-  const segmentCardinal = (i, j) => {
+  // Returns { cardinal, altCardinal? } for the directed segment i → j.
+  const segmentCardinals = (i, j) => {
     const a = coord(order[i])
     const b = coord(order[j])
     const brg = bearing(a[0], a[1], b[0], b[1])
     const chord = nearestCardinal(brg)
-    if (angleDiff(brg, ARROW_BEARINGS[chord]) <= AMBIGUOUS_OFF_DEG) return chord
+    if (angleDiff(brg, ARROW_BEARINGS[chord]) <= AMBIGUOUS_OFF_DEG) return { cardinal: chord }
     const step = j - i
     const beforeA = coord(order[i - step])
     const afterB = coord(order[j + step])
-    if (!beforeA || !afterB) return chord
+    if (!beforeA || !afterB) return { cardinal: chord }
     const prev = nearestCardinal(bearing(beforeA[0], beforeA[1], a[0], a[1]))
     const next = nearestCardinal(bearing(b[0], b[1], afterB[0], afterB[1]))
-    if (prev === next && prev !== chord) return prev
-    return chord
+    if (prev === next && prev !== chord) {
+      return step < 0 ? { cardinal: prev, altCardinal: chord } : { cardinal: prev }
+    }
+    return { cardinal: chord }
   }
 
   for (let i = 0; i < order.length; i++) {
@@ -187,7 +197,11 @@ function indexSegmentCardinals(stations, order, lineId) {
     for (const j of [i - 1, i + 1]) {
       if (j < 0 || j >= order.length || !stations.get(order[j])) continue
       const neighbor = cur.neighbors.find(n => n.name === order[j] && n.line === lineId)
-      if (neighbor) neighbor.cardinal = segmentCardinal(i, j)
+      if (!neighbor) continue
+      const { cardinal, altCardinal } = segmentCardinals(i, j)
+      neighbor.cardinal = cardinal
+      if (altCardinal) neighbor.altCardinal = altCardinal
+      else delete neighbor.altCardinal
     }
   }
 }
@@ -344,7 +358,9 @@ export function getNextStation(graph, currentStationName, arrowKey, currentLine)
   for (const neighbor of current.neighbors) {
     const cardinal = neighbor.cardinal
       || nearestCardinal(bearing(current.coords[0], current.coords[1], neighbor.coords[0], neighbor.coords[1]))
-    if (cardinal !== arrowKey) continue
+    // A corrected diagonal also answers to its geometric chord (altCardinal),
+    // so e.g. Westlake → Capitol Hill accepts both Up and Right.
+    if (cardinal !== arrowKey && neighbor.altCardinal !== arrowKey) continue
     const lineBonus = (currentLine && neighbor.line === currentLine) ? -0.1 : 0
     if (lineBonus < bestScore) {
       bestScore = lineBonus
