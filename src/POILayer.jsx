@@ -1,33 +1,17 @@
-import { useMemo } from 'react'
-import { Source, Layer, Popup } from 'react-map-gl'
-import { POI_CATEGORIES } from './constants'
+import { Source, Layer, Popup, Marker } from 'react-map-gl'
 import POIPopupCard from './POIPopupCard'
+import CategoryIcon from './poiIcons'
 
-const CATEGORY_KEYS = Object.keys(POI_CATEGORIES)
-
-export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, onStationClick, onPopupFocus, darkMode, units, exitIndex }) {
-  const colorMatch = useMemo(() => [
-    'match', ['get', 'category'],
-    ...CATEGORY_KEYS.flatMap(k => [k, POI_CATEGORIES[k].color]),
-    '#999',
-  ], [])
+export default function POILayer({ poiData, poiPopup, onPoiClick, onPoiClose, onTagClick, onStationClick, onPopupFocus, darkMode, units, exitIndex }) {
   if (!poiData || !poiData.features || poiData.features.length === 0) return null
 
   return (
     <>
+      {/* Name labels stay a Mapbox symbol layer (collision-managed, zoom-gated).
+          The marker itself is now an HTML CategoryIcon roundel — the same icon
+          the popup header renders — so a place reads identically on the map and
+          in its popup (issue: POI marker migration). */}
       <Source id="pois" type="geojson" data={poiData}>
-        <Layer
-          id="poi-circles"
-          type="circle"
-          paint={{
-            'circle-radius': 6,
-            'circle-color': colorMatch,
-            'circle-stroke-width': 1.5,
-            'circle-stroke-color': darkMode ? '#1a1a2a' : '#ffffff',
-            'circle-opacity': 0.9,
-            'circle-emissive-strength': 1.0,
-          }}
-        />
         <Layer
           id="poi-labels"
           type="symbol"
@@ -36,7 +20,7 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, on
             'text-field': ['get', 'name'],
             'text-size': 11,
             'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-            'text-offset': [0, 1.2],
+            'text-offset': [0, 1.7],
             'text-anchor': 'top',
             'text-max-width': 8,
             'text-optional': true,
@@ -49,6 +33,26 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, on
         />
       </Source>
 
+      {poiData.features.map((f) => (
+        <Marker
+          key={f.properties.id ?? `${f.geometry.coordinates[0]},${f.geometry.coordinates[1]}`}
+          longitude={f.geometry.coordinates[0]}
+          latitude={f.geometry.coordinates[1]}
+          anchor="center"
+          onClick={(e) => {
+            // Stop the click from also reaching the map handler (which would
+            // dismiss the popup we're about to open). MapView additionally sets
+            // a suppress flag via the wrapped onPoiClick.
+            e.originalEvent?.stopPropagation()
+            onPoiClick(f)
+          }}
+        >
+          <div className="poi-marker" title={f.properties.name}>
+            <CategoryIcon category={f.properties.category} size={22} />
+          </div>
+        </Marker>
+      ))}
+
       {poiPopup && (
         <Popup
           longitude={poiPopup.longitude}
@@ -58,7 +62,7 @@ export default function POILayer({ poiData, poiPopup, onPoiClose, onTagClick, on
           closeButton={false}
           closeOnClick={false}
           className="poi-popup-container"
-          offset={12}
+          offset={20}
         >
           <POIPopupCard
             key={poiPopup.id ?? poiPopup.name}

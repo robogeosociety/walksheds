@@ -1127,6 +1127,20 @@ body,
   flex-shrink: 0;
 }
 
+/* POI map marker: the same category roundel as the popup header, wrapped in a
+ * white ring + soft shadow so it reads as a placed marker on the basemap. */
+.poi-marker {
+  display: inline-flex;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.poi-marker:hover {
+  transform: scale(1.12);
+}
+
 .poi-popup-title {
   flex: 1;
   min-width: 0;
