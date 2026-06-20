@@ -22,12 +22,12 @@ export const WALKSHED_STYLES = {
 }
 
 export const LINE_COLORS = {
-  '1-line': { color: '#4CAF50', label: '1 Line' },
-  '2-line': { color: '#0082C8', label: '2 Line' },
+  '1-line': { color: '#38B030', label: '1 Line' },
+  '2-line': { color: '#00A0E0', label: '2 Line' },
 }
 
-export const WALKSHED_ACCENT_LIGHT = '#0082C8'
-export const WALKSHED_ACCENT_DARK = '#4CAF50'
+export const WALKSHED_ACCENT_LIGHT = '#00A0E0'
+export const WALKSHED_ACCENT_DARK = '#38B030'
 
 export const POI_CATEGORIES = {
   restaurant:      { color: '#E67E22', group: 'dining', label: 'Restaurant' },
@@ -135,4 +135,7 @@ export const DEFAULT_ENABLED_MAIN_CATEGORIES = []
 // Category tags pinned on by default when no ?pois= filter is provided.
 export const DEFAULT_ENABLED_CATEGORY_TAGS = ['coffee', 'park']
 
-export const POI_INTERACTIVE_LAYERS = ['poi-circles']
+// POI markers are HTML Markers (CategoryIcon roundels) that handle their own
+// clicks, so there are no interactive POI *layers* for map hit-testing. Kept as
+// an (empty) list so the map's interactiveLayerIds wiring stays generic.
+export const POI_INTERACTIVE_LAYERS = []

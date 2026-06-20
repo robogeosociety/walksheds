@@ -1,0 +1,62 @@
+/* ════════════════════════════════════════════════════════════════════════
+   AGENCY THEMES — Walksheds
+   The default :root palette is Sound Transit (Seattle Link). Walksheds is a
+   generic walkshed engine, so the two-line + accent model can be re-skinned
+   to another agency's signature colors by setting data-agency on a wrapper:
+
+       <div class="app" data-agency="wmata"> … </div>
+
+   Each scope overrides ONLY the line colors, the isochrone accent, and the
+   basemap tint — every other token (type, spacing, shadows, neutrals) is
+   shared, so a re-skin stays on-brand for Walksheds while reading as the
+   target agency.
+
+   Colors below are approximate public route/brand colors, included for
+   prototyping. Confirm exact values against the agency's brand guide before
+   any production use.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Sound Transit · Seattle Link (explicit; same as :root default) ────── */
+[data-agency="sound-transit"] {
+  --line-1: #38B030;   /* 1 Line — green */
+  --line-2: #00A0E0;   /* 2 Line — blue  */
+  --walkshed-accent: #00A0E0;
+  --walkshed-accent-dark: #38B030;
+  --map-land: #f2efe9;
+}
+
+/* ── Washington Metro · WMATA ──────────────────────────────────────────── */
+[data-agency="wmata"] {
+  --line-1: #E51937;   /* Red Line   */
+  --line-2: #0077C0;   /* Blue Line  */
+  --walkshed-accent: #E51937;
+  --walkshed-accent-dark: #f06a7c;
+  --map-land: #f0eee9;
+}
+
+/* ── New York City Subway · MTA ────────────────────────────────────────── */
+[data-agency="mta"] {
+  --line-1: #EE352E;   /* 1·2·3 red trunk      */
+  --line-2: #0039A6;   /* A·C·E blue trunk     */
+  --walkshed-accent: #0039A6;
+  --walkshed-accent-dark: #5b8def;
+  --map-land: #f1efe8;
+}
+
+/* ── London Underground · TfL ──────────────────────────────────────────── */
+[data-agency="tube"] {
+  --line-1: #DC241F;   /* Central red          */
+  --line-2: #0019A8;   /* Piccadilly dark blue */
+  --walkshed-accent: #DC241F;
+  --walkshed-accent-dark: #f0635f;
+  --map-land: #f3efe6;
+}
+
+/* ── BART · San Francisco Bay Area ─────────────────────────────────────── */
+[data-agency="bart"] {
+  --line-1: #4DB748;   /* Green / Berryessa     */
+  --line-2: #009BDA;   /* Blue / Dublin         */
+  --walkshed-accent: #009BDA;
+  --walkshed-accent-dark: #4DB748;
+  --map-land: #eef0ec;
+}

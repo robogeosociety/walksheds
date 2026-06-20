@@ -1,0 +1,14 @@
+/* ════════════════════════════════════════════════════════════════════════
+   ds.utilities — small layout helpers (layer: ds.utilities, highest priority)
+   Composition primitives so component JSX stays declarative. Spacing rides the
+   token scale; `--gap` overrides per-instance.
+   ════════════════════════════════════════════════════════════════════════ */
+
+@layer ds.utilities {
+  .ds-stack { display: flex; flex-direction: column; gap: var(--gap, var(--space-3)); }
+  .ds-row   { display: flex; flex-direction: row; align-items: center; gap: var(--gap, var(--space-3)); }
+  .ds-row--wrap { flex-wrap: wrap; }
+  .ds-row--between { justify-content: space-between; }
+  .ds-grow  { flex: 1; min-width: 0; }
+  .ds-tnum  { font-variant-numeric: tabular-nums; }
+}

@@ -1127,6 +1127,20 @@ body,
   flex-shrink: 0;
 }
 
+/* POI map marker: the same category roundel as the popup header, wrapped in a
+ * white ring + soft shadow so it reads as a placed marker on the basemap. */
+.poi-marker {
+  display: inline-flex;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.poi-marker:hover {
+  transform: scale(1.12);
+}
+
 .poi-popup-title {
   flex: 1;
   min-width: 0;
@@ -1274,7 +1288,7 @@ body,
 }
 
 .poi-popup-info-link {
-  color: #0082C8;
+  color: #00A0E0;
   text-decoration: none;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -1285,7 +1299,7 @@ body,
 }
 
 .app.dark .poi-popup-info-link {
-  color: #5bb8f0;
+  color: #4dc4f0;
 }
 
 /* "N more" / "less" toggle for tags and info rows. */
@@ -1587,6 +1601,23 @@ body,
 
 .poi-cat-pill-tag {
   padding-right: 4px;
+}
+
+/* Inline category glyph on a filter pill — the same house glyph as the marker
+ * and popup roundel. Stroke rides currentColor: white on an enabled (solid)
+ * pill, the category color on a disabled (tinted) one. */
+.poi-cat-pill-glyph {
+  width: 13px;
+  height: 13px;
+  margin-left: -2px;
+  flex-shrink: 0;
+}
+.poi-cat-pill-glyph path {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
 }
 
 .poi-cat-pill-text {

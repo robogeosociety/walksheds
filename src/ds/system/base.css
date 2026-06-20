@@ -1,0 +1,65 @@
+/* ════════════════════════════════════════════════════════════════════════
+   ds.base — foundational primitives shared across components (layer: ds.base)
+   The element-hierarchy ROOTS that several components compose from:
+     · .ds-card    the floating white surface (legend, popup share it)
+     · .ds-eyebrow the uppercase section/category label
+     · .ds-halo    the map-label text-shadow ring (transit-cartography idiom)
+   Each exposes a small custom-property "API" so a future edit is one line, and
+   each flips to dusk by reassigning those properties under [data-theme="dark"].
+   ════════════════════════════════════════════════════════════════════════ */
+
+@layer ds.base {
+  /* Type baseline for anything in the ds scope. */
+  :where([class^="ds-"], [class*=" ds-"]) {
+    font-family: var(--font-ui);
+  }
+
+  /* ── Floating card surface ─────────────────────────────────────────── */
+  .ds-card {
+    --_surface: var(--surface-card);
+    --_border: var(--border-hairline);
+    --_shadow: var(--shadow-card);
+
+    background: var(--_surface);
+    border: 1px solid var(--_border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--_shadow);
+
+    &[data-theme="dark"] {
+      --_surface: var(--surface-card-dark);
+      --_border: rgba(255, 255, 255, 0.08);
+      --_shadow: var(--shadow-card-dark);
+    }
+  }
+
+  /* ── Eyebrow / section label ───────────────────────────────────────── */
+  .ds-eyebrow {
+    font-size: var(--text-sm);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-eyebrow);
+    text-transform: uppercase;
+    color: var(--_eyebrow, var(--ink-faint));
+    line-height: var(--leading-tight);
+  }
+
+  /* ── Map-label halo: thick white ring instead of a backdrop ────────── */
+  .ds-halo {
+    --_ink: var(--ink-hint);
+    --_ring: rgba(255, 255, 255, 0.95);
+
+    font-family: var(--font-hand);
+    color: var(--_ink);
+    text-shadow:
+      -2px -2px 0 var(--_ring), 0 -2px 0 var(--_ring), 2px -2px 0 var(--_ring),
+      -2px 0 0 var(--_ring), 2px 0 0 var(--_ring),
+      -2px 2px 0 var(--_ring), 0 2px 0 var(--_ring), 2px 2px 0 var(--_ring),
+      -1px -1px 0 var(--_ring), 1px -1px 0 var(--_ring),
+      -1px 1px 0 var(--_ring), 1px 1px 0 var(--_ring),
+      0 0 8px var(--_ring);
+
+    &[data-theme="dark"] {
+      --_ink: var(--ink-hint-dark);
+      --_ring: rgba(12, 14, 26, 0.9);
+    }
+  }
+}

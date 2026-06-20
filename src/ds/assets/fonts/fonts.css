@@ -1,0 +1,13 @@
+/* ── Webfonts ───────────────────────────────────────────────────────────
+   Walksheds ships exactly one webfont: Architects Daughter, the hand-drawn
+   "ink" used for onboarding hints and the station d-pad overlay. Everything
+   else rides the native system UI stack (see typography.css) — no webfont
+   download for body or roundel text, matching the real app. */
+
+@font-face {
+  font-family: 'Architects Daughter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./ArchitectsDaughter.woff2') format('woff2');
+}
