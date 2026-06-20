@@ -110,7 +110,7 @@ const MapView = forwardRef(function MapView({
   useEffect(() => {
     const map = mapRef.current?.getMap()
     if (!map || !mapLoaded) return
-    for (const id of ['poi-circles', 'poi-labels', 'station-circles']) {
+    for (const id of ['poi-labels', 'station-circles']) {
       if (map.getLayer(id)) map.moveLayer(id)
     }
   }, [walksheds, enabledWalksheds, mapLoaded, iconsReady, darkMode, visiblePois])
@@ -163,6 +163,15 @@ const MapView = forwardRef(function MapView({
     suppressMapClickRef.current = true
     onExitClick?.(exit)
   }, [onExitClick])
+
+  // POI markers are HTML Markers (CategoryIcon roundels), not an interactive
+  // Mapbox layer, so their click is handled here rather than in handleMapClick.
+  // Like the pill/badge markers, a marker click also bubbles to the map, so set
+  // the suppress flag before opening the popup.
+  const handlePoiMarkerClick = useCallback((feature) => {
+    suppressMapClickRef.current = true
+    onPoiClick(feature)
+  }, [onPoiClick])
 
   const handleMapClick = useCallback((e) => {
     if (suppressMapClickRef.current) {
@@ -277,7 +286,7 @@ const MapView = forwardRef(function MapView({
         <POILayer
           poiData={visiblePois}
           poiPopup={poiPopup}
-          onPoiClick={onPoiClick}
+          onPoiClick={handlePoiMarkerClick}
           onPoiClose={onPoiClose}
           onTagClick={onPoiTagClick}
           onStationClick={onPopupStationClick}

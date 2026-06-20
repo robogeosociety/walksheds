@@ -135,4 +135,7 @@ export const DEFAULT_ENABLED_MAIN_CATEGORIES = []
 // Category tags pinned on by default when no ?pois= filter is provided.
 export const DEFAULT_ENABLED_CATEGORY_TAGS = ['coffee', 'park']
 
-export const POI_INTERACTIVE_LAYERS = ['poi-circles']
+// POI markers are HTML Markers (CategoryIcon roundels) that handle their own
+// clicks, so there are no interactive POI *layers* for map hit-testing. Kept as
+// an (empty) list so the map's interactiveLayerIds wiring stays generic.
+export const POI_INTERACTIVE_LAYERS = []
