@@ -22,12 +22,12 @@ export const WALKSHED_STYLES = {
 }
 
 export const LINE_COLORS = {
-  '1-line': { color: '#4CAF50', label: '1 Line' },
-  '2-line': { color: '#0082C8', label: '2 Line' },
+  '1-line': { color: '#38B030', label: '1 Line' },
+  '2-line': { color: '#00A0E0', label: '2 Line' },
 }
 
-export const WALKSHED_ACCENT_LIGHT = '#0082C8'
-export const WALKSHED_ACCENT_DARK = '#4CAF50'
+export const WALKSHED_ACCENT_LIGHT = '#00A0E0'
+export const WALKSHED_ACCENT_DARK = '#38B030'
 
 export const POI_CATEGORIES = {
   restaurant:      { color: '#E67E22', group: 'dining', label: 'Restaurant' },

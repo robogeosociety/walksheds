@@ -1274,7 +1274,7 @@ body,
 }
 
 .poi-popup-info-link {
-  color: #0082C8;
+  color: #00A0E0;
   text-decoration: none;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -1285,7 +1285,7 @@ body,
 }
 
 .app.dark .poi-popup-info-link {
-  color: #5bb8f0;
+  color: #4dc4f0;
 }
 
 /* "N more" / "less" toggle for tags and info rows. */
