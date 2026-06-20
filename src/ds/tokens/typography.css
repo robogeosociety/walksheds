@@ -1,0 +1,34 @@
+/* ════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY — Walksheds
+   Native system UI stack for everything; one hand-drawn display face
+   (Architects Daughter) reserved for map onboarding ink.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Families ───────────────────────────────────────────────────────── */
+  --font-ui:   -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-hand: 'Architects Daughter', 'Comic Sans MS', cursive;   /* hints / d-pad ink */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ── Type scale (px — the app is a dense map UI; sizes stay small) ───── */
+  --text-2xs:   9px;    /* category eyebrow on a popup            */
+  --text-xs:    10px;   /* stop-code chip, counts, "more" toggle  */
+  --text-sm:    11px;   /* tags, filter rows, legend eyebrow      */
+  --text-md:    12px;   /* legend labels, search input            */
+  --text-base:  13px;   /* station-pill name, POI name            */
+  --text-lg:    15px;   /* d-pad arm label (hand)                 */
+  --text-hint:  18px;   /* hand-drawn hint caption                */
+
+  /* ── Weights ────────────────────────────────────────────────────────── */
+  --fw-regular:  400;   /* @kind font */
+  --fw-medium:   500;   /* @kind font */
+  --fw-semibold: 600;   /* @kind font */
+  --fw-bold:     700;   /* @kind font */
+
+  /* ── Letter-spacing ─────────────────────────────────────────────────── */
+  --tracking-eyebrow: 0.04em;   /* uppercase legend titles / category labels */
+
+  /* ── Line-height ────────────────────────────────────────────────────── */
+  --leading-tight: 1.2;
+  --leading-snug:  1.35;
+}

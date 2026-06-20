@@ -1,0 +1,50 @@
+/* ════════════════════════════════════════════════════════════════════════
+   SPACING · RADII · SHADOWS — Walksheds
+   The app is a layer of small floating controls over a map. Spacing is tight
+   (2–16px), radii climb from the stop-code chip to the pill to the card to
+   the fully-round chip, and shadows are soft and shallow.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Spacing scale ──────────────────────────────────────────────────── */
+  --space-0:  2px;
+  --space-1:  3px;
+  --space-2:  4px;
+  --space-3:  6px;
+  --space-4:  8px;
+  --space-5:  10px;
+  --space-6:  12px;
+  --space-7:  16px;
+  --space-8:  18px;
+
+  /* ── Radii ──────────────────────────────────────────────────────────── */
+  --radius-chip:    4px;    /* stop-code chip          */
+  --radius-sm:      6px;    /* icon buttons, tag rows  */
+  --radius-md:      8px;    /* dropdown                */
+  --radius-card:    10px;   /* legend, popup, search   */
+  --radius-pill:    14px;   /* station pill            */
+  --radius-bar:     16px;   /* collapsed legend bar    */
+  --radius-round:   999px;  /* category pills, dots    */
+
+  /* ── Control sizes ──────────────────────────────────────────────────── */
+  --roundel-sm:     14px;   /* badge line circle  */
+  --roundel-md:     18px;   /* pill line circle   */
+  --roundel-lg:     22px;   /* expanded / legend  */
+  --tap-min:        24px;   /* min icon-button hit box */
+
+  /* ── Shadows ────────────────────────────────────────────────────────── */
+  --shadow-pill:      0 1px 4px rgba(0, 0, 0, 0.15);   /* resting station pill   */
+  --shadow-pill-up:   0 2px 12px rgba(0, 0, 0, 0.25);  /* expanded station pill  */
+  --shadow-dropdown:  0 4px 12px rgba(0, 0, 0, 0.12);  /* search dropdown        */
+  --shadow-card:      0 4px 16px rgba(0, 0, 0, 0.18);  /* popup card             */
+  --shadow-card-dark: 0 4px 16px rgba(0, 0, 0, 0.50);
+
+  /* ── Glass blur (search column, POI list) ───────────────────────────── */
+  --blur-glass: blur(8px);   /* @kind other */
+
+  /* ── Motion ─────────────────────────────────────────────────────────── */
+  --ease-ui:        ease;     /* @kind other */
+  --dur-quick:      0.15s;    /* @kind other */
+  --dur-pill:       0.25s;    /* @kind other */
+  --dur-fade:       0.4s;     /* @kind other */
+}

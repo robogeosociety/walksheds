@@ -1,0 +1,30 @@
+/* ════════════════════════════════════════════════════════════════════════
+   SOUND TRANSIT — official brand colors
+   Sampled directly from the official Sound Transit service maps
+   (soundtransit.org/get-to-know-us/maps, June/March 2026 editions) at the
+   user's request, as a design reference.
+
+   These are the AGENCY'S OWN values. The Walksheds app historically ships
+   Material-ish approximations (--line-1 #4CAF50 / --line-2 #0082C8); these
+   --st-* tokens are the real thing, exposed so designs can align exactly to
+   Sound Transit. They do NOT replace --line-1/--line-2 — opt in by name, or
+   set --line-1/--line-2 to these in a wrapper to re-skin the components.
+   © Sound Transit; for design reference.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Corporate navy — map header band, wordmark, Sounder roundels */
+  --st-navy:     #003870;
+  /* Map water tint */
+  --st-water:    #c7e0ef;
+
+  /* Link light rail line colors */
+  --st-1-line:   #38B030;   /* 1 Line  · green   (Lynnwood–Federal Way / Ballard–Tacoma) */
+  --st-2-line:   #00A0E0;   /* 2 Line  · blue    (Lynnwood–Redmond / Mariner–Redmond)     */
+  --st-3-line:   #E02090;   /* 3 Line  · magenta (Everett–West Seattle)                   */
+  --st-4-line:   #A058A0;   /* 4 Line  · purple  (South Kirkland–Issaquah)                */
+  --st-t-line:   #F08800;   /* T Line  · orange  (Tacoma Dome–St Joseph)                  */
+
+  /* Stride bus rapid transit (S1 / S2 / S3) */
+  --st-stride:   #F0A820;   /* golden orange */
+}
