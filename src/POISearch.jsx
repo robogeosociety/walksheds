@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { matchStations } from './stationSearch'
 import { StationPillBody } from './StationPill'
 import { enabledPillText, dimmedPillText } from './pillColors'
+import { categoryGlyphForTag } from './categoryGlyphs'
 
 // Mirror data/pois/fetch_pois.py:_normalize so search queries like "hot dog",
 // "café", or "drive thru" reach the hyphenated canonical tags / alias keys.
@@ -326,6 +327,11 @@ export default function POISearch({
             const count = tagCounts[tag] ?? 0
             const present = count > 0
             const stateClass = present ? 'enabled' : 'disabled'
+            // Same glyph the map marker + popup roundel use, so a category reads
+            // consistently in all three places. currentColor → white on an
+            // enabled (solid) pill, the category color on a disabled (tinted)
+            // one. Null for non-category tags (cuisines, diets) → text-only.
+            const glyph = categoryGlyphForTag(tag)
             return (
               <span
                 key={`tag:${tag}`}
@@ -336,6 +342,11 @@ export default function POISearch({
                   color: present ? enabledPillText(color) : dimmedPillText(color, darkMode),
                 }}
               >
+                {glyph && (
+                  <svg className="poi-cat-pill-glyph" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={glyph} />
+                  </svg>
+                )}
                 {present && (
                   <span
                     className="poi-cat-pill-chevron"
