@@ -1,0 +1,20 @@
+/* ════════════════════════════════════════════════════════════════════════
+   ds.reset — minimal, SCOPED reset (cascade layer: ds.reset, lowest priority)
+   Scoped to the design-system's own elements via :where() so it carries ZERO
+   specificity and never reaches into a consuming app's markup.
+   ════════════════════════════════════════════════════════════════════════ */
+
+@layer ds.reset {
+  :where([class^="ds-"], [class*=" ds-"]),
+  :where([class^="ds-"], [class*=" ds-"])::before,
+  :where([class^="ds-"], [class*=" ds-"])::after {
+    box-sizing: border-box;
+    margin: 0;
+  }
+
+  /* Interactive ds elements inherit type + reset their native chrome. */
+  :where(button.ds-iconbtn, button[class*="ds-"], .ds-search__input) {
+    font: inherit;
+    color: inherit;
+  }
+}

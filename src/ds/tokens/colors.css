@@ -1,0 +1,69 @@
+/* ════════════════════════════════════════════════════════════════════════
+   COLORS — Walksheds (Sound Transit-lineage transit cartography)
+   Base palette + semantic aliases. Agency re-skins live in themes.css and
+   override the line / accent / basemap variables only.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Link line colors (official Sound Transit values — see sound-transit.css) */
+  --line-1:            #38B030;   /* 1 Line — green   */
+  --line-2:            #00A0E0;   /* 2 Line — blue    */
+  --line-3:            #E02090;   /* 3 Line — magenta */
+  --line-4:            #A058A0;   /* 4 Line — purple  */
+  --line-t:            #F08800;   /* T Line — orange  */
+  --line-stride:       #F0A820;   /* Stride BRT       */
+  --line-unknown:      #999999;   /* fallback roundel */
+
+  /* ── Brand navy (header bands, wordmark, Sounder roundels) ──────────── */
+  --brand-navy:        #003870;
+
+  /* ── Walkshed isochrone accent (light theme uses blue, dark uses green) */
+  --walkshed-accent:        #00A0E0;
+  --walkshed-accent-dark:   #38B030;
+
+  /* ── POI category-group colors (legend + dots + roundels) ───────────── */
+  --poi-dining:        #E67E22;   /* fork & knife   */
+  --poi-attractions:   #8E44AD;   /* star           */
+  --poi-parks:         #27AE60;   /* evergreen      */
+  --poi-lodging:       #2980B9;   /* bed            */
+  --poi-shops:         #16A085;   /* shopping bag   */
+  --poi-healthcare:    #E74C3C;   /* medical cross  */
+  --poi-services:      #F1C40F;   /* civic columns  */
+  --poi-fitness:       #E91E63;   /* dumbbell       */
+
+  /* ── Basemap land tint (Mapbox Standard, behind translucent controls) ─ */
+  --map-land:          #f2efe9;   /* day   */
+  --map-land-dark:     #34343f;   /* dusk  */
+  --map-water:         #c7e0ef;   /* Sound Transit map water tint */
+
+  /* ── Ink / text ─────────────────────────────────────────────────────── */
+  --ink-strong:        #222222;   /* POI name              */
+  --ink-body:          #333333;   /* pill + label text     */
+  --ink-muted:         #555555;   /* secondary / info text */
+  --ink-faint:         rgba(0, 0, 0, 0.45);  /* eyebrows, counts */
+  --ink-hint:          #0a2540;   /* hand-drawn hint ink (light) */
+  --ink-hint-dark:     #cfe6ff;   /* hand-drawn hint ink (dark)  */
+
+  /* ── Surfaces ───────────────────────────────────────────────────────── */
+  --surface-app:       #e8e8e8;   /* page behind the map  */
+  --surface-card:      #ffffff;   /* legend / popup card  */
+  --surface-code:      #e8e8e8;   /* stop-code chip       */
+  --surface-card-dark: #1e1e2e;   /* popup card (dark)    */
+  --surface-pill-dark: #2a2a3a;   /* station pill (dark)  */
+  --surface-glass:     rgba(255, 255, 255, 0.92);  /* search / list, blurred */
+  --surface-glass-dark: rgba(20, 20, 30, 0.88);
+
+  /* ── Borders / hairlines ────────────────────────────────────────────── */
+  --border-hairline:   rgba(0, 0, 0, 0.10);   /* card edges       */
+  --border-divider:    rgba(0, 0, 0, 0.08);   /* in-card dividers */
+  --border-pill:       #333333;               /* station-pill stroke */
+
+  /* ── Links / interactive accent ─────────────────────────────────────── */
+  --link:              #0077b8;
+  --link-dark:         #5bb8f0;
+
+  /* ── State washes (hover / press tints over light surfaces) ─────────── */
+  --wash-hover:        rgba(0, 0, 0, 0.06);
+  --wash-press:        rgba(0, 0, 0, 0.12);
+  --wash-hover-dark:   rgba(255, 255, 255, 0.08);
+}

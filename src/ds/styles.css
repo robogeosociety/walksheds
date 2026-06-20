@@ -1,0 +1,28 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Walksheds Design System — global entry point.
+   Consumers link THIS one file. It establishes the cascade-layer order, then
+   imports tokens, foundations, components, and utilities into those layers.
+
+   Cascade order (low → high precedence):
+     ds.reset  <  ds.tokens  <  ds.base  <  ds.components  <  ds.utilities
+   Anything a consumer writes UNLAYERED overrides all of the above, so this
+   system is easy to extend without specificity fights.
+   ════════════════════════════════════════════════════════════════════════ */
+
+@layer ds.reset, ds.tokens, ds.base, ds.components, ds.utilities;
+
+/* Webfonts (unlayered — @font-face is document-global). */
+@import './assets/fonts/fonts.css';
+
+/* Design tokens → ds.tokens */
+@import './tokens/colors.css'        layer(ds.tokens);
+@import './tokens/typography.css'    layer(ds.tokens);
+@import './tokens/spacing.css'       layer(ds.tokens);
+@import './tokens/themes.css'        layer(ds.tokens);
+@import './tokens/sound-transit.css' layer(ds.tokens);
+
+/* Foundations + components + helpers (each file self-declares its @layer). */
+@import './system/reset.css';
+@import './system/base.css';
+@import './system/components.css';
+@import './system/utilities.css';
