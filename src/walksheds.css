@@ -1363,7 +1363,10 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  /* Row-gap kicks in only when the distance wraps to its own line (see
+     .poi-popup-station-dist) — keeps the wrapped distance clear of the pill. */
+  gap: 2px 10px;
+  flex-wrap: wrap;
   padding: 3px 4px;
   border: none;
   background: transparent;
@@ -1392,6 +1395,9 @@ body,
   border-radius: 999px;
   font-size: 11px;
   pointer-events: none;
+  /* The roundel keeps its priority: it never compresses to make room for the
+     distance text — only the (optional) station name truncates. */
+  flex-shrink: 0;
 }
 
 .app.dark .poi-popup-station-row .station-pill.inline {
@@ -1413,12 +1419,17 @@ body,
   font-size: 10px;
 }
 
-/* Left group of a station row: the station pill + its best-exit badge. */
+/* Left group of a station row: the station pill + its best-exit badge. It
+   keeps priority over the distance — the roundel and EXIT badge never shrink
+   (only an optional station name truncates inside the pill); when even the
+   minimal group plus the distance can't fit, the distance wraps below instead
+   of crowding the badge. */
 .poi-popup-station-left {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* Inline best-exit badge — the same green EXIT-sign idiom as the map markers,
@@ -1446,6 +1457,9 @@ body,
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
+  /* Sit flush right; if the row runs out of width the whole distance wraps to
+     its own line (under the pill) rather than squeezing the roundel/EXIT badge. */
+  margin-left: auto;
 }
 
 .app.dark .poi-popup-station-dist {
