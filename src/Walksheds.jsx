@@ -146,6 +146,11 @@ export default function Walksheds() {
   // Exit badges are hidden until the rider taps the selected station's roundel,
   // which pops them out over the station and zooms to their bounds.
   const [exitsRevealed, setExitsRevealed] = useState(false)
+  // When the rider flies to a specific exit (e.g. the suggested exit tapped in a
+  // POI popup), pin that exit's id so its badge keeps the green "best" highlight
+  // after the POI popup closes — otherwise bestExitId, which is derived from the
+  // open POI popup, would go null and the flown-to badge would render unhighlighted.
+  const [targetExitId, setTargetExitId] = useState(null)
   const [expandedPoiTag, setExpandedPoiTag] = useState(null)
   // Z-order toggle: when the user opens a chip's POI list, lift the search/list
   // above any open popup; clicking the popup body or a POI dot puts the popup
@@ -153,6 +158,10 @@ export default function Walksheds() {
   const [listOnTop, setListOnTop] = useState(false)
   const mapViewRef = useRef(null)
   const selectedStationRef = useRef(null)
+  // One-shot [lng, lat]: when a fresh selection should land on a specific exit
+  // (the suggested exit tapped in a POI popup) rather than the whole walkshed,
+  // the walkshed-fit effect flies here once the polygons load, then clears it.
+  const pendingExitFlyRef = useRef(null)
   // False right after a station is selected (map programmatically framed to its
   // walkshed), flipped true once the user zooms in to inspect it. Lets swipes
   // on a fresh station view navigate to the neighbor the hint promises instead
@@ -212,7 +221,7 @@ export default function Walksheds() {
   const compass = useCompassRotation(useCallback(() => mapViewRef.current?.getMap(), []))
   const locateSnapRef = useRef(false)
 
-  const selectStation = useCallback((name, lng, lat, line) => {
+  const selectStation = useCallback((name, lng, lat, line, opts = {}) => {
     // Any navigation that isn't the locate snap ends the orientation
     // session (no-op if rotation isn't active).
     if (!locateSnapRef.current) compass.stop()
@@ -228,8 +237,13 @@ export default function Walksheds() {
     setWalksheds({})
     // Any in-flight POI popup belongs to the previous station — drop it.
     setPoiPopup(null)
-    // A fresh selection hides the exit badges again until the rider taps the pill.
+    // A fresh selection hides the exit badges again until the rider taps the pill,
+    // and drops any pinned exit highlight from a previous fly-to.
     setExitsRevealed(false)
+    setTargetExitId(null)
+    // Any normal selection cancels a queued exit fly-to; the popup-exit path sets
+    // it again (with skipFit) after this runs, so leave it intact in that case.
+    if (!opts.skipFit) pendingExitFlyRef.current = null
 
     // Sync URL
     if (stopCode != null) {
@@ -262,8 +276,10 @@ export default function Walksheds() {
       if (selectedStationRef.current?.name !== name) return
       setWalksheds(results)
 
+      // Skip the walkshed auto-fit when the caller has its own framing in flight
+      // (e.g. a fly-to a specific exit) so we don't yank the camera back.
       const bounds = getLargestEnabledBounds(results, enabledWalksheds)
-      if (bounds) {
+      if (bounds && !opts.skipFit) {
         mapViewRef.current?.fitBounds(bounds, { padding: 60, duration: 600 })
       }
 
@@ -273,9 +289,16 @@ export default function Walksheds() {
     })
   }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories, compass])
 
-  // Re-fit map when walkshed toggles change
+  // Re-fit map when walkshed toggles change. But if a pending exit fly-to is
+  // queued (a POI popup's station row was tapped), land on that exit once the
+  // polygons load instead of framing the whole walkshed — then clear the queue.
   useEffect(() => {
     if (!Object.keys(walksheds).length) return
+    if (pendingExitFlyRef.current) {
+      mapViewRef.current?.getMap()?.flyTo({ center: pendingExitFlyRef.current, zoom: 17, duration: 700 })
+      pendingExitFlyRef.current = null
+      return
+    }
     const bounds = getLargestEnabledBounds(walksheds, enabledWalksheds)
     if (bounds) {
       mapViewRef.current?.fitBounds(bounds, { padding: 60, duration: 600 })
@@ -459,10 +482,13 @@ export default function Walksheds() {
     [exitIndex, selectedStationKey],
   )
   const bestExitId = useMemo(() => {
-    if (!poiPopup || selectedExits.length === 0) return null
-    const found = nearestExit(selectedExits, [poiPopup.longitude, poiPopup.latitude])
-    return found?.exit.id ?? null
-  }, [poiPopup, selectedExits])
+    if (poiPopup && selectedExits.length > 0) {
+      const found = nearestExit(selectedExits, [poiPopup.longitude, poiPopup.latitude])
+      return found?.exit.id ?? null
+    }
+    // No POI popup to derive from — keep highlighting the exit we flew to, if any.
+    return targetExitId
+  }, [poiPopup, selectedExits, targetExitId])
 
   // Click handler for a station row inside a POI popup. When a POI popup is open
   // and the tapped station has a suggested exit for it (the "best exit" the row
@@ -471,25 +497,38 @@ export default function Walksheds() {
   // the station and framing its walkshed.
   const handlePopupStationClick = useCallback((s) => {
     if (!stationsData) return
-    if (poiPopup) {
-      const exits = exitIndex.get(`${s.lines}-${s.stopCode}`)
-      const best = exits?.length ? nearestExit(exits, [poiPopup.longitude, poiPopup.latitude]) : null
-      if (best) {
-        const [lng, lat] = best.exit.coordinates
-        mapViewRef.current?.getMap()?.flyTo({ center: [lng, lat], zoom: 17, duration: 700 })
-        return
-      }
-    }
     const feat = stationsData.features.find(f =>
       f.properties.stopCode === s.stopCode && (f.properties.lines || '').trim() === (s.lines || '').trim()
     )
     if (!feat) return
-    const [lng, lat] = feat.geometry.coordinates
-    selectStation(feat.properties.name, lng, lat, feat.properties.line)
+    const [stationLng, stationLat] = feat.geometry.coordinates
+    if (poiPopup) {
+      const exits = exitIndex.get(`${s.lines}-${s.stopCode}`)
+      const best = exits?.length ? nearestExit(exits, [poiPopup.longitude, poiPopup.latitude]) : null
+      if (best) {
+        // Select the tapped station so its exit badges are wired up and rendered
+        // (the badge layer needs popup + exitsRevealed + that station's exits),
+        // but skip the walkshed auto-fit so our fly-to the exit wins. Pin the
+        // exit so it keeps the green "best" highlight once the POI popup closes,
+        // and queue the fly-to so the walkshed-fit effect lands on the exit (not
+        // the whole walkshed) once the polygons load.
+        pendingExitFlyRef.current = best.exit.coordinates
+        selectStation(feat.properties.name, stationLng, stationLat, feat.properties.line, { skipFit: true })
+        setExitsRevealed(true)
+        setTargetExitId(best.exit.id)
+        mapViewRef.current?.getMap()?.flyTo({ center: best.exit.coordinates, zoom: 17, duration: 700 })
+        return
+      }
+    }
+    selectStation(feat.properties.name, stationLng, stationLat, feat.properties.line)
   }, [stationsData, selectStation, poiPopup, exitIndex])
 
-  // Tapping empty map puts the popped-out exit badges away again.
-  const dismissExits = useCallback(() => setExitsRevealed(false), [])
+  // Tapping empty map puts the popped-out exit badges away again, clearing any
+  // pinned fly-to highlight with them.
+  const dismissExits = useCallback(() => {
+    setExitsRevealed(false)
+    setTargetExitId(null)
+  }, [])
 
   // Tapping an exit badge on the map flies to it so the rider can see exactly
   // where it lets out, without dropping the station selection.
