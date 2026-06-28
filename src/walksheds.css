@@ -1331,6 +1331,87 @@ body,
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* ── "Report a problem" control in POI popup ── */
+
+.poi-popup-report {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.app.dark .poi-popup-report {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Secondary action — muted like the expander, never a primary CTA. */
+.poi-popup-report-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.poi-popup-report-trigger:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.app.dark .poi-popup-report-trigger {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app.dark .poi-popup-report-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.poi-popup-report-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 2px;
+}
+
+.poi-popup-report-reason {
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  color: #555;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.poi-popup-report-reason:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: #222;
+}
+
+.app.dark .poi-popup-report-reason {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.app.dark .poi-popup-report-reason:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
 /* ── Nearest-stations section in POI popup ── */
 
 .poi-popup-stations {

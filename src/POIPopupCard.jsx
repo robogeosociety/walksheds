@@ -3,6 +3,7 @@ import { POI_CATEGORIES } from './constants'
 import { StationPillBody } from './StationPill'
 import { formatWalk } from './formatDistance'
 import { nearestExit, exitCode } from './stationExits'
+import { buildFeedbackIssueUrl, REPORT_REASONS } from './poiFeedback'
 import CategoryIcon from './poiIcons'
 
 // Expandable POI card (issue #19), styled to match the legend: a category
@@ -72,6 +73,16 @@ function buildInfoRows(poi) {
   return rows
 }
 
+// Small flag glyph for the "Report a problem" control — drawn in the same
+// inline-SVG idiom as INFO_ICONS so it reads as house iconography, not an emoji.
+function FlagIcon() {
+  return (
+    <svg className="poi-popup-report-icon" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 21V4 M6 4h11l-2 3.5L17 11H6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  )
+}
+
 // The green "EXIT" badge for the station's best exit to this POI, rendered
 // inline with the roundel so the card tells the rider which door to leave by.
 function ExitBadge({ exit }) {
@@ -86,6 +97,7 @@ function ExitBadge({ exit }) {
 export default function POIPopupCard({ poi, onClose, onTagClick, onStationClick, onPopupFocus, units, exitIndex }) {
   const [tagsExpanded, setTagsExpanded] = useState(false)
   const [infoExpanded, setInfoExpanded] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
 
   // The POI's own coordinates, used to pick each station's closest exit.
   const poiCoord = poi.longitude != null && poi.latitude != null
@@ -101,6 +113,13 @@ export default function POIPopupCard({ poi, onClose, onTagClick, onStationClick,
   const hiddenRowCount = infoRows.length - COLLAPSED_INFO_ROWS
 
   const categoryLabel = POI_CATEGORIES[poi.category]?.label
+
+  // Open a prefilled GitHub issue for the chosen flag reason, then collapse the
+  // picker. The new tab carries the listing's identity for later batch triage.
+  const handleReport = reasonKey => {
+    window.open(buildFeedbackIssueUrl(poi, reasonKey), '_blank', 'noopener,noreferrer')
+    setReportOpen(false)
+  }
 
   return (
     <div className="poi-popup" onMouseDown={onPopupFocus}>
@@ -185,6 +204,30 @@ export default function POIPopupCard({ poi, onClose, onTagClick, onStationClick,
           })}
         </div>
       )}
+
+      <div className="poi-popup-report">
+        <button
+          className="poi-popup-report-trigger"
+          onClick={() => setReportOpen(v => !v)}
+          aria-expanded={reportOpen}
+        >
+          <FlagIcon />
+          Report a problem
+        </button>
+        {reportOpen && (
+          <div className="poi-popup-report-reasons" role="group" aria-label="Report a problem">
+            {REPORT_REASONS.map(r => (
+              <button
+                key={r.key}
+                className="poi-popup-report-reason"
+                onClick={() => handleReport(r.key)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
