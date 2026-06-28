@@ -133,3 +133,33 @@ describe('POIPopupCard stations section', () => {
     expect(document.querySelector('.poi-popup-exit-badge')).toBeNull()
   })
 })
+
+describe('POIPopupCard report control', () => {
+  it('reveals the three flag reasons only after the trigger is clicked', () => {
+    renderCard()
+    expect(screen.queryByText('Closed')).toBeNull()
+    fireEvent.click(screen.getByText('Report a problem'))
+    expect(screen.getByText('Closed')).toBeTruthy()
+    expect(screen.getByText('Duplicate')).toBeTruthy()
+    expect(screen.getByText('Inaccurate')).toBeTruthy()
+  })
+
+  it('opens a prefilled GitHub issue for the chosen reason and collapses the picker', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    renderCard()
+    fireEvent.click(screen.getByText('Report a problem'))
+    fireEvent.click(screen.getByText('Duplicate'))
+
+    expect(open).toHaveBeenCalledTimes(1)
+    const url = open.mock.calls[0][0]
+    expect(url).toContain('github.com/tommyroar/walksheds/issues/new')
+    expect(url).toContain('labels=poi-feedback')
+    const body = new URL(url).searchParams.get('body')
+    expect(body).toContain('Reason: duplicate')
+    expect(body).toContain('POI ID: 42')
+    // Picker collapses again after a reason is chosen.
+    expect(screen.queryByText('Duplicate')).toBeNull()
+
+    open.mockRestore()
+  })
+})
