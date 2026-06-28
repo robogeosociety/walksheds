@@ -114,13 +114,6 @@ export default function POIPopupCard({ poi, onClose, onTagClick, onStationClick,
 
   const categoryLabel = POI_CATEGORIES[poi.category]?.label
 
-  // Open a prefilled GitHub issue for the chosen flag reason, then collapse the
-  // picker. The new tab carries the listing's identity for later batch triage.
-  const handleReport = reasonKey => {
-    window.open(buildFeedbackIssueUrl(poi, reasonKey), '_blank', 'noopener,noreferrer')
-    setReportOpen(false)
-  }
-
   return (
     <div className="poi-popup" onMouseDown={onPopupFocus}>
       <div className="poi-popup-header">
@@ -217,13 +210,21 @@ export default function POIPopupCard({ poi, onClose, onTagClick, onStationClick,
         {reportOpen && (
           <div className="poi-popup-report-reasons" role="group" aria-label="Report a problem">
             {REPORT_REASONS.map(r => (
-              <button
+              // A real anchor (not window.open): inside an iOS home-screen PWA
+              // or in-app browser, a JS popup gets dropped and the current view
+              // navigates away — landing on the repo root and breaking the app
+              // on "back". An anchor opens in the system browser and leaves the
+              // map view intact. (issue: iOS feedback link)
+              <a
                 key={r.key}
                 className="poi-popup-report-reason"
-                onClick={() => handleReport(r.key)}
+                href={buildFeedbackIssueUrl(poi, r.key)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setReportOpen(false)}
               >
                 {r.label}
-              </button>
+              </a>
             ))}
           </div>
         )}

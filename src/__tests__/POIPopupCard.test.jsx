@@ -144,22 +144,27 @@ describe('POIPopupCard report control', () => {
     expect(screen.getByText('Inaccurate')).toBeTruthy()
   })
 
-  it('opens a prefilled GitHub issue for the chosen reason and collapses the picker', () => {
-    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+  it('links each reason to a prefilled GitHub issue via a real anchor', () => {
+    // A plain anchor (not window.open) so iOS opens it in the system browser
+    // instead of breaking the home-screen PWA / in-app webview.
+    renderCard()
+    fireEvent.click(screen.getByText('Report a problem'))
+    const anchor = screen.getByText('Duplicate').closest('a')
+    expect(anchor).toBeTruthy()
+    expect(anchor.getAttribute('target')).toBe('_blank')
+    expect(anchor.getAttribute('rel')).toContain('noopener')
+    const url = new URL(anchor.getAttribute('href'))
+    expect(url.origin + url.pathname).toBe('https://github.com/tommyroar/walksheds/issues/new')
+    expect(url.searchParams.get('labels')).toBe('poi-feedback')
+    const body = url.searchParams.get('body')
+    expect(body).toContain('Reason: duplicate')
+    expect(body).toContain('POI ID: 42')
+  })
+
+  it('collapses the picker after a reason is chosen', () => {
     renderCard()
     fireEvent.click(screen.getByText('Report a problem'))
     fireEvent.click(screen.getByText('Duplicate'))
-
-    expect(open).toHaveBeenCalledTimes(1)
-    const url = open.mock.calls[0][0]
-    expect(url).toContain('github.com/tommyroar/walksheds/issues/new')
-    expect(url).toContain('labels=poi-feedback')
-    const body = new URL(url).searchParams.get('body')
-    expect(body).toContain('Reason: duplicate')
-    expect(body).toContain('POI ID: 42')
-    // Picker collapses again after a reason is chosen.
     expect(screen.queryByText('Duplicate')).toBeNull()
-
-    open.mockRestore()
   })
 })
