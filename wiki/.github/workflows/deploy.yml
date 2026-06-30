@@ -3,8 +3,8 @@ name: Deploy Guide to GitHub Pages
 # This workflow lives under wiki/ in the walksheds repo for review, but it is
 # inert there (GitHub only runs workflows at a repo root). It activates once the
 # contents of wiki/ become the root of the standalone tommyroar/walksheds-wiki
-# repo, which serves wiki.walksheds.xyz. See the dev codex (dev.wiki.walksheds.xyz)
-# deployment page for the full picture.
+# repo, which serves wiki.walksheds.xyz. It builds the reader guide at the root
+# and the dev codex (codex/) as a subpage at /dev/. See the codex deployment page.
 
 on:
   push:
@@ -33,7 +33,10 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      # Build the reader guide to site/, then the dev codex into site/dev/ so it
+      # serves as a subpage (wiki.walksheds.xyz/dev/) of the same site.
       - run: mkdocs build --strict
+      - run: mkdocs build --strict -f codex/mkdocs.yml -d "$GITHUB_WORKSPACE/site/dev"
 
       - uses: actions/upload-pages-artifact@v3
         with:
