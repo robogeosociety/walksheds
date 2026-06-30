@@ -1,0 +1,86 @@
+site_name: Walksheds Guide
+site_url: https://wiki.walksheds.xyz
+site_description: A plain-language guide to walksheds, walkability, and riding Seattle's Link light rail — how to use the walksheds.xyz map, what each station is near, and the story of the system.
+site_author: tommyroar
+repo_url: https://github.com/tommyroar/walksheds
+repo_name: tommyroar/walksheds
+edit_uri: edit/main/wiki/docs/
+copyright: A companion to walksheds.xyz. Transit data from Sound Transit, OpenStreetMap, and Overture Maps.
+
+theme:
+  name: material
+  language: en
+  font:
+    text: Inter
+    code: IBM Plex Mono
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.smartsymbols
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+nav:
+  - Welcome: index.md
+  - What is a walkshed?: walkability.md
+  - Using the app: using-the-app.md
+  - The Seattle Link guide:
+      - Overview: link-guide/index.md
+      - The 1 Line:
+          - Overview: link-guide/line-1.md
+          - Station openings: link-guide/line-1-openings.md
+      - The 2 Line:
+          - Overview: link-guide/line-2.md
+          - Station openings: link-guide/line-2-openings.md
+      - Future lines:
+          - Overview: link-guide/future.md
+          - West Seattle Link: link-guide/future-west-seattle.md
+          - Ballard Link: link-guide/future-ballard.md
+          - Tacoma Dome Link: link-guide/future-tacoma-dome.md
+          - Everett Link: link-guide/future-everett.md
+          - Issaquah–South Kirkland Link: link-guide/future-issaquah.md

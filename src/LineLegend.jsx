@@ -30,6 +30,15 @@ const HELP_ICON = (
   </svg>
 )
 
+// Open-book glyph linking to the reader-facing guide at wiki.walksheds.xyz.
+const WIKI_ICON = (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+    <path d="M8 4.2C8 4.2 6.6 3.2 4.1 3.2C3.2 3.2 2.4 3.4 2.4 3.4V12.6C2.4 12.6 3.2 12.4 4.1 12.4C6.6 12.4 8 13.4 8 13.4M8 4.2C8 4.2 9.4 3.2 11.9 3.2C12.8 3.2 13.6 3.4 13.6 3.4V12.6C13.6 12.6 12.8 12.4 11.9 12.4C9.4 12.4 8 13.4 8 13.4M8 4.2V13.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const WIKI_URL = 'https://wiki.walksheds.xyz'
+
 export default function LineLegend({
   lineColors,
   enabledWalksheds,
@@ -89,6 +98,17 @@ export default function LineLegend({
           <button className="legend-dark-toggle-inline" onClick={onHintsToggle} aria-label="Toggle hints" data-hint-keep="true">
             {HELP_ICON}
           </button>
+          <a
+            className="legend-dark-toggle-inline legend-wiki-link"
+            href={WIKI_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open the Walksheds guide (opens in a new tab)"
+            title="Walksheds guide — wiki.walksheds.xyz"
+            data-hint-keep="true"
+          >
+            {WIKI_ICON}
+          </a>
           <div className="legend-collapsed-divider" />
           <div className="legend-collapsed-walksheds">
             {WALKSHED_ITEMS.map(({ minutes }) => {
@@ -143,6 +163,17 @@ export default function LineLegend({
         <button className="legend-header-btn" onClick={onHintsToggle} aria-label="Toggle hints" data-hint-keep="true">
           {HELP_ICON}
         </button>
+        <a
+          className="legend-header-btn legend-wiki-link"
+          href={WIKI_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open the Walksheds guide (opens in a new tab)"
+          title="Walksheds guide — wiki.walksheds.xyz"
+          data-hint-keep="true"
+        >
+          {WIKI_ICON}
+        </a>
         <h3 className="legend-title">Legend</h3>
         <button className="legend-header-btn" onClick={onToggleCollapse} aria-label="Collapse legend" data-hint-keep="true">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

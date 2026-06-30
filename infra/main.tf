@@ -31,6 +31,31 @@ resource "cloudflare_dns_record" "www" {
   ttl     = 1
 }
 
+# wiki.walksheds.xyz — the reader-facing guide, served from a separate GitHub
+# Pages site (tommyroar/walksheds-wiki, since GitHub Pages allows only one custom
+# domain per repo). Same GH Pages edge + CNAME-flattening + `ssl = full` model
+# as the apex.
+resource "cloudflare_dns_record" "wiki" {
+  zone_id = data.cloudflare_zone.main.id
+  name    = "wiki"
+  content = "${var.github_pages_user}.github.io"
+  type    = "CNAME"
+  proxied = true
+  ttl     = 1
+}
+
+# dev.wiki.walksheds.xyz — the engineering codex, on its own GitHub Pages site
+# (tommyroar/walksheds-dev-wiki). A second-level subdomain; GitHub Pages binds it
+# via the repo's CNAME just like a single-level one.
+resource "cloudflare_dns_record" "dev_wiki" {
+  zone_id = data.cloudflare_zone.main.id
+  name    = "dev.wiki"
+  content = "${var.github_pages_user}.github.io"
+  type    = "CNAME"
+  proxied = true
+  ttl     = 1
+}
+
 # 3. HTTPS settings.
 resource "cloudflare_zone_setting" "ssl" {
   zone_id    = data.cloudflare_zone.main.id
