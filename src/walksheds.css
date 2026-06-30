@@ -102,6 +102,15 @@ body,
   color: rgba(255, 255, 255, 0.6);
 }
 
+/* Codex link rendered as an anchor but styled like a header control. */
+.legend-wiki-link {
+  text-decoration: none;
+}
+
+.legend-wiki-link:visited {
+  color: inherit;
+}
+
 /* ── Collapsed legend bar ── */
 
 .line-legend.collapsed {

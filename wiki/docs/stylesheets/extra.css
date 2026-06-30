@@ -1,0 +1,102 @@
+/* Walksheds Guide — the Sound Transit Link palette.
+   1 Line green #38B030, 2 Line blue #00A0E0. The reader guide leads with blue
+   (2 Line) to set it apart from the green developer codex. */
+
+:root {
+  --st-1-line: #38b030;
+  --st-2-line: #00a0e0;
+
+  --md-primary-fg-color: #00a0e0;
+  --md-primary-fg-color--light: #4cc0ec;
+  --md-primary-fg-color--dark: #0086bd;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: rgba(255, 255, 255, 0.8);
+
+  --md-accent-fg-color: #38b030;
+  --md-accent-fg-color--transparent: rgba(56, 176, 48, 0.1);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #00a0e0;
+  --md-accent-fg-color: #5cc457;
+  --md-typeset-a-color: #4cc0ec;
+}
+
+/* Station roundel — the app's pill vocabulary, reusable in prose. */
+.roundel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.82em;
+  line-height: 1;
+  vertical-align: middle;
+}
+.roundel-1 { background: var(--st-1-line); }
+.roundel-2 { background: var(--st-2-line); }
+
+.line-1 { color: var(--st-1-line); font-weight: 600; }
+.line-2 { color: var(--st-2-line); font-weight: 600; }
+
+/* Stat cards — big number + label, urbanism-guide style. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.8rem;
+  margin: 1.2rem 0;
+}
+.stat {
+  border: 0.5px solid var(--md-default-fg-color--lightest);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  text-align: center;
+}
+.stat .stat-num {
+  display: block;
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--md-primary-fg-color);
+}
+.stat .stat-label {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Timeline — a vertical line of dated milestones (urbanism-guide idiom). */
+.timeline {
+  position: relative;
+  margin: 1.5rem 0 1.5rem 0.4rem;
+  padding-left: 1.4rem;
+  border-left: 2px solid var(--md-default-fg-color--lightest);
+}
+.timeline-entry { position: relative; margin-bottom: 1.4rem; }
+.timeline-entry::before {
+  content: "";
+  position: absolute;
+  left: calc(-1.4rem - 6px);
+  top: 0.35rem;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--md-primary-fg-color);
+  border: 2px solid var(--md-default-bg-color);
+}
+.timeline-year {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--md-primary-fg-color);
+  letter-spacing: 0.02em;
+}
+.timeline-title { font-weight: 600; }
+.timeline-entry p { margin: 0.15rem 0 0; }
+
+/* Station tables read better tightened. */
+.md-typeset table:not([class]) { font-size: 0.78rem; }

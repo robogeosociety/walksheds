@@ -1,0 +1,95 @@
+site_name: Walksheds Codex
+site_url: https://dev.wiki.walksheds.xyz
+site_description: The project codex for Walksheds — the Seattle Link light rail walkshed explorer. Architecture, data pipelines, invariants, design system, and operations.
+site_author: tommyroar
+repo_url: https://github.com/tommyroar/walksheds
+repo_name: tommyroar/walksheds
+edit_uri: edit/main/dev-wiki/docs/
+copyright: Transit data from Sound Transit, SDOT, OpenStreetMap, and Overture Maps.
+
+theme:
+  name: material
+  language: en
+  font:
+    text: Inter
+    code: IBM Plex Mono
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
+    - content.code.copy
+    - content.tabs.link
+    - search.suggest
+    - search.highlight
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.keys
+  - pymdownx.smartsymbols
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Design system: design-system.md
+  - Data pipeline:
+      - Overview: data/overview.md
+      - Transit (SDOT): data/transit.md
+      - POIs (OSM): data/pois.md
+      - Refined POIs + tiles: data/refined-pois.md
+      - Walksheds + distances: data/walksheds.md
+      - Station exits: data/station-exits.md
+  - Core invariants: invariants.md
+  - Commands: commands.md
+  - Deployment + DNS: deployment.md
+  - Station codes: station-codes.md
+  - Contributing: contributing.md
+  - Glossary: glossary.md

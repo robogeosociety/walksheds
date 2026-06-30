@@ -1,0 +1,59 @@
+/* Walksheds codex theme — the Sound Transit Link palette.
+   1 Line green #38B030, 2 Line blue #00A0E0. Restrained transit cartography. */
+
+:root {
+  --st-1-line: #38b030;
+  --st-2-line: #00a0e0;
+
+  --md-primary-fg-color: #38b030;
+  --md-primary-fg-color--light: #5cc457;
+  --md-primary-fg-color--dark: #2a8a24;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: rgba(255, 255, 255, 0.8);
+
+  --md-accent-fg-color: #00a0e0;
+  --md-accent-fg-color--transparent: rgba(0, 160, 224, 0.1);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #38b030;
+  --md-accent-fg-color: #38b030;
+  --md-typeset-a-color: #5cc457;
+}
+
+/* Station roundel — reusable inline pill vocabulary from the app. */
+.roundel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85em;
+  line-height: 1;
+  vertical-align: middle;
+}
+.roundel-1 { background: var(--st-1-line); }
+.roundel-2 { background: var(--st-2-line); }
+
+/* Line-color text accents for prose. */
+.line-1 { color: var(--st-1-line); font-weight: 600; }
+.line-2 { color: var(--st-2-line); font-weight: 600; }
+
+/* Tighten the header to read like a transit diagram, not a doc dump. */
+.md-header__title {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Code blocks: calm, no neon. */
+.md-typeset pre > code {
+  font-size: 0.78rem;
+}
+
+/* Invariant tables read better full width. */
+.md-typeset table:not([class]) {
+  font-size: 0.75rem;
+}
