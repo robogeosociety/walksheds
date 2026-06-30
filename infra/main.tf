@@ -45,14 +45,21 @@ resource "cloudflare_dns_record" "wiki" {
 }
 
 # dev.wiki.walksheds.xyz — the engineering codex, on its own GitHub Pages site
-# (tommyroar/walksheds-dev-wiki). A second-level subdomain; GitHub Pages binds it
-# via the repo's CNAME just like a single-level one.
+# (tommyroar/walksheds-dev-wiki).
+#
+# DNS-only (grey cloud), unlike the proxied apex/www/wiki records. This is a
+# SECOND-level subdomain, and Cloudflare's Universal SSL wildcard (`*.walksheds.xyz`)
+# does NOT cover a second level — a proxied `dev.wiki` has no edge cert and fails the
+# TLS handshake (would need Advanced Certificate Manager / Total TLS). DNS-only takes
+# Cloudflare out of the TLS path so GitHub Pages serves its own per-hostname Let's
+# Encrypt cert, which covers any subdomain depth. (`wiki`, being first-level, is
+# covered by Universal SSL and stays proxied.)
 resource "cloudflare_dns_record" "dev_wiki" {
   zone_id = data.cloudflare_zone.main.id
   name    = "dev.wiki"
   content = "${var.github_pages_user}.github.io"
   type    = "CNAME"
-  proxied = true
+  proxied = false
   ttl     = 1
 }
 
