@@ -34,4 +34,6 @@ This guide explains what that means and why it matters, shows you how to read th
 
 ---
 
-*This is the reader's guide. If you're a developer and want to know how the map is built — the data pipelines, the invariants, the design system — see the engineering codex at [wiki.walksheds.xyz/dev](https://wiki.walksheds.xyz/dev/).*
+*This is the reader's guide. If you're a developer and want to know how the map is built — the data pipelines, the invariants, the design system — the engineering codex lives one directory down:*
+
+<a class="inline-dev" href="https://wiki.walksheds.xyz/dev/">&rsaquo;&nbsp;/dev<span class="cur">_</span></a>
