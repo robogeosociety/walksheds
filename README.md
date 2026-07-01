@@ -7,6 +7,15 @@ Points of interest within walking distance of a Seattle light rail station
 3. Attraction data relies as much as possible on existing open-source and user-provided location data
 4. **Walkshed–station listing invariant (`INV-001`):** every POI that falls inside a station's 15-minute walkshed must list at least one nearby station (a non-empty "Stations within a 15 min walk" section). Walkshed membership ⇒ a non-empty nearby-stations list — no POI is ever shown inside a walkshed with nothing to walk to. Enforced at build time by `verify_walkshed_invariant` in `data/pois/build_refined.py`. See `CLAUDE.md` → "Core Invariants" for the full `INV-NNN` list.
 
+## Documentation
+
+Two companion sites, both published to the `walksheds-wiki` GitHub Pages repo (source in `wiki/`):
+
+- **Reader guide** — <https://wiki.walksheds.xyz/> — a plain-language guide to walksheds, walkability, and riding Seattle Link: how to use the map, what each station is near, and the history of the system. Reachable in-app from the open-book icon in the map legend.
+- **Engineering codex** — <https://wiki.walksheds.xyz/dev/> — the developer manual: architecture, the data pipelines (transit, POIs, walksheds, station exits), every `INV-NNN` invariant, the design system, commands, and deployment. Source in `wiki/codex/`.
+
+`CLAUDE.md` remains the canonical short-form reference for the house rules and the full `INV-NNN` invariant list.
+
 ## POI selection logic
 
 Three independent inputs decide which POIs are visible inside a walkshed:
