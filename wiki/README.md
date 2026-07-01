@@ -2,18 +2,19 @@
 
 Source for the **Walksheds Guide** at [wiki.walksheds.xyz](https://wiki.walksheds.xyz) — a plain-language, reader-facing companion to [Walksheds](https://walksheds.xyz). It explains what a walkshed is, how to use the map, what each Link station is near, and the story of Seattle's light rail system.
 
-The developer-facing engineering manual is a separate site: the codex at [dev.wiki.walksheds.xyz](https://dev.wiki.walksheds.xyz) (source under `dev-wiki/` in the main repo).
+The developer-facing engineering manual — the **codex** — ships as a subpage of this same site at [wiki.walksheds.xyz/dev](https://wiki.walksheds.xyz/dev/) (source under `codex/`). It's a second MkDocs project built into `site/dev/` by this repo's deploy workflow.
 
 Built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). Tone and structure are modeled on the urbanism-guide style — plain language, "why it matters" framing, a timeline, a glossary — but it's a standalone MkDocs site, not a fork of any module.
 
 ## Layout
 
-Authored under `wiki/` in the [`tommyroar/walksheds`](https://github.com/tommyroar/walksheds) repo for review, and published from the standalone `tommyroar/walksheds-wiki` repo. GitHub Pages allows only one custom domain per repo, so the guide needs its own repo to get its own subdomain.
+Authored under `wiki/` in the [`tommyroar/walksheds`](https://github.com/tommyroar/walksheds) repo for review, and published from the standalone `tommyroar/walksheds-wiki` repo. The deploy builds the guide to the site root and the codex to `/dev/`.
 
 ```
-mkdocs.yml                  site config, nav, theme (Link palette, 2 Line blue)
+mkdocs.yml                  guide site config, nav, theme (Link palette, 2 Line blue)
 requirements.txt            mkdocs-material + pymdown-extensions
-.github/workflows/deploy.yml  build + GitHub Pages deploy (root-only; inert under wiki/)
+.github/workflows/deploy.yml  builds guide -> site/ and codex -> site/dev/, then deploys
+codex/                      the dev codex (its own mkdocs.yml + docs/), built into /dev/
 docs/
   index.md                  welcome
   walkability.md            what a walkshed is, why it matters (+ folded-in glossary)

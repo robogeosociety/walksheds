@@ -1,6 +1,6 @@
 # infra/
 
-Terraform module managing Cloudflare DNS + TLS settings for `walksheds.xyz`. The site itself is hosted on GitHub Pages from the repo root; this module wires the apex + `www` + `wiki` + `dev.wiki` records to GitHub's edge via CNAME flattening and forces HTTPS.
+Terraform module managing Cloudflare DNS + TLS settings for `walksheds.xyz`. The site itself is hosted on GitHub Pages from the repo root; this module wires the apex + `www` + `wiki` records to GitHub's edge via CNAME flattening and forces HTTPS. (The dev codex is a subpage at `wiki.walksheds.xyz/dev/`, not a separate subdomain — so there's no `dev.wiki` record.)
 
 ## One-time setup
 
@@ -13,7 +13,7 @@ Terraform module managing Cloudflare DNS + TLS settings for `walksheds.xyz`. The
 ```bash
 cd infra
 terraform init
-terraform plan    # expect 7 records to be added (1 apex CNAME, 1 www CNAME, 1 wiki CNAME, 1 dev.wiki CNAME, 3 zone settings)
+terraform plan    # expect 6 records to be added (1 apex CNAME, 1 www CNAME, 1 wiki CNAME, 3 zone settings)
 terraform apply
 ```
 
@@ -21,8 +21,7 @@ terraform apply
 
 - `CNAME @ → tommyroar.github.io` (proxied — CNAME flattening at the apex).
 - `CNAME www → walksheds.xyz` (proxied).
-- `CNAME wiki → tommyroar.github.io` (proxied) — the reader-facing guide at `wiki.walksheds.xyz`, served from the separate `tommyroar/walksheds-wiki` Pages site.
-- `CNAME dev.wiki → tommyroar.github.io` (proxied) — the engineering codex at `dev.wiki.walksheds.xyz`, served from `tommyroar/walksheds-dev-wiki`.
+- `CNAME wiki → tommyroar.github.io` (proxied) — the docs site at `wiki.walksheds.xyz`, served from the separate `tommyroar/walksheds-wiki` Pages site. The reader guide is at the root and the engineering codex at `wiki.walksheds.xyz/dev/` (a subpage of the same site).
 - Zone settings: `ssl = full`, `always_use_https = on`, `min_tls_version = 1.2`.
 
 Both DNS records are **proxied** (orange cloud). Cloudflare serves user-facing TLS via its Universal SSL cert; the `ssl = full` setting tells Cloudflare to re-encrypt to GitHub Pages' origin, which presents its own Let's Encrypt cert.

@@ -44,17 +44,10 @@ resource "cloudflare_dns_record" "wiki" {
   ttl     = 1
 }
 
-# dev.wiki.walksheds.xyz — the engineering codex, on its own GitHub Pages site
-# (tommyroar/walksheds-dev-wiki). A second-level subdomain; GitHub Pages binds it
-# via the repo's CNAME just like a single-level one.
-resource "cloudflare_dns_record" "dev_wiki" {
-  zone_id = data.cloudflare_zone.main.id
-  name    = "dev.wiki"
-  content = "${var.github_pages_user}.github.io"
-  type    = "CNAME"
-  proxied = true
-  ttl     = 1
-}
+# Note: the engineering codex is NOT a separate subdomain. It ships as a subpage
+# of the guide at wiki.walksheds.xyz/dev/ — a proxied second-level name (dev.wiki)
+# isn't covered by Cloudflare's *.walksheds.xyz Universal SSL, so a subpath under
+# the working `wiki` host is simpler and free. See the codex deployment page.
 
 # 3. HTTPS settings.
 resource "cloudflare_zone_setting" "ssl" {

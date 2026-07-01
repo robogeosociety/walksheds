@@ -40,7 +40,6 @@ DNS for `walksheds.xyz` lives in the `infra/` Terraform module. The Cloudflare p
 | `@` (apex) | CNAME (flattened) | `tommyroar.github.io` | yes |
 | `www` | CNAME | `walksheds.xyz` | yes |
 | `wiki` | CNAME | `tommyroar.github.io` | yes |
-| `dev.wiki` | CNAME | `tommyroar.github.io` | yes |
 
 Plus zone settings: `ssl = full`, `always_use_https = on`, `min_tls_version = 1.2`. Apply changes with:
 
@@ -50,40 +49,43 @@ terraform plan
 terraform apply
 ```
 
-## The two documentation sites
+## The docs site — one Pages site, two MkDocs projects
 
-Walksheds has two companion sites alongside the app, each on its own subdomain. GitHub Pages allows only one custom domain per repository, so each is its own repo — but both are authored as subdirectories of the main `walksheds` repo for review.
+Walksheds has one documentation site alongside the app: the reader **guide** at `wiki.walksheds.xyz`, with this **codex** served as a subpage at `wiki.walksheds.xyz/dev/`. Both are MkDocs Material projects authored in the main `walksheds` repo (`wiki/` and `wiki/codex/`) and published from a single Pages repo, `tommyroar/walksheds-wiki`.
 
-| Site | Subdomain | Audience | Stack | Source dir | Repo |
-| --- | --- | --- | --- | --- | --- |
-| Guide | `wiki.walksheds.xyz` | readers, riders, advocates | MkDocs Material | `wiki/` | `tommyroar/walksheds-wiki` |
-| Codex (this) | `dev.wiki.walksheds.xyz` | engineers, contributors | MkDocs Material | `dev-wiki/` | `tommyroar/walksheds-dev-wiki` |
+| Site | URL | Audience | Source dir |
+| --- | --- | --- | --- |
+| Guide | `wiki.walksheds.xyz` | readers, riders, advocates | `wiki/` |
+| Codex (this) | `wiki.walksheds.xyz/dev/` | engineers, contributors | `wiki/codex/` |
 
 ```mermaid
 flowchart LR
   subgraph mono[walksheds repo]
     W[wiki/ — reader guide]
-    D[dev-wiki/ — this codex]
+    C[wiki/codex/ — this codex]
   end
-  W --> WR[tommyroar/walksheds-wiki] --> WS[wiki.walksheds.xyz]
-  D --> DR[tommyroar/walksheds-dev-wiki] --> DS[dev.wiki.walksheds.xyz]
-  TF[infra: wiki + dev.wiki CNAMEs] --> CF[Cloudflare] --> WS
-  CF --> DS
+  W --> WR[tommyroar/walksheds-wiki]
+  C --> WR
+  WR -->|deploy: guide to /, codex to /dev/| WS[wiki.walksheds.xyz]
+  TF[infra: wiki CNAME] --> CF[Cloudflare] --> WS
 ```
 
-Each site wires up the same way:
+How it wires up:
 
-- **DNS** — the `wiki` and `dev.wiki` CNAME rows above, in `infra/main.tf`, applied with Terraform.
-- **The site** — a root-level `.github/workflows/deploy.yml` (inert while it lives in the main repo, since GitHub only runs root workflows) builds with `mkdocs build --strict` and deploys. The `docs/CNAME` carries the subdomain, which MkDocs copies into the built `site/` root.
+- **One DNS record** — the `wiki` CNAME (proxied, Universal SSL) in `infra/main.tf`, applied with Terraform. (There is no second subdomain: a proxied *second-level* name like `dev.wiki` isn't covered by Cloudflare's `*.walksheds.xyz` Universal SSL, so the codex is a subpath instead.)
+- **One deploy** — `wiki/.github/workflows/deploy.yml` builds the guide with `mkdocs build --strict` to `site/`, then builds the codex with `mkdocs build --strict -f codex/mkdocs.yml -d site/dev`, and deploys the combined `site/`. The guide's `docs/CNAME` carries `wiki.walksheds.xyz`.
 
 !!! note "Operator steps live outside this repo"
-    Creating the two Pages repos, enabling Pages on each, and running `terraform apply` are manual steps that touch GitHub and the Cloudflare token — they can't be done from a code change alone. The runbook is tracked as a human task in the dev vault.
+    Creating the `walksheds-wiki` Pages repo, enabling Pages, and running `terraform apply` are manual steps that touch GitHub and the Cloudflare token. The runbook is tracked as a human task in the dev vault.
 
 ### Editing the docs locally
 
 ```bash
-cd dev-wiki   # or: cd wiki  for the reader guide
-pip install -r requirements.txt   # or: uv pip install -r requirements.txt
+cd wiki          # the reader guide;  cd wiki/codex  for this codex
+pip install -r requirements.txt
 mkdocs serve                      # live preview at http://127.0.0.1:8000
 mkdocs build --strict             # what CI runs; fails on broken links
+
+# preview exactly as deployed (codex under /dev/), from wiki/:
+mkdocs build -d site && mkdocs build -f codex/mkdocs.yml -d "$PWD/site/dev"
 ```
