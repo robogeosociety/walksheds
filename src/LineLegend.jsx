@@ -52,6 +52,9 @@ export default function LineLegend({
   onToggleCollapse,
   onHintsToggle,
   position,
+  showHelp = true,
+  showGuide = true,
+  showDark = true,
 }) {
   const posClass = position === 'bottom-right' ? 'bottom-right' : ''
   const touchStartY = useRef(null)
@@ -80,7 +83,8 @@ export default function LineLegend({
   if (collapsed) {
     return (
       <div className={`line-legend collapsed ${posClass}`} {...swipeProps}>
-        <button className="legend-dark-toggle-inline" onClick={onDarkModeToggle} aria-label="Toggle dark mode">
+        {showDark && (
+          <button className="legend-dark-toggle-inline" onClick={onDarkModeToggle} aria-label="Toggle dark mode">
             {darkMode ? (
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <circle cx="8" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -92,23 +96,28 @@ export default function LineLegend({
               </svg>
             )}
           </button>
+        )}
           {onUnitsToggle && (
             <UnitsToggle units={units} onToggle={onUnitsToggle} className="legend-units-toggle-inline" />
           )}
-          <button className="legend-dark-toggle-inline" onClick={onHintsToggle} aria-label="Toggle hints" data-hint-keep="true">
-            {HELP_ICON}
-          </button>
-          <a
-            className="legend-dark-toggle-inline legend-wiki-link"
-            href={WIKI_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open the Walksheds guide (opens in a new tab)"
-            title="Walksheds guide — wiki.walksheds.xyz"
-            data-hint-keep="true"
-          >
-            {WIKI_ICON}
-          </a>
+          {showHelp && (
+            <button className="legend-dark-toggle-inline" onClick={onHintsToggle} aria-label="Toggle hints" data-hint-keep="true">
+              {HELP_ICON}
+            </button>
+          )}
+          {showGuide && (
+            <a
+              className="legend-dark-toggle-inline legend-wiki-link"
+              href={WIKI_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open the Walksheds guide (opens in a new tab)"
+              title="Walksheds guide — wiki.walksheds.xyz"
+              data-hint-keep="true"
+            >
+              {WIKI_ICON}
+            </a>
+          )}
           <div className="legend-collapsed-divider" />
           <div className="legend-collapsed-walksheds">
             {WALKSHED_ITEMS.map(({ minutes }) => {
@@ -145,35 +154,41 @@ export default function LineLegend({
   return (
     <div className={`line-legend ${posClass}`} {...swipeProps}>
       <div className="legend-header">
-        <button className="legend-header-btn" onClick={onDarkModeToggle} aria-label="Toggle dark mode">
-          {darkMode ? (
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <path d="M14 9.6A6.5 6.5 0 016.4 2 6 6 0 1014 9.6z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
-        </button>
+        {showDark && (
+          <button className="legend-header-btn" onClick={onDarkModeToggle} aria-label="Toggle dark mode">
+            {darkMode ? (
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M14 9.6A6.5 6.5 0 016.4 2 6 6 0 1014 9.6z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </button>
+        )}
         {onUnitsToggle && (
           <UnitsToggle units={units} onToggle={onUnitsToggle} className="legend-header-btn legend-units-toggle" />
         )}
-        <button className="legend-header-btn" onClick={onHintsToggle} aria-label="Toggle hints" data-hint-keep="true">
-          {HELP_ICON}
-        </button>
-        <a
-          className="legend-header-btn legend-wiki-link"
-          href={WIKI_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open the Walksheds guide (opens in a new tab)"
-          title="Walksheds guide — wiki.walksheds.xyz"
-          data-hint-keep="true"
-        >
-          {WIKI_ICON}
-        </a>
+        {showHelp && (
+          <button className="legend-header-btn" onClick={onHintsToggle} aria-label="Toggle hints" data-hint-keep="true">
+            {HELP_ICON}
+          </button>
+        )}
+        {showGuide && (
+          <a
+            className="legend-header-btn legend-wiki-link"
+            href={WIKI_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open the Walksheds guide (opens in a new tab)"
+            title="Walksheds guide — wiki.walksheds.xyz"
+            data-hint-keep="true"
+          >
+            {WIKI_ICON}
+          </a>
+        )}
         <h3 className="legend-title">Legend</h3>
         <button className="legend-header-btn" onClick={onToggleCollapse} aria-label="Collapse legend" data-hint-keep="true">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

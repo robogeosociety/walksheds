@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Embed Walksheds — Seattle Link Light Rail walkshed explorer</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root {
+      --line1: #38B030;
+      --line2: #00A0E0;
+      --ink: #1a1a1a;
+      --muted: #666;
+      --line: #e2e2e2;
+      --bg: #f4f0ef;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.5;
+    }
+    header {
+      border-bottom: 4px solid var(--line2);
+      background: var(--card);
+      padding: 22px 24px;
+    }
+    header h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.01em; }
+    header p { margin: 0; color: var(--muted); font-size: 15px; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 28px 0 12px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    .controls { display: flex; flex-direction: column; gap: 14px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+    label.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+    label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
+    select, input[type="text"] {
+      font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+    }
+    #preview { width: 100%; }
+    pre {
+      background: #0f1220; color: #e6e8f0; border-radius: 12px; padding: 16px; overflow-x: auto;
+      font-size: 13px; line-height: 1.5; margin: 0;
+    }
+    .copy { margin-top: 8px; font: inherit; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; }
+    .copy:hover { background: #f2f2f2; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    code { background: #eef0f4; padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+    .table-scroll { overflow-x: auto; }
+    .pill { display: inline-flex; align-items: center; gap: 3px; background: #fff; border: 1.5px solid #333; border-radius: 12px; padding: 2px 6px 2px 3px; font-size: 12px; font-weight: 600; }
+    .pill .c { width: 15px; height: 15px; border-radius: 50%; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; }
+    .status { font-size: 13px; color: var(--muted); min-height: 18px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Embed Walksheds</h1>
+    <p>Drop the Seattle Link Light Rail walkshed explorer into any page or dashboard.</p>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+      <div>
+        <h2>Live preview</h2>
+        <div id="preview"></div>
+        <p class="status" id="status">Loading…</p>
+      </div>
+      <div>
+        <h2>Configure</h2>
+        <div class="card controls">
+          <label class="field">Station
+            <select id="station">
+              <option value="seattle/1/50">Westlake (1,2 · 50)</option>
+              <option value="seattle/1/49">Capitol Hill (1,2 · 49)</option>
+              <option value="seattle/1/58">Columbia City (1 · 58)</option>
+              <option value="seattle/2/58">Bellevue Downtown (2 · 58)</option>
+              <option value="seattle/1/64">SeaTac/Airport (1 · 64)</option>
+            </select>
+          </label>
+          <div class="row" id="bands">
+            <strong style="font-size:13px">Walksheds:</strong>
+            <label class="chk"><input type="checkbox" value="5" checked> 5 min</label>
+            <label class="chk"><input type="checkbox" value="10" checked> 10 min</label>
+            <label class="chk"><input type="checkbox" value="15" checked> 15 min</label>
+          </div>
+          <label class="field">POI filters (comma-separated tags)
+            <input type="text" id="pois" value="coffee,park" placeholder="coffee,park,bar" />
+          </label>
+          <div class="row" id="chrome">
+            <strong style="font-size:13px">Chrome:</strong>
+            <label class="chk"><input type="checkbox" data-chrome="legend" checked> Legend</label>
+            <label class="chk"><input type="checkbox" data-chrome="search" checked> Search</label>
+            <label class="chk"><input type="checkbox" data-chrome="help"> Help</label>
+            <label class="chk"><input type="checkbox" data-chrome="guide"> Guide link</label>
+            <label class="chk"><input type="checkbox" data-chrome="report"> Report</label>
+            <label class="chk"><input type="checkbox" data-chrome="locate" checked> Locate</label>
+          </div>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="dark"> Dark</label>
+            <label class="field">Units
+              <select id="units">
+                <option value="metric">Metric (km/m)</option>
+                <option value="imperial">Imperial (mi/ft)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Copy-paste snippet</h2>
+    <pre><code id="snippet"></code></pre>
+    <button class="copy" id="copy">Copy snippet</button>
+
+    <h2>URL parameters</h2>
+    <div class="card table-scroll">
+      <table>
+        <thead><tr><th>Param</th><th>Values</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>embed</code></td><td><code>1</code></td><td>Master switch — enables embed mode.</td></tr>
+          <tr><td><code>legend</code>, <code>search</code></td><td><code>0</code>/<code>1</code></td><td>Show the legend / POI search (default on).</td></tr>
+          <tr><td><code>help</code>, <code>guide</code></td><td><code>0</code>/<code>1</code></td><td>Legend help button / wiki link (default off).</td></tr>
+          <tr><td><code>report</code>, <code>locate</code></td><td><code>0</code>/<code>1</code></td><td>POI report link (default off) / map locate control (default on).</td></tr>
+          <tr><td><code>hints</code></td><td><code>0</code>/<code>1</code></td><td>Onboarding overlay (default off in embed).</td></tr>
+          <tr><td><code>darktoggle</code>, <code>unitstoggle</code></td><td><code>0</code>/<code>1</code></td><td>Show the dark / units toggles in the legend (default on).</td></tr>
+          <tr><td><code>dark</code></td><td><code>0</code>/<code>1</code></td><td>Force light / dark. Omit to leave default (light).</td></tr>
+          <tr><td><code>units</code></td><td><code>metric</code>/<code>imperial</code></td><td>Distance units.</td></tr>
+          <tr><td><code>walkshed</code></td><td><code>5</code>/<code>10</code>/<code>15</code> (repeatable)</td><td>Which walkshed bands start enabled.</td></tr>
+          <tr><td><code>pois</code></td><td>e.g. <code>coffee,park</code></td><td>Initial POI filters.</td></tr>
+          <tr><td><code>origin</code></td><td>e.g. <code>https://host.example</code></td><td>Pin the postMessage peer origin (recommended).</td></tr>
+          <tr><td>path</td><td><code>/seattle/{line}/{stopCode}</code></td><td>Initial station, e.g. <code>/seattle/1/50</code> = <span class="pill"><span class="c" style="background:var(--line1)">1</span><span class="c" style="background:var(--line2)">2</span>&nbsp;Westlake</span>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>postMessage protocol</h2>
+    <div class="card table-scroll">
+      <table>
+        <thead><tr><th>Direction</th><th>Message</th><th>Payload</th></tr></thead>
+        <tbody>
+          <tr><td>iframe → host</td><td><code>ready</code></td><td><code>{}</code> — fired once the map has loaded.</td></tr>
+          <tr><td>iframe → host</td><td><code>stationchange</code></td><td><code>{ name, line, stopCode, lines, lng, lat }</code></td></tr>
+          <tr><td>host → iframe</td><td><code>selectStation</code></td><td><code>{ line, stopCode }</code></td></tr>
+          <tr><td>host → iframe</td><td><code>setWalksheds</code></td><td><code>{ minutes: [5,10,15] }</code></td></tr>
+          <tr><td>host → iframe</td><td><code>setFilters</code></td><td><code>{ pois: "coffee,park" }</code></td></tr>
+          <tr><td>host → iframe</td><td><code>setDark</code></td><td><code>{ dark: true }</code></td></tr>
+          <tr><td>host → iframe</td><td><code>setUnits</code></td><td><code>{ units: "imperial" }</code></td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted);margin:12px 4px 0">
+        Outbound messages carry <code>{ source: "walksheds", type, payload }</code>; inbound commands must
+        carry <code>{ source: "walksheds-host", type, payload }</code>. Set <code>origin</code> to pin the peer.
+        The <code>embed.js</code> helper wires all of this for you.
+      </p>
+    </div>
+  </div>
+
+  <script src="/embed.js"></script>
+  <script>
+    var widget = null
+    var statusEl = document.getElementById('status')
+
+    function readOpts() {
+      var chrome = {}
+      document.querySelectorAll('[data-chrome]').forEach(function (c) {
+        chrome[c.getAttribute('data-chrome')] = c.checked
+      })
+      var bands = []
+      document.querySelectorAll('#bands input:checked').forEach(function (b) { bands.push(Number(b.value)) })
+      return {
+        station: document.getElementById('station').value,
+        walkshed: bands,
+        pois: document.getElementById('pois').value.trim(),
+        dark: document.getElementById('dark').checked,
+        units: document.getElementById('units').value,
+        chrome: chrome,
+        origin: location.origin,
+      }
+    }
+
+    function snippetFor(opts) {
+      var pretty = {
+        station: opts.station,
+        walkshed: opts.walkshed,
+        pois: opts.pois,
+        dark: opts.dark,
+        units: opts.units,
+        chrome: opts.chrome,
+        origin: 'location.origin'
+      }
+      var json = JSON.stringify(pretty, null, 2).replace('"location.origin"', 'location.origin')
+      return '<div id="walksheds" style="max-width:720px"></div>\n' +
+        '<script src="https://walksheds.xyz/embed.js"><\/script>\n' +
+        '<script>\n' +
+        '  Walksheds.embed("#walksheds", ' + json.replace(/\n/g, '\n  ') + ');\n' +
+        '<\/script>'
+    }
+
+    function rebuild() {
+      var opts = readOpts()
+      document.getElementById('snippet').textContent = snippetFor(opts)
+      if (widget) widget.destroy()
+      statusEl.textContent = 'Loading…'
+      opts.height = 460
+      opts.onReady = function () { statusEl.textContent = 'Ready.' }
+      opts.onStationChange = function (s) { statusEl.textContent = 'Selected: ' + s.name + ' (' + s.stopCode + ')' }
+      widget = Walksheds.embed('#preview', opts)
+    }
+
+    document.querySelectorAll('select, input').forEach(function (el) {
+      el.addEventListener('change', rebuild)
+    })
+    document.getElementById('pois').addEventListener('input', function () {
+      document.getElementById('snippet').textContent = snippetFor(readOpts())
+    })
+    document.getElementById('copy').addEventListener('click', function () {
+      navigator.clipboard && navigator.clipboard.writeText(document.getElementById('snippet').textContent)
+      this.textContent = 'Copied'
+      var btn = this
+      setTimeout(function () { btn.textContent = 'Copy snippet' }, 1500)
+    })
+
+    rebuild()
+  </script>
+</body>
+</html>

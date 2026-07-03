@@ -15,6 +15,8 @@ import LineLegend from './LineLegend'
 import POISearch from './POISearch'
 import HintOverlay from './HintOverlay'
 import { shouldShowHints, markHintsSeen } from './hintsState'
+import { parseEmbedConfig } from './embedConfig'
+import { useEmbedBridge } from './embedBridge'
 import './walksheds.css'
 
 function computeSystemBounds(stationsData) {
@@ -79,6 +81,11 @@ function computeLegendPosition(map, walksheds, enabledWalksheds) {
 }
 
 export default function Walksheds() {
+  // Embed config, parsed once from the URL. When embedded, the app strips
+  // onboarding/branding chrome, stops writing to the URL + localStorage, and
+  // opens the postMessage bridge (see embedConfig.js / embedBridge.js).
+  const embed = useMemo(() => parseEmbedConfig(), [])
+
   const [popup, setPopup] = useState(null)
   const [walksheds, setWalksheds] = useState({})
   const [enabledWalksheds, setEnabledWalksheds] = useState(() => {
@@ -89,9 +96,15 @@ export default function Walksheds() {
   const [junctionHints, setJunctionHints] = useState([])
   const [terminusInfo, setTerminusInfo] = useState(null)
   const [darkMode, setDarkMode] = useState(() => {
+    // Embed: honor an explicit ?dark override, else default light and ignore
+    // localStorage (the frame shares the real site's storage — don't read stale).
+    if (embed.dark != null) return embed.dark
+    if (embed.embed) return false
     try { return window.localStorage.getItem('walksheds_dark_mode') === '1' } catch { return false }
   })
   const [units, setUnits] = useState(() => {
+    if (embed.units) return embed.units
+    if (embed.embed) return 'metric'
     try {
       const stored = window.localStorage.getItem('walksheds_units')
       return stored === 'imperial' ? 'imperial' : 'metric'
@@ -103,6 +116,9 @@ export default function Walksheds() {
   // Legend collapse: user preference (from localStorage or manual toggle) takes priority.
   // null = no preference, let auto-collapse decide based on overlap.
   const [userLegendPref, setUserLegendPref] = useState(() => {
+    // Embed: ignore the stored collapse preference; start expanded and let the
+    // walkshed-overlap auto-collapse decide.
+    if (embed.embed) return null
     try {
       const stored = window.localStorage.getItem('walksheds_legend_collapsed')
       if (stored !== null) return stored === '1'
@@ -115,18 +131,23 @@ export default function Walksheds() {
   const toggleLegendCollapsed = useCallback(() => {
     setUserLegendPref(prev => {
       const next = prev !== null ? !prev : !autoCollapsed
-      try { window.localStorage.setItem('walksheds_legend_collapsed', next ? '1' : '0') } catch { /* private mode */ }
+      // Don't persist in embed mode (shared origin storage).
+      if (!embed.embed) {
+        try { window.localStorage.setItem('walksheds_legend_collapsed', next ? '1' : '0') } catch { /* private mode */ }
+      }
       return next
     })
-  }, [autoCollapsed])
+  }, [autoCollapsed, embed])
 
   useEffect(() => {
+    if (embed.embed) return
     try { window.localStorage.setItem('walksheds_dark_mode', darkMode ? '1' : '0') } catch { /* private mode */ }
-  }, [darkMode])
+  }, [darkMode, embed])
 
   useEffect(() => {
+    if (embed.embed) return
     try { window.localStorage.setItem('walksheds_units', units) } catch { /* private mode */ }
-  }, [units])
+  }, [units, embed])
 
   const [legendPosition, setLegendPosition] = useState('bottom-left')
   const [hintsVisible, setHintsVisible] = useState(() => shouldShowHints())
@@ -214,6 +235,19 @@ export default function Walksheds() {
     }
   }, [enabledWalksheds, walksheds])
 
+  // Embed-bridge helper: set the enabled walkshed bands wholesale from a list
+  // of minutes (e.g. [5, 10]). Mirrors handleWalkshedToggle's legend reflow.
+  const applyWalksheds = useCallback((minutes) => {
+    const valid = new Set((Array.isArray(minutes) ? minutes : [])
+      .map(Number)
+      .filter(m => WALKSHED_OPTIONS.includes(m)))
+    setEnabledWalksheds(valid)
+    if (Object.keys(walksheds).length) {
+      const map = mapViewRef.current?.getMap()
+      setLegendPosition(computeLegendPosition(map, walksheds, valid))
+    }
+  }, [walksheds])
+
   // Compass orientation session (issue #16). Declared above selectStation
   // because every station navigation except the locate snap itself ends
   // the session — swiping to another station while the map rotates with
@@ -245,8 +279,9 @@ export default function Walksheds() {
     // it again (with skipFit) after this runs, so leave it intact in that case.
     if (!opts.skipFit) pendingExitFlyRef.current = null
 
-    // Sync URL
-    if (stopCode != null) {
+    // Sync URL (skipped in embed mode: the iframe src stays the stable source
+    // of truth set by the host).
+    if (stopCode != null && !embed.embed) {
       const base = import.meta.env.BASE_URL
       const lineNum = line.replace('-line', '')
       const schema = tagCategories?.filter_schema
@@ -287,7 +322,15 @@ export default function Walksheds() {
       setLegendPosition(computeLegendPosition(map, results, enabledWalksheds))
       setAutoCollapsed(legendOverlapsWalkshed(map, results, enabledWalksheds))
     })
-  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories, compass])
+  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories, compass, embed])
+
+  // Embed-bridge helper: select a station by line + stop code (e.g. '1', 50).
+  const selectStationByCode = useCallback((line, stopCode) => {
+    if (!stationsData) return
+    const station = findStationByCode(stationsData, String(line), Number(stopCode))
+    if (!station) return
+    selectStation(station.name, station.lng, station.lat, station.line)
+  }, [stationsData, selectStation])
 
   // Re-fit map when walkshed toggles change. But if a pending exit fly-to is
   // queued (a POI popup's station row was tapped), land on that exit once the
@@ -695,6 +738,7 @@ export default function Walksheds() {
   // codec uses a single tag namespace, so categories and filters are merged
   // here and routed back on parse.
   useEffect(() => {
+    if (embed.embed) return
     if (!selectedStationRef.current) return
     const feat = stationsData?.features.find(f => f.properties.name === selectedStationRef.current.name)
     if (!feat) return
@@ -708,7 +752,48 @@ export default function Walksheds() {
       buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
     )
     window.history.replaceState(null, '', path)
-  }, [enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, stationsData, currentLine, tagCategories])
+  }, [enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, stationsData, currentLine, tagCategories, embed])
+
+  // Apply a parsed `?pois=` result (from parsePoiFilterParam) to the three
+  // filter state sets. Additive per bucket: only non-empty pieces are set, and
+  // a null parse seeds the default category pills — matching the initial
+  // restore below. Also reused by the embed bridge (applyPoiFilterString).
+  const applyPoiFilterState = useCallback((parsed) => {
+    if (parsed) {
+      if (parsed.categories.size) setEnabledSpotlights(parsed.categories)
+      if (parsed.tags.size) {
+        const cats = new Set()
+        const filts = new Set()
+        for (const t of parsed.tags) {
+          (isFilterTag(t) ? filts : cats).add(t)
+        }
+        if (cats.size) setActiveCategories(cats)
+        if (filts.size) setActiveFilters(filts)
+      }
+    } else {
+      setActiveCategories(new Set(DEFAULT_ENABLED_CATEGORY_TAGS))
+    }
+  }, [isFilterTag])
+
+  // Embed-bridge helper: replace the full filter state from a `?pois=`-style
+  // string (e.g. "coffee,park"). Unlike the additive restore, this is an
+  // explicit set so a host command can also clear filters (empty string).
+  const applyPoiFilterString = useCallback((str) => {
+    const schema = tagCategories?.filter_schema
+    const params = new URLSearchParams()
+    params.set('pois', str == null ? '' : String(str))
+    const parsed = parsePoiFilterParam('?' + params.toString(), schema)
+    const cats = new Set()
+    const filts = new Set()
+    let spotlights = new Set(DEFAULT_ENABLED_MAIN_CATEGORIES)
+    if (parsed) {
+      if (parsed.categories.size) spotlights = parsed.categories
+      for (const t of parsed.tags) (isFilterTag(t) ? filts : cats).add(t)
+    }
+    setEnabledSpotlights(spotlights)
+    setActiveCategories(cats)
+    setActiveFilters(filts)
+  }, [tagCategories, isFilterTag])
 
   // Restore POI filter state from `?pois=` once the schema is loaded.
   // Splits the parsed tag set into categories vs filters by the tag's
@@ -720,23 +805,8 @@ export default function Walksheds() {
     if (!tagCategories || poisResolvedRef.current) return
     poisResolvedRef.current = true
     const parsed = parsePoiFilterParam(window.location.search, tagCategories.filter_schema)
-    queueMicrotask(() => {
-      if (parsed) {
-        if (parsed.categories.size) setEnabledSpotlights(parsed.categories)
-        if (parsed.tags.size) {
-          const cats = new Set()
-          const filts = new Set()
-          for (const t of parsed.tags) {
-            (isFilterTag(t) ? filts : cats).add(t)
-          }
-          if (cats.size) setActiveCategories(cats)
-          if (filts.size) setActiveFilters(filts)
-        }
-      } else {
-        setActiveCategories(new Set(DEFAULT_ENABLED_CATEGORY_TAGS))
-      }
-    })
-  }, [tagCategories, isFilterTag])
+    queueMicrotask(() => applyPoiFilterState(parsed))
+  }, [tagCategories, applyPoiFilterState])
 
   useNavigation({
     graphRef,
@@ -798,8 +868,24 @@ export default function Walksheds() {
     })
   }, [])
 
+  // Two-way postMessage bridge for embedded views (no-op unless ?embed).
+  useEmbedBridge({
+    config: embed,
+    ready: !!stationsData,
+    api: { selectStationByCode, applyWalksheds, applyPoiFilterString, setDarkMode, setUnits },
+    popup,
+    currentLine,
+  })
+
   return (
-    <div className={`app ${darkMode ? 'dark' : ''} ${listOnTop ? 'list-on-top' : ''}`}>
+    <div className={[
+      'app',
+      darkMode && 'dark',
+      listOnTop && 'list-on-top',
+      embed.embed && 'embed',
+      !embed.chrome.report && 'embed-hide-report',
+      !embed.chrome.locate && 'embed-hide-locate',
+    ].filter(Boolean).join(' ')}>
       <MapView
         ref={mapViewRef}
         darkMode={darkMode}
@@ -835,7 +921,7 @@ export default function Walksheds() {
         units={units}
       />
 
-      {tagCategories && (
+      {embed.chrome.search && tagCategories && (
         <POISearch
           availableTags={availableTags}
           globalAvailableTags={globalAvailableTags}
@@ -859,20 +945,25 @@ export default function Walksheds() {
         />
       )}
 
-      <LineLegend
-        lineColors={LINE_COLORS}
-        enabledWalksheds={enabledWalksheds}
-        walkshedAccent={WALKSHED_ACCENT_LIGHT}
-        onWalkshedToggle={handleWalkshedToggle}
-        darkMode={darkMode}
-        onDarkModeToggle={() => setDarkMode(d => !d)}
-        units={units}
-        onUnitsToggle={() => setUnits(u => u === 'imperial' ? 'metric' : 'imperial')}
-        collapsed={legendCollapsed}
-        onToggleCollapse={() => toggleLegendCollapsed()}
-        onHintsToggle={handleHintsToggle}
-        position={legendPosition}
-      />
+      {embed.chrome.legend && (
+        <LineLegend
+          lineColors={LINE_COLORS}
+          enabledWalksheds={enabledWalksheds}
+          walkshedAccent={WALKSHED_ACCENT_LIGHT}
+          onWalkshedToggle={handleWalkshedToggle}
+          darkMode={darkMode}
+          onDarkModeToggle={() => setDarkMode(d => !d)}
+          units={units}
+          onUnitsToggle={embed.chrome.unitsToggle ? (() => setUnits(u => u === 'imperial' ? 'metric' : 'imperial')) : null}
+          collapsed={legendCollapsed}
+          onToggleCollapse={() => toggleLegendCollapsed()}
+          onHintsToggle={handleHintsToggle}
+          position={legendPosition}
+          showHelp={embed.chrome.help}
+          showGuide={embed.chrome.guide}
+          showDark={embed.chrome.darkToggle}
+        />
+      )}
 
       {hintsVisible && stationsData && <HintOverlay />}
     </div>

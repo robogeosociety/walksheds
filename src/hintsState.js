@@ -16,6 +16,8 @@ export function shouldShowHints() {
   // ?hints forces hints regardless of storage or deep link
   const params = new URLSearchParams(window.location.search)
   if (params.has('hints')) return true
+  // Embedded views never show onboarding (unless ?hints forced it above).
+  if (params.has('embed')) return false
   const ls = safeStorage()
   if (ls && ls.getItem(STORAGE_KEY)) return false
   // Skip hints for deep-linked visits — shared links shouldn't surface onboarding
