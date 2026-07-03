@@ -48,6 +48,16 @@ describe('shouldShowHints', () => {
     setLocation({ pathname: '/seattle/1/50', search: '?hints' })
     expect(shouldShowHints()).toBe(true)
   })
+
+  it('returns false in embed mode', () => {
+    setLocation({ search: '?embed=1' })
+    expect(shouldShowHints()).toBe(false)
+  })
+
+  it('lets ?hints override embed mode', () => {
+    setLocation({ search: '?embed=1&hints' })
+    expect(shouldShowHints()).toBe(true)
+  })
 })
 
 describe('markHintsSeen', () => {

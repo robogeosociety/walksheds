@@ -27,6 +27,18 @@ body,
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* ── Embed mode (see embedConfig.js) ──
+   Chrome that lives too deep to prop-drill cleanly is hidden by class on the
+   root .app: the POI report link and the Mapbox locate control. Top-level
+   chrome (legend, search, onboarding) is gated in JSX instead. */
+.app.embed-hide-report .poi-popup-report {
+  display: none;
+}
+
+.app.embed-hide-locate .mapboxgl-ctrl-geolocate {
+  display: none;
+}
+
 /* ── Line Legend ── */
 
 .line-legend {

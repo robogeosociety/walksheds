@@ -89,6 +89,7 @@ nav:
       - Station exits: data/station-exits.md
   - Core invariants: invariants.md
   - Commands: commands.md
+  - Embedding: embedding.md
   - Deployment + DNS: deployment.md
   - Station codes: station-codes.md
   - Contributing: contributing.md

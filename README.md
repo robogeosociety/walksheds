@@ -16,6 +16,10 @@ Two companion sites, both published to the `walksheds-wiki` GitHub Pages repo (s
 
 `CLAUDE.md` remains the canonical short-form reference for the house rules and the full `INV-NNN` invariant list.
 
+## Embedding
+
+Walksheds can be dropped into any page or dashboard as an iframe with `?embed=1`, a URL-param config API, and a two-way `postMessage` bridge. See the live demo + snippet generator at <https://walksheds.xyz/embed.html>, the helper at `public/embed.js`, and the full reference in the [codex embedding guide](https://wiki.walksheds.xyz/dev/embedding/).
+
 ## POI selection logic
 
 Three independent inputs decide which POIs are visible inside a walkshed:
