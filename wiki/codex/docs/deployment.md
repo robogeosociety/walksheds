@@ -51,7 +51,7 @@ terraform apply
 
 ## The docs site — one Pages site, two MkDocs projects
 
-Walksheds has one documentation site alongside the app: the reader **guide** at `wiki.walksheds.xyz`, with this **codex** served as a subpage at `wiki.walksheds.xyz/dev/`. Both are MkDocs Material projects authored in the main `walksheds` repo (`wiki/` and `wiki/codex/`) and published from a single Pages repo, `tommyroar/walksheds-wiki`.
+Walksheds has one documentation site alongside the app: the reader **guide** at `wiki.walksheds.xyz`, with this **codex** served as a subpage at `wiki.walksheds.xyz/dev/`. Both are MkDocs Material projects authored in the main `walksheds` repo (`wiki/` and `wiki/codex/`) and published from a single Pages repo, `robogeosociety/walksheds-wiki`.
 
 | Site | URL | Audience | Source dir |
 | --- | --- | --- | --- |
@@ -64,7 +64,7 @@ flowchart LR
     W[wiki/ — reader guide]
     C[wiki/codex/ — this codex]
   end
-  W --> WR[tommyroar/walksheds-wiki]
+  W --> WR[robogeosociety/walksheds-wiki]
   C --> WR
   WR -->|deploy: guide to /, codex to /dev/| WS[wiki.walksheds.xyz]
   TF[infra: wiki CNAME] --> CF[Cloudflare] --> WS

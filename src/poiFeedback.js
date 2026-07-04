@@ -6,7 +6,7 @@
 // DENY_OSM_IDS, rebuild tiles, close the issue). See docs/poi-feedback.md.
 
 // Matches public/CNAME / CLAUDE.md. Kept here so the URL builder is self-contained.
-const REPO = 'tommyroar/walksheds'
+const REPO = 'robogeosociety/walksheds'
 const FEEDBACK_LABEL = 'poi-feedback'
 
 // The three flag reasons surfaced as chips in the popup.

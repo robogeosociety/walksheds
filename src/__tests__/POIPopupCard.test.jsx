@@ -154,7 +154,7 @@ describe('POIPopupCard report control', () => {
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toContain('noopener')
     const url = new URL(anchor.getAttribute('href'))
-    expect(url.origin + url.pathname).toBe('https://github.com/tommyroar/walksheds/issues/new')
+    expect(url.origin + url.pathname).toBe('https://github.com/robogeosociety/walksheds/issues/new')
     expect(url.searchParams.get('labels')).toBe('poi-feedback')
     const body = url.searchParams.get('body')
     expect(body).toContain('Reason: duplicate')

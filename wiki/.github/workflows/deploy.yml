@@ -2,7 +2,7 @@ name: Deploy Guide to GitHub Pages
 
 # This workflow lives under wiki/ in the walksheds repo for review, but it is
 # inert there (GitHub only runs workflows at a repo root). It activates once the
-# contents of wiki/ become the root of the standalone tommyroar/walksheds-wiki
+# contents of wiki/ become the root of the standalone robogeosociety/walksheds-wiki
 # repo, which serves wiki.walksheds.xyz. It builds the reader guide at the root
 # and the dev codex (codex/) as a subpage at /dev/. See the codex deployment page.
 

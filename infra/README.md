@@ -21,7 +21,7 @@ terraform apply
 
 - `CNAME @ → tommyroar.github.io` (proxied — CNAME flattening at the apex).
 - `CNAME www → walksheds.xyz` (proxied).
-- `CNAME wiki → tommyroar.github.io` (proxied) — the docs site at `wiki.walksheds.xyz`, served from the separate `tommyroar/walksheds-wiki` Pages site. The reader guide is at the root and the engineering codex at `wiki.walksheds.xyz/dev/` (a subpage of the same site).
+- `CNAME wiki → tommyroar.github.io` (proxied) — the docs site at `wiki.walksheds.xyz`, served from the separate `robogeosociety/walksheds-wiki` Pages site. The reader guide is at the root and the engineering codex at `wiki.walksheds.xyz/dev/` (a subpage of the same site).
 - Zone settings: `ssl = full`, `always_use_https = on`, `min_tls_version = 1.2`.
 
 Both DNS records are **proxied** (orange cloud). Cloudflare serves user-facing TLS via its Universal SSL cert; the `ssl = full` setting tells Cloudflare to re-encrypt to GitHub Pages' origin, which presents its own Let's Encrypt cert.

@@ -21,7 +21,7 @@ function bodyOf(url) {
 describe('buildFeedbackIssueUrl', () => {
   it('targets the walksheds repo new-issue endpoint with the poi-feedback label', () => {
     const url = new URL(buildFeedbackIssueUrl(POI, 'closed'))
-    expect(url.origin + url.pathname).toBe('https://github.com/tommyroar/walksheds/issues/new')
+    expect(url.origin + url.pathname).toBe('https://github.com/robogeosociety/walksheds/issues/new')
     expect(url.searchParams.get('labels')).toBe('poi-feedback')
   })
 

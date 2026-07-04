@@ -8,7 +8,7 @@ Built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). Tone
 
 ## Layout
 
-Authored under `wiki/` in the [`tommyroar/walksheds`](https://github.com/tommyroar/walksheds) repo for review, and published from the standalone `tommyroar/walksheds-wiki` repo. The deploy builds the guide to the site root and the codex to `/dev/`.
+Authored under `wiki/` in the [`robogeosociety/walksheds`](https://github.com/robogeosociety/walksheds) repo for review, and published from the standalone `robogeosociety/walksheds-wiki` repo. The deploy builds the guide to the site root and the codex to `/dev/`.
 
 ```
 mkdocs.yml                  guide site config, nav, theme (Link palette, 2 Line blue)
