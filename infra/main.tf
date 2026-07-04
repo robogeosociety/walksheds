@@ -32,7 +32,7 @@ resource "cloudflare_dns_record" "www" {
 }
 
 # wiki.walksheds.xyz — the reader-facing guide, served from a separate GitHub
-# Pages site (tommyroar/walksheds-wiki, since GitHub Pages allows only one custom
+# Pages site (robogeosociety/walksheds-wiki, since GitHub Pages allows only one custom
 # domain per repo). Same GH Pages edge + CNAME-flattening + `ssl = full` model
 # as the apex.
 resource "cloudflare_dns_record" "wiki" {

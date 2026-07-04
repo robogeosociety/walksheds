@@ -2,8 +2,8 @@ site_name: Walksheds Guide
 site_url: https://wiki.walksheds.xyz
 site_description: A plain-language guide to walksheds, walkability, and riding Seattle's Link light rail — how to use the walksheds.xyz map, what each station is near, and the story of the system.
 site_author: tommyroar
-repo_url: https://github.com/tommyroar/walksheds
-repo_name: tommyroar/walksheds
+repo_url: https://github.com/robogeosociety/walksheds
+repo_name: robogeosociety/walksheds
 edit_uri: edit/main/wiki/docs/
 copyright: A companion to walksheds.xyz. Transit data from Sound Transit, OpenStreetMap, and Overture Maps.
 

@@ -44,4 +44,4 @@ See [Commands](commands.md) for the full list.
 
 ## Pull requests
 
-PR descriptions follow the **newspaper / information-pyramid** format — one self-contained front page that reads top to bottom: kicker, headline, dek, masthead, why, what, a mermaid flow, screens, verification, risk. Rebuild from the full diff rather than appending. CI validates the body via the `pr-newspaper` workflow. The full rules live in [`PR_FRAMEWORK.md`](https://github.com/tommyroar/.github/blob/main/PR_FRAMEWORK.md).
+PR descriptions follow the **newspaper / information-pyramid** format — one self-contained front page that reads top to bottom: kicker, headline, dek, masthead, why, what, a mermaid flow, screens, verification, risk. Rebuild from the full diff rather than appending. CI validates the body via the `pr-newspaper` workflow. The full rules live in [`PR_FRAMEWORK.md`](https://github.com/robogeosociety/.github/blob/main/PR_FRAMEWORK.md).

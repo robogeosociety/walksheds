@@ -2,8 +2,8 @@ site_name: Walksheds Codex
 site_url: https://wiki.walksheds.xyz/dev/
 site_description: The project codex for Walksheds — the Seattle Link light rail walkshed explorer. Architecture, data pipelines, invariants, design system, and operations.
 site_author: tommyroar
-repo_url: https://github.com/tommyroar/walksheds
-repo_name: tommyroar/walksheds
+repo_url: https://github.com/robogeosociety/walksheds
+repo_name: robogeosociety/walksheds
 edit_uri: edit/main/wiki/codex/docs/
 copyright: Transit data from Sound Transit, SDOT, OpenStreetMap, and Overture Maps.
 
