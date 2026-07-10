@@ -1,4 +1,5 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState } from 'react'
+import { buildSiteFeedbackIssueUrl, SITE_FEEDBACK_REASONS } from './siteFeedback'
 
 const WALKSHED_ITEMS = [
   { minutes: 5, label: '5 min walk' },
@@ -39,6 +40,26 @@ const WIKI_ICON = (
 
 const WIKI_URL = 'https://wiki.walksheds.xyz'
 
+// Speech-bubble glyph for the "Send feedback" control — drawn in the same
+// inline-SVG idiom as HELP_ICON / WIKI_ICON so it reads as house iconography,
+// not an emoji (INV-018).
+const FEEDBACK_ICON = (
+  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M2.5 3.5h11v7h-6l-3 2.5V10.5h-2z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+// Current page context, captured for the feedback issue body. Guarded so the
+// component still renders under jsdom/SSR (window/navigator may be partial).
+function feedbackContext() {
+  if (typeof window === 'undefined') return {}
+  return {
+    url: window.location?.href ?? '',
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+  }
+}
+
 export default function LineLegend({
   lineColors,
   enabledWalksheds,
@@ -55,9 +76,11 @@ export default function LineLegend({
   showHelp = true,
   showGuide = true,
   showDark = true,
+  showFeedback = true,
 }) {
   const posClass = position === 'bottom-right' ? 'bottom-right' : ''
   const touchStartY = useRef(null)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const handleTouchStart = useCallback((e) => {
     touchStartY.current = e.touches[0].clientY
@@ -241,6 +264,38 @@ export default function LineLegend({
           )
         })}
       </div>
+
+      {showFeedback && (
+        <>
+          <div className="legend-divider" />
+          <div className="legend-feedback">
+            <button
+              className="legend-feedback-trigger"
+              onClick={() => setFeedbackOpen(v => !v)}
+              aria-expanded={feedbackOpen}
+            >
+              {FEEDBACK_ICON}
+              Send feedback
+            </button>
+            {feedbackOpen && (
+              <div className="legend-feedback-reasons" role="group" aria-label="Send feedback">
+                {SITE_FEEDBACK_REASONS.map(r => (
+                  <a
+                    key={r.key}
+                    className="legend-feedback-reason"
+                    href={buildSiteFeedbackIssueUrl(r.key, feedbackContext())}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setFeedbackOpen(false)}
+                  >
+                    {r.label}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
     </div>
   )

@@ -1436,6 +1436,83 @@ body,
   color: #fff;
 }
 
+/* ── "Send feedback" control in the legend ── */
+
+.legend-feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Secondary action — muted like the other legend chrome, never a primary CTA. */
+.legend-feedback-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.legend-feedback-trigger:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.app.dark .legend-feedback-trigger {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app.dark .legend-feedback-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.legend-feedback-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 2px;
+}
+
+.legend-feedback-reason {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  color: #555;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.legend-feedback-reason:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: #222;
+}
+
+.app.dark .legend-feedback-reason {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.app.dark .legend-feedback-reason:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
 /* ── Nearest-stations section in POI popup ── */
 
 .poi-popup-stations {

@@ -25,6 +25,7 @@ describe('parseEmbedConfig', () => {
     expect(chrome.help).toBe(false)
     expect(chrome.guide).toBe(false)
     expect(chrome.report).toBe(false)
+    expect(chrome.feedback).toBe(false)
     expect(chrome.legend).toBe(true)
     expect(chrome.search).toBe(true)
     expect(chrome.locate).toBe(true)
@@ -33,11 +34,12 @@ describe('parseEmbedConfig', () => {
   })
 
   it('honors per-flag chrome overrides', () => {
-    const { chrome } = parseEmbedConfig('?embed=1&legend=0&search=0&help=1&locate=0')
+    const { chrome } = parseEmbedConfig('?embed=1&legend=0&search=0&help=1&locate=0&feedback=1')
     expect(chrome.legend).toBe(false)
     expect(chrome.search).toBe(false)
     expect(chrome.help).toBe(true)
     expect(chrome.locate).toBe(false)
+    expect(chrome.feedback).toBe(true)
   })
 
   it('parses dark and units value overrides', () => {
