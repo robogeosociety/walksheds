@@ -40,12 +40,12 @@ const WIKI_ICON = (
 
 const WIKI_URL = 'https://wiki.walksheds.xyz'
 
-// Speech-bubble glyph for the "Send feedback" control — drawn in the same
-// inline-SVG idiom as HELP_ICON / WIKI_ICON so it reads as house iconography,
-// not an emoji (INV-018).
+// Speech-bubble glyph for the feedback control — drawn in the same inline-SVG
+// idiom as HELP_ICON / WIKI_ICON so it reads as house iconography, not an emoji
+// (INV-018).
 const FEEDBACK_ICON = (
-  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <path d="M2.5 3.5h11v7h-6l-3 2.5V10.5h-2z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+    <path d="M2.5 3.5h11v7h-6l-3 2.5V10.5h-2z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 )
 
@@ -58,6 +58,44 @@ function feedbackContext() {
     viewport: `${window.innerWidth}x${window.innerHeight}`,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
   }
+}
+
+// A single feedback button that sits inline with the other legend toggles
+// (dark / units / help / guide). Clicking it expands the reason categories as a
+// small popover — a deliberate extra step before a report is filed. `className`
+// styles the button for its context (header vs collapsed bar).
+function FeedbackControl({ className }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="legend-feedback">
+      <button
+        className={className}
+        onClick={() => setOpen(v => !v)}
+        aria-label="Send feedback"
+        aria-expanded={open}
+        title="Send feedback"
+        data-hint-keep="true"
+      >
+        {FEEDBACK_ICON}
+      </button>
+      {open && (
+        <div className="legend-feedback-reasons" role="group" aria-label="Send feedback">
+          {SITE_FEEDBACK_REASONS.map(r => (
+            <a
+              key={r.key}
+              className="legend-feedback-reason"
+              href={buildSiteFeedbackIssueUrl(r.key, feedbackContext())}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+            >
+              {r.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function LineLegend({
@@ -80,7 +118,6 @@ export default function LineLegend({
 }) {
   const posClass = position === 'bottom-right' ? 'bottom-right' : ''
   const touchStartY = useRef(null)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const handleTouchStart = useCallback((e) => {
     touchStartY.current = e.touches[0].clientY
@@ -141,6 +178,7 @@ export default function LineLegend({
               {WIKI_ICON}
             </a>
           )}
+          {showFeedback && <FeedbackControl className="legend-dark-toggle-inline" />}
           <div className="legend-collapsed-divider" />
           <div className="legend-collapsed-walksheds">
             {WALKSHED_ITEMS.map(({ minutes }) => {
@@ -212,6 +250,7 @@ export default function LineLegend({
             {WIKI_ICON}
           </a>
         )}
+        {showFeedback && <FeedbackControl className="legend-header-btn" />}
         <h3 className="legend-title">Legend</h3>
         <button className="legend-header-btn" onClick={onToggleCollapse} aria-label="Collapse legend" data-hint-keep="true">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -264,38 +303,6 @@ export default function LineLegend({
           )
         })}
       </div>
-
-      {showFeedback && (
-        <>
-          <div className="legend-divider" />
-          <div className="legend-feedback">
-            <button
-              className="legend-feedback-trigger"
-              onClick={() => setFeedbackOpen(v => !v)}
-              aria-expanded={feedbackOpen}
-            >
-              {FEEDBACK_ICON}
-              Send feedback
-            </button>
-            {feedbackOpen && (
-              <div className="legend-feedback-reasons" role="group" aria-label="Send feedback">
-                {SITE_FEEDBACK_REASONS.map(r => (
-                  <a
-                    key={r.key}
-                    className="legend-feedback-reason"
-                    href={buildSiteFeedbackIssueUrl(r.key, feedbackContext())}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setFeedbackOpen(false)}
-                  >
-                    {r.label}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
 
     </div>
   )

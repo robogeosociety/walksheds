@@ -1436,51 +1436,33 @@ body,
   color: #fff;
 }
 
-/* ── "Send feedback" control in the legend ── */
+/* ── Feedback control in the legend ── */
 
+/* Wraps the inline icon button so the reason popover can anchor to it. */
 .legend-feedback {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-/* Secondary action — muted like the other legend chrome, never a primary CTA. */
-.legend-feedback-trigger {
+  position: relative;
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: none;
-  background: transparent;
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.45);
-  cursor: pointer;
-  border-radius: 6px;
-  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.legend-feedback-trigger:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.7);
-}
-
-.app.dark .legend-feedback-trigger {
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.app.dark .legend-feedback-trigger:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
-}
-
+/* The reason categories expand as a small popover anchored under the button —
+   a deliberate extra step (the icon is inline with the other legend toggles). */
 .legend-feedback-reasons {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding-left: 2px;
+  padding: 6px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+}
+
+.app.dark .legend-feedback-reasons {
+  background: #2a2d31;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
 .legend-feedback-reason {

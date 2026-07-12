@@ -1,13 +1,17 @@
 # Site feedback queue
 
-The legend carries a **Send feedback** control (`src/LineLegend.jsx`,
+The legend carries a **feedback** control (`src/LineLegend.jsx`,
 `src/siteFeedback.js`) for general feedback about the site itself — a UI bug, a
 suggestion, or anything not tied to a specific POI (for those, see
-[POI feedback](./poi-feedback.md)). Because the site is a static GitHub Pages
-SPA with no backend, a report can't be POSTed anywhere — instead the control
-opens a **prefilled GitHub issue** in a new tab, labeled `site-feedback`, with
-the reason and the current page context baked into the body. The label is the
-queue: reports accumulate as open issues for an agent to triage.
+[POI feedback](./poi-feedback.md)). It's a single speech-bubble icon button
+inline with the other legend toggles (dark / units / help / guide); clicking it
+expands the reason categories (`bug` / `idea` / `other`) as a small popover — a
+deliberate extra step before a report is filed. Because the site is a static
+GitHub Pages SPA with no backend, a report can't be POSTed anywhere — instead
+each category opens a **prefilled GitHub issue** in a new tab, labeled
+`site-feedback`, with the reason and the current page context baked into the
+body. The label is the queue: reports accumulate as open issues for an agent to
+triage.
 
 Manually filed reports use the same shape via the issue form at
 `.github/ISSUE_TEMPLATE/site-feedback.yml`.

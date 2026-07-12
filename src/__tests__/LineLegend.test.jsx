@@ -28,22 +28,24 @@ function renderLegend(overrides = {}) {
 }
 
 describe('LineLegend feedback control', () => {
-  it('reveals the three feedback reasons only after the trigger is clicked', () => {
+  it('sits inline as an icon button and expands the categories only on click', () => {
     renderLegend()
-    expect(screen.queryByText('Bug')).toBeNull()
-    fireEvent.click(screen.getByText('Send feedback'))
-    expect(screen.getByText('Bug')).toBeTruthy()
-    expect(screen.getByText('Idea')).toBeTruthy()
-    expect(screen.getByText('Other')).toBeTruthy()
+    const btn = screen.getByRole('button', { name: 'Send feedback' })
+    expect(btn).toBeTruthy()
+    // Categories are hidden until the icon is clicked (the extra-friction step).
+    expect(screen.queryByRole('link', { name: 'Bug', exact: true })).toBeNull()
+    fireEvent.click(btn)
+    expect(screen.getByRole('link', { name: 'Bug', exact: true })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Idea', exact: true })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Other', exact: true })).toBeTruthy()
   })
 
-  it('links each reason to a prefilled GitHub issue via a real anchor', () => {
+  it('links each category to a prefilled GitHub issue via a real anchor', () => {
     // A plain anchor (not window.open) so iOS opens it in the system browser
     // instead of breaking the home-screen PWA / in-app webview.
     renderLegend()
-    fireEvent.click(screen.getByText('Send feedback'))
-    const anchor = screen.getByText('Idea').closest('a')
-    expect(anchor).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }))
+    const anchor = screen.getByRole('link', { name: 'Idea', exact: true })
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toContain('noopener')
     const url = new URL(anchor.getAttribute('href'))
@@ -52,20 +54,23 @@ describe('LineLegend feedback control', () => {
     expect(url.searchParams.get('body')).toContain('Reason: idea')
   })
 
-  it('collapses the picker after a reason is chosen', () => {
+  it('collapses the categories after one is chosen', () => {
     renderLegend()
-    fireEvent.click(screen.getByText('Send feedback'))
-    fireEvent.click(screen.getByText('Idea'))
-    expect(screen.queryByText('Idea')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Idea', exact: true }))
+    expect(screen.queryByRole('link', { name: 'Idea', exact: true })).toBeNull()
   })
 
-  it('hides the control when showFeedback is false', () => {
+  it('hides the control entirely when showFeedback is false', () => {
     renderLegend({ showFeedback: false })
-    expect(screen.queryByText('Send feedback')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send feedback' })).toBeNull()
   })
 
-  it('does not render the control in the collapsed legend', () => {
+  it('also renders the control in the collapsed legend bar', () => {
     renderLegend({ collapsed: true })
-    expect(screen.queryByText('Send feedback')).toBeNull()
+    const btn = screen.getByRole('button', { name: 'Send feedback' })
+    expect(btn).toBeTruthy()
+    fireEvent.click(btn)
+    expect(screen.getByRole('link', { name: 'Bug', exact: true })).toBeTruthy()
   })
 })
