@@ -1,0 +1,36 @@
+name: Site feedback
+description: Report a bug, suggest an idea, or send general feedback about the site.
+title: "Site feedback: "
+labels: ["site-feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Walksheds. Most reports are filed
+        automatically from the legend's "Send feedback" control with these
+        fields prefilled — but you can also file one by hand here. Please keep
+        the field values so the report can be triaged.
+  - type: dropdown
+    id: reason
+    attributes:
+      label: Reason
+      description: What kind of feedback is this?
+      options:
+        - bug
+        - idea
+        - other
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The URL you were on when you hit this (helps reproduce it).
+      placeholder: e.g. https://walksheds.xyz/seattle/1/50
+  - type: textarea
+    id: details
+    attributes:
+      label: Additional details
+      description: What happened, what you expected, or the idea you have.
+    validations:
+      required: true

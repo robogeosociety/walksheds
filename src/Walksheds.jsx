@@ -962,6 +962,7 @@ export default function Walksheds() {
           showHelp={embed.chrome.help}
           showGuide={embed.chrome.guide}
           showDark={embed.chrome.darkToggle}
+          showFeedback={embed.chrome.feedback}
         />
       )}
 

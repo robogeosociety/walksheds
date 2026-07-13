@@ -18,6 +18,7 @@
  *   help/guide       show the legend's help button / wiki link (default off)
  *   report/locate    show the POI report link / map locate control
  *                    (report default off, locate default on)
+ *   feedback         show the legend "Send feedback" control (default off)
  *   darktoggle       show the legend dark-mode toggle (default on)
  *   unitstoggle      show the legend units (m/ft) toggle (default on)
  *   dark             force dark (1) or light (0); absent = no override
@@ -37,6 +38,7 @@ const CHROME_DEFAULTS_EMBED = {
   help: false,
   guide: false,
   report: false,
+  feedback: false,
   locate: true,
   darkToggle: true,
   unitsToggle: true,
@@ -51,6 +53,7 @@ const CHROME_DEFAULTS_NORMAL = {
   help: true,
   guide: true,
   report: true,
+  feedback: true,
   locate: true,
   darkToggle: true,
   unitsToggle: true,
@@ -64,6 +67,7 @@ const CHROME_PARAM = {
   help: 'help',
   guide: 'guide',
   report: 'report',
+  feedback: 'feedback',
   locate: 'locate',
   darktoggle: 'darkToggle',
   unitstoggle: 'unitsToggle',
