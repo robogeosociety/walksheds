@@ -78,6 +78,42 @@ The consequence: **a normal build needs no API keys and no network.** CI and con
 - **Raw dump:** `data/pois/raw/station-exits.json.gz`.
 - **Build:** `fetch_station_exits.py` assigns each entrance to its nearest Link station (within the build cutoff), precomputes `bearingFromStation`, and writes `public/station-exits.geojson`. Coverage is partial (~33/38 stations). See [Station exits](station-exits.md).
 
+## OSM Overpass vs Overture — trade-offs
+
+The two POI sources are not competitors here: the production build ([`build_refined.py`](refined-pois.md)) **conflates both**, taking each where it is strong. This section is why that split exists. All figures are from the migration analysis (`data/pois/DATA_SOURCE_PROPOSAL.md`) and the conflation prototype.
+
+| Dimension | OSM / Overpass | Overture Places |
+| --- | --- | --- |
+| In-bbox coverage | 12,457 named POIs | ~90,700 raw; **19,433** at confidence ≥0.5 across the 8 buckets |
+| Dining coverage | 5,303 | 9,960 (~2×) |
+| Contact data (website / phone / address) | sparse — small minority | **near-complete (92 / 93 / 98%)** |
+| Opening hours | **yes** (`hours` field) | **none** — the one gap |
+| Qualifier tags (diet, cuisine, service, sport) | **rich, granular** (`vegan=yes`, `cuisine=…`) | cuisine baked into the primary category; no fine qualifiers |
+| Quality / closure signal | none — hand-maintained deny-list + regex | **`confidence` 0–1** (median 0.77) + **`operating_status`** |
+| Access shape | live API, rate-limited (hence the committed dump) | bulk file, spatial query in seconds, no download |
+| License | ODbL (share-alike) | CDLA-Permissive / ODbL mix |
+| Update model | continuous community edits | monthly release (pinned) |
+
+**Overture's advantages:** materially better completeness and freshness (~2× dining, ~1.6× total in-scope), near-complete contact metadata, and machine-friendly quality control — `confidence` thresholding and `operating_status='closed'` retire OSM's fragile regex/deny-list closure hack — over a cleaner category taxonomy.
+
+**Overture's disadvantages:** no opening hours, coarser qualifier tags, monthly (not live) cadence, and a taxonomy that needs an adapter to map onto the 8 buckets + tag vocabulary.
+
+**OSM's advantages:** opening hours, and the rich diet/cuisine/service-style/sport qualifier tags that drive the chip filters — the most source-sensitive part of the UI. Plus continuous edit recency.
+
+**OSM's disadvantages:** spotty business-listing quality, stale/closed entries, sparse contact fields, and no built-in quality score — the exact gaps that motivated the migration.
+
+### How the conflation resolves it
+
+`build_refined.py` clusters same-place records (same normalized name within **80 m**, `MATCH_RADIUS_M`) and emits one best-of-both feature:
+
+- **Overture wins** `website` / `phone` / `address` (near-complete coverage).
+- **OSM wins** `hours` (Overture has none) and the rich qualifier tags.
+- **Tags union** across both — recovering the diet/service filters pure Overture lacks.
+- **Closures drop from both** — OSM deny-list/regex plus Overture `operating_status='closed'`.
+- A **`sources`** provenance list (⊆ `{osm, overture}`, [INV-008](../invariants.md)) records which fed each POI.
+
+Net result versus either source alone: **~26,500 POIs, near-zero duplicates, a 448-tag vocabulary, and hours recovered on ~4,400 places** — each source covering the other's weakness. The remaining gap for both is live hours/ratings, which only a metered commercial API provides; it is deliberately deferred rather than adopted, to keep the free static-serve architecture. See [Refined POIs](refined-pois.md) for the full merge logic.
+
 ## Outputs in `public/`
 
 Everything the runtime fetches:
