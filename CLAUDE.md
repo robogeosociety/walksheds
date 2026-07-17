@@ -59,6 +59,8 @@ python3 data/pois/fetch_station_exits.py                 # Rebuild station-exits
 python3 data/pois/fetch_station_exits.py --refresh       # Refetch station entrances from Overpass, then rebuild
 python3 data/icons/fetch_app_icon.py                     # Rebuild iOS home-screen icons from the committed walksheds dump
 python3 data/pois/build_stats.py                         # Rebuild public/pois/stats.json (legend Statistics section; no network)
+python3 data/pois/latest_overture_release.py             # Report the newest Overture release vs the pinned one (--apply to pin it)
+python3 data/detect_station_changes.py                   # Diff the raw SDOT feed against the app's station set (new-station detection)
 ```
 
 ## Architecture
@@ -121,6 +123,19 @@ Two committed dumps power the "Nearest stations" section of POI popups:
 **Refresh order when POIs change:** `fetch_pois.py --refresh` → `fetch_walking_distances.py --refresh` (the latter re-fetches Matrix entries for any new POI ids inside a walkshed). `fetch_walksheds.py --refresh` is only needed when station coordinates change.
 
 **Mapbox token for refresh scripts:** set `MAPBOX_TOKEN` (or `MAPBOX_ACCESS_TOKEN`) in the environment. Public (`pk.`) and secret (`sk.`) tokens have identical capability for Isochrone + Matrix (both are read endpoints); the practical reason for a build-only token is URL restrictions — if the browser-side `VITE_MAPBOX_ACCESS_TOKEN` is restricted to `walksheds.xyz`, calls from a Python script will fail the referrer check. Easiest fix: add the build host's URL (or leave unrestricted) on that token, or mint a separate token for the scripts.
+
+### Automated monthly refresh (.github/workflows/data-refresh.yml)
+
+A scheduled workflow (26th monthly, ~10 days after Overture's mid-month release; also `workflow_dispatch` with `dry_run` / `skip_overture` / `force_walksheds` / `branch_suffix` inputs) refreshes the whole pipeline and opens a PR for human review on branch `data-refresh/YYYY-MM` (same-month reruns update the same branch; older open refresh PRs are closed as superseded). Step order is load-bearing:
+
+1. `data/refresh.py` (SDOT + reprocess) → `data/detect_station_changes.py` (new-station detection vs HEAD baseline) → geometry-only coordinate-change check.
+2. `fetch_pois.py --refresh` + `fetch_station_exits.py --refresh` (Overpass, with retries).
+3. `fetch_walksheds.py --refresh` **only if station coordinates changed** (or `force_walksheds`) — a walkshed version bump invalidates the entire Matrix cache, so it must never happen needlessly.
+4. `fetch_pois.py` (per-category build the Matrix step reads) → `fetch_walking_distances.py --refresh` (incremental top-up).
+5. `data/pois/latest_overture_release.py --apply` (anonymous S3 discovery; accepts a release only if its places theme exists on S3; degrades to the current pin on any failure) → `build_refined.py` → `build_stats.py`.
+6. Full validation (invariant suite, `data/test_process.py`, JS tests, lint, build) runs **before** anything is pushed — no partial state ever reaches the remote.
+
+The PR body is authored by a second job via `anthropics/claude-code-action@v1` pinned to `claude-sonnet-5` (newspaper format, passes the `pr-newspaper` gate; PR created under the Claude GitHub App token so ci.yml triggers normally). A detected new station is flagged prominently in the PR and escalated as a GitHub issue enumerating the hardcoded touch points (`LINE_*_ORDER`, `STOP_CODES`, `MISSING_STATIONS`, count assertions, sprites); the workflow itself never edits `data/process.py`, and the issue requires a human "@claude proceed" comment to start the follow-up (default-token issues do not trigger claude.yml).
 
 ### Station exits/entrances (OSM → public/station-exits.geojson)
 
