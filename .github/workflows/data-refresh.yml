@@ -1,0 +1,323 @@
+name: Monthly data refresh
+
+# Scheduled data-pipeline refresh: SDOT transit, Overpass OSM (POIs + station
+# exits), conditional Mapbox walksheds/Matrix, Overture release bump, refined
+# tile build, stats. Validates everything (invariants + JS suite + build)
+# BEFORE pushing a branch, then a second job has Claude author the
+# newspaper-format PR body for human review. New Sound Transit stations
+# detected in the SDOT feed are flagged and escalated as a @claude issue —
+# this workflow never edits data/process.py.
+#
+# Runs on the 26th monthly: Overture releases land mid-month (e.g.
+# 2026-04-15.0), so this leaves ~10 days of replication buffer while keeping
+# one refresh per calendar month. Ordering of the pipeline steps is
+# load-bearing — see CLAUDE.md "Automated monthly refresh".
+
+on:
+  schedule:
+    - cron: '0 14 26 * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run the pipeline and validation but push nothing
+        type: boolean
+        default: false
+      skip_overture:
+        description: Skip the Overture release bump
+        type: boolean
+        default: false
+      force_walksheds:
+        description: Refresh Mapbox walksheds even without coordinate changes (invalidates the whole Matrix cache)
+        type: boolean
+        default: false
+      branch_suffix:
+        description: Branch name suffix, e.g. -test
+        type: string
+        default: ''
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      branch: ${{ steps.branch.outputs.branch }}
+      changed: ${{ steps.diff.outputs.changed }}
+      new_stations: ${{ steps.stations.outputs.new_stations }}
+      issue_url: ${{ steps.issue.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v5
+
+      - name: System and Python deps
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libcairo2
+          pip install --quiet duckdb cairosvg Pillow pytest
+      - run: npm install
+
+      - name: Branch name
+        id: branch
+        run: echo "branch=data-refresh/$(date -u +%Y-%m)${{ inputs.branch_suffix }}" >> "$GITHUB_OUTPUT"
+
+      # ---- 1. SDOT transit (stations + alignment + sprites) ----
+      - name: Refresh SDOT and reprocess
+        run: uv run data/refresh.py
+
+      - name: Detect station changes
+        id: stations
+        run: |
+          python3 data/detect_station_changes.py \
+            --github-output "$GITHUB_OUTPUT" \
+            --issue-body "$RUNNER_TEMP/station-issue.md"
+
+      - name: Station coordinates changed?
+        id: coords
+        run: |
+          if git diff --quiet HEAD -- public/all-stations.geojson; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            python3 - >> "$GITHUB_OUTPUT" <<'EOF'
+          import json, subprocess
+          old = json.loads(subprocess.run(
+              ["git", "show", "HEAD:public/all-stations.geojson"],
+              capture_output=True, text=True, check=True).stdout)
+          new = json.load(open("public/all-stations.geojson"))
+          coords = lambda fc: sorted(
+              (f["properties"]["name"], tuple(f["geometry"]["coordinates"]))
+              for f in fc["features"])
+          print(f"changed={'true' if coords(old) != coords(new) else 'false'}")
+          EOF
+          fi
+
+      # ---- 2. Overpass OSM dumps (retry: Overpass 429/504 is the likely flake) ----
+      - name: Refresh OSM POI dump
+        run: |
+          for i in 1 2 3; do
+            python3 data/pois/fetch_pois.py --refresh && break
+            [ "$i" = 3 ] && exit 1
+            sleep $((i * 120))
+          done
+      - name: Refresh station exits dump
+        run: |
+          for i in 1 2 3; do
+            python3 data/pois/fetch_station_exits.py --refresh && break
+            [ "$i" = 3 ] && exit 1
+            sleep $((i * 120))
+          done
+
+      # ---- 3. Mapbox walksheds — ONLY on coordinate changes. A refresh bumps
+      #         the walkshed version and invalidates the entire Matrix cache. ----
+      - name: Refresh walksheds (Isochrone)
+        if: steps.coords.outputs.changed == 'true' || inputs.force_walksheds
+        run: python3 data/pois/fetch_walksheds.py --refresh
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+
+      # ---- 4. Per-category build, then Matrix top-up (order matters: the
+      #         Matrix step reads public/pois/*.geojson which fetch_pois writes
+      #         and build_refined later deletes). ----
+      - name: Rebuild per-category POIs
+        run: python3 data/pois/fetch_pois.py
+      - name: Top up walking distances (Matrix, incremental)
+        run: python3 data/pois/fetch_walking_distances.py --refresh
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+
+      # ---- 5. Overture release bump (degrades to the current pin) + refined build ----
+      - name: Discover and apply latest Overture release
+        id: overture
+        if: ${{ !inputs.skip_overture }}
+        run: python3 data/pois/latest_overture_release.py --apply --github-output "$GITHUB_OUTPUT"
+      - name: Refined build (tiles + tag categories)
+        run: python3 data/pois/build_refined.py
+      - name: Rebuild stats
+        run: python3 data/pois/build_stats.py
+
+      # ---- 6. Full validation BEFORE anything is pushed ----
+      - name: Data invariants + processing tests
+        run: pytest data/pois/test_invariants.py data/test_process.py data/test_detect_station_changes.py -q
+      - run: npm run lint
+      - run: npm run test -- --run
+      - run: npm run build
+        env:
+          VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+
+      # ---- 7. Summarize, commit, push ----
+      - name: Stage changes and build refresh summary
+        id: diff
+        run: |
+          git add -A
+          python3 - <<'EOF'
+          import json, os, subprocess
+          def sh(*args):
+              return subprocess.run(args, capture_output=True, text=True).stdout.strip()
+          old_stats = {}
+          raw = sh("git", "show", "HEAD:public/pois/stats.json")
+          if raw:
+              old_stats = json.loads(raw)
+          new_stats = json.load(open("public/pois/stats.json"))
+          summary = {
+              "month": os.environ.get("REFRESH_MONTH", ""),
+              "overture": {
+                  "previous": os.environ.get("OVERTURE_CURRENT", ""),
+                  "pinned": os.environ.get("OVERTURE_LATEST", ""),
+                  "bumped": os.environ.get("OVERTURE_BUMP", "") == "true",
+              },
+              "walksheds_refreshed": os.environ.get("COORDS_CHANGED", "") == "true"
+                  or os.environ.get("FORCE_WALKSHEDS", "") == "true",
+              "poi_count": {"previous": old_stats.get("pois"), "now": new_stats["pois"]},
+              "station_count": {"previous": old_stats.get("stations"), "now": new_stats["stations"]},
+              "station_changes": json.loads(os.environ.get("NEW_STATIONS", "[]")),
+              "diff_stat": sh("git", "diff", "--cached", "--stat"),
+          }
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "refresh-summary.json"), "w") as f:
+              json.dump(summary, f, indent=2)
+          EOF
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          REFRESH_MONTH: ${{ steps.branch.outputs.branch }}
+          OVERTURE_CURRENT: ${{ steps.overture.outputs.current }}
+          OVERTURE_LATEST: ${{ steps.overture.outputs.latest }}
+          OVERTURE_BUMP: ${{ steps.overture.outputs.bump }}
+          COORDS_CHANGED: ${{ steps.coords.outputs.changed }}
+          FORCE_WALKSHEDS: ${{ inputs.force_walksheds }}
+          NEW_STATIONS: ${{ steps.stations.outputs.new_stations }}
+
+      - name: Commit and push refresh branch
+        if: steps.diff.outputs.changed == 'true' && !inputs.dry_run
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Monthly data refresh $(date -u +%Y-%m)" \
+                     -m "SDOT, Overpass, and Overture data refreshed by the scheduled data-refresh workflow. Details in the pull request."
+          # Lease against the branch's current remote tip (or its absence), so
+          # a same-month rerun updates the branch but a human's fixup commits
+          # pushed in the meantime make the push fail loudly instead of being
+          # clobbered.
+          branch="${{ steps.branch.outputs.branch }}"
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null || true
+          expected=$(git rev-parse --verify --quiet "refs/remotes/origin/$branch" || true)
+          git push --force-with-lease="refs/heads/$branch:$expected" origin "HEAD:refs/heads/$branch"
+
+      - name: Close superseded older refresh PRs
+        if: steps.diff.outputs.changed == 'true' && !inputs.dry_run
+        run: |
+          gh pr list --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("data-refresh/")) | select(.headRefName != "${{ steps.branch.outputs.branch }}") | .number' |
+          while read -r n; do
+            gh pr close "$n" --comment "Superseded by the $(date -u +%Y-%m) data refresh."
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # ---- 8. New-station escalation. Issues created with github.token do not
+      #         trigger claude.yml (anti-recursion); the body tells the reviewer
+      #         to comment "@claude proceed" — deliberately human-in-the-loop. ----
+      - name: Open station-change issue
+        id: issue
+        if: steps.stations.outputs.station_changes == 'true' && !inputs.dry_run
+        run: |
+          url=$(gh issue create \
+            --title "SDOT feed station changes detected by the $(date -u +%Y-%m) data refresh" \
+            --body-file "$RUNNER_TEMP/station-issue.md")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: refresh-summary
+          path: ${{ runner.temp }}/refresh-summary.json
+          if-no-files-found: ignore
+
+      - name: Surface failure as an issue
+        if: failure()
+        run: |
+          title="Data refresh failed for $(date -u +%Y-%m)"
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          body="The scheduled data refresh failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  pr:
+    needs: refresh
+    if: needs.refresh.outputs.changed == 'true' && !inputs.dry_run
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.refresh.outputs.branch }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: refresh-summary
+
+      # PR creation runs inside claude-code-action (Claude GitHub App token),
+      # so the resulting PR triggers ci.yml and the pr-newspaper gate normally
+      # (github.token-created PRs would not).
+      - name: Author the refresh PR (Claude, pinned to Sonnet 5)
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --model claude-sonnet-5
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Read,Grep,Glob"
+          prompt: |
+            You are on branch ${{ needs.refresh.outputs.branch }} of the
+            walksheds repo, which contains this month's automated data refresh,
+            already committed and pushed. Do not modify, commit, or push any
+            files — your only job is the pull request itself.
+
+            1. Read refresh-summary.json in the workspace root, run
+               `git diff origin/main...HEAD --stat`, and read CLAUDE.md's
+               "Pull requests" section for the newspaper body format. No emoji
+               anywhere (INV-018).
+            2. If an open PR from this branch to main already exists
+               (`gh pr list --head <branch>`), rewrite its body with
+               `gh pr edit`; otherwise create it with `gh pr create --base main`.
+               Title: "Monthly data refresh <YYYY-MM from the branch name>".
+            3. The body must follow the newspaper format (kicker, headline,
+               dek, masthead, why, what, mermaid flow, verification, risk) and
+               summarize the refresh from refresh-summary.json: Overture
+               release change (or "unchanged"), OSM dump deltas, POI/station
+               count changes, whether walksheds were refreshed, and the diff
+               stat. Verification section: state that the full invariant suite,
+               JS tests, lint, and build all passed inside the refresh workflow
+               before the branch was pushed.
+            4. If refresh-summary.json lists station_changes entries, put a
+               prominent "NEW STATION DETECTED" section at the TOP of the body
+               linking ${{ needs.refresh.outputs.issue_url }} and stating that
+               this PR intentionally does NOT wire the station into
+               data/process.py (that follow-up happens via the linked issue).
