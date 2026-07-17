@@ -82,6 +82,7 @@ nav:
   - Design system: design-system.md
   - Data pipeline:
       - Overview: data/overview.md
+      - Sources & formats: data/sources.md
       - Transit (SDOT): data/transit.md
       - POIs (OSM): data/pois.md
       - Refined POIs + tiles: data/refined-pois.md
