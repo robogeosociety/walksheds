@@ -255,6 +255,12 @@ export default function Walksheds() {
   const compass = useCompassRotation(useCallback(() => mapViewRef.current?.getMap(), []))
   const locateSnapRef = useRef(false)
 
+  // Flipped once the map style has loaded (MapView's onLoad). The initial
+  // deep-link/overview resolve waits on this so its fitBounds actually frames
+  // the camera instead of no-opping on an unready map.
+  const [mapReady, setMapReady] = useState(false)
+  const handleMapLoad = useCallback(() => setMapReady(true), [])
+
   const selectStation = useCallback((name, lng, lat, line, opts = {}) => {
     // Any navigation that isn't the locate snap ends the orientation
     // session (no-op if rotation isn't active).
@@ -710,8 +716,14 @@ export default function Walksheds() {
   // the pending 900ms auto-select timer before it ever fired.
   const selectStationFnRef = useRef(selectStation)
   useEffect(() => { selectStationFnRef.current = selectStation }, [selectStation])
+  // Gate the initial resolve on the map's `load` event. A deep-link URL selects
+  // its station as soon as stationsData arrives, and selectStation frames the
+  // walkshed with fitBounds once the (often cached) isochrones resolve — which
+  // can beat the map's load event, making fitBounds a no-op and leaving the
+  // camera unframed. Waiting for load makes the deep-link fly-to reliable (the
+  // no-deep-link path only worked by accident, via its 900ms fly-in delay).
   useEffect(() => {
-    if (!stationsData || resolvedRef.current) return
+    if (!stationsData || !mapReady || resolvedRef.current) return
     resolvedRef.current = true
     const base = import.meta.env.BASE_URL
     const parsed = parseStationPath(window.location.pathname, base)
@@ -732,7 +744,7 @@ export default function Walksheds() {
       selectStationFnRef.current(station.name, station.lng, station.lat, station.line)
     }, 900)
     return () => clearTimeout(t)
-  }, [stationsData])
+  }, [stationsData, mapReady])
 
   // Sync walkshed + POI filter query params when toggles change. The URL
   // codec uses a single tag namespace, so categories and filters are merged
@@ -749,7 +761,7 @@ export default function Walksheds() {
     const mergedTags = new Set([...activeCategories, ...activeFilters])
     const path = buildStationPath(lineNum, feat.properties.stopCode, base) + combineQuery(
       buildWalkshedParams(enabledWalksheds),
-      buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES),
+      buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS),
     )
     window.history.replaceState(null, '', path)
   }, [enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, stationsData, currentLine, tagCategories, embed])
@@ -918,6 +930,7 @@ export default function Walksheds() {
         onGeolocate={handleGeolocate}
         onTrackUserLocationStart={handleTrackUserLocationStart}
         onTrackUserLocationEnd={handleTrackUserLocationEnd}
+        onMapLoad={handleMapLoad}
         units={units}
       />
 
