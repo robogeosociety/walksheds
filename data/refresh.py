@@ -15,6 +15,7 @@ Usage: uv run data/refresh.py [--dry-run]
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -83,6 +84,11 @@ def download(dry_run: bool = False) -> tuple[dict, dict]:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     (RAW_DIR / "light-rail-stations.geojson").write_text(json.dumps(stations))
     (RAW_DIR / "light-rail-alignment.geojson").write_text(json.dumps(alignment))
+    # Stamp the refresh date — surfaced as the station-data freshness in the
+    # legend's Data Statistics section (via data/pois/build_stats.py).
+    (RAW_DIR / "refreshed.json").write_text(
+        json.dumps({"refreshedAt": datetime.now(timezone.utc).date().isoformat()}, indent=2) + "\n"
+    )
 
     print("\nProcessing...")
     subprocess.check_call([sys.executable, str(ROOT / "data" / "process.py")])

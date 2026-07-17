@@ -81,15 +81,15 @@ const STATS = {
   sources: [
     { id: 'osm', label: 'OpenStreetMap', asOf: '2026-04-24' },
     { id: 'overture', label: 'Overture Places', asOf: '2026-04-15' },
-    { id: 'sdot', label: 'SDOT / Sound Transit' },
-    { id: 'mapbox', label: 'Mapbox walk routing' },
+    { id: 'sdot', label: 'SDOT / Sound Transit', asOf: '2026-04-25' },
+    { id: 'mapbox', label: 'Mapbox walksheds', live: true },
   ],
 }
 
 describe('LineLegend statistics section', () => {
   it('is collapsed by default and expands to counts, sources, and freshness', () => {
     renderLegend({ stats: STATS })
-    const toggle = screen.getByRole('button', { name: /Statistics/ })
+    const toggle = screen.getByRole('button', { name: /Data Statistics/ })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText('26,510')).toBeNull()
     fireEvent.click(toggle)
@@ -101,13 +101,16 @@ describe('LineLegend statistics section', () => {
     expect(screen.getByText('OpenStreetMap')).toBeTruthy()
     expect(screen.getByText('Apr 24, 2026')).toBeTruthy()
     expect(screen.getByText('Overture Places')).toBeTruthy()
-    // Sources without a pinned date list only their label.
     expect(screen.getByText('SDOT / Sound Transit')).toBeTruthy()
+    expect(screen.getByText('Apr 25, 2026')).toBeTruthy()
+    // Walkshed polygons come from the Isochrone API on demand — noted as live.
+    expect(screen.getByText('Mapbox walksheds')).toBeTruthy()
+    expect(screen.getByText('Live')).toBeTruthy()
   })
 
   it('collapses again on a second click', () => {
     renderLegend({ stats: STATS })
-    const toggle = screen.getByRole('button', { name: /Statistics/ })
+    const toggle = screen.getByRole('button', { name: /Data Statistics/ })
     fireEvent.click(toggle)
     fireEvent.click(toggle)
     expect(screen.queryByText('26,510')).toBeNull()
@@ -115,11 +118,11 @@ describe('LineLegend statistics section', () => {
 
   it('is absent while stats have not loaded', () => {
     renderLegend()
-    expect(screen.queryByRole('button', { name: /Statistics/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Data Statistics/ })).toBeNull()
   })
 
   it('is absent from the collapsed legend bar (expanded legend only)', () => {
     renderLegend({ collapsed: true, stats: STATS })
-    expect(screen.queryByRole('button', { name: /Statistics/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Data Statistics/ })).toBeNull()
   })
 })

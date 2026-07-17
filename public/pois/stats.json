@@ -14,11 +14,13 @@
     },
     {
       "id": "sdot",
-      "label": "SDOT / Sound Transit"
+      "label": "SDOT / Sound Transit",
+      "asOf": "2026-04-25"
     },
     {
       "id": "mapbox",
-      "label": "Mapbox walk routing"
+      "label": "Mapbox walksheds",
+      "live": true
     }
   ]
 }

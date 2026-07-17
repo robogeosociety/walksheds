@@ -490,6 +490,15 @@ body,
   white-space: nowrap;
 }
 
+/* "Live" freshness note — data drawn from the API on demand, never stale.
+   1 Line green, the palette's "go" color. */
+.legend-stats-row dd.legend-stats-live {
+  color: #38B030;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .legend-stats-subhead {
   font-size: 10px;
   font-weight: 700;

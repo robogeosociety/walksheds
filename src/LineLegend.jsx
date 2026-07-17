@@ -123,7 +123,7 @@ function LegendStats({ stats }) {
         aria-expanded={open}
         data-hint-keep="true"
       >
-        <span className="legend-title legend-stats-title">Statistics</span>
+        <span className="legend-title legend-stats-title">Data Statistics</span>
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className={`legend-stats-chevron ${open ? 'open' : ''}`}>
           <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
@@ -142,6 +142,7 @@ function LegendStats({ stats }) {
           {stats.sources.map(s => (
             <div className="legend-stats-row" key={s.id}>
               <dt>{s.label}</dt>
+              {s.live && <dd className="legend-stats-live">Live</dd>}
               {s.asOf && <dd>{formatAsOf(s.asOf)}</dd>}
             </div>
           ))}

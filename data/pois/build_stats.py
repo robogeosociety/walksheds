@@ -19,6 +19,7 @@ PUBLIC = os.path.normpath(os.path.join(HERE, "..", "..", "public"))
 TILE_INDEX = os.path.join(PUBLIC, "pois", "tiles", "index.json")
 ALL_STATIONS = os.path.join(PUBLIC, "all-stations.geojson")
 OSM_DUMP = os.path.join(HERE, "raw", "osm-seattle.json.gz")
+SDOT_REFRESHED = os.path.join(os.path.dirname(HERE), "raw", "refreshed.json")
 STATS_JSON = os.path.join(PUBLIC, "pois", "stats.json")
 
 
@@ -35,6 +36,12 @@ def osm_as_of():
         return json.load(f)["osm3s"]["timestamp_osm_base"][:10]
 
 
+def sdot_refreshed():
+    """When data/refresh.py last pulled the SDOT station/alignment GeoJSON."""
+    with open(SDOT_REFRESHED) as f:
+        return json.load(f)["refreshedAt"]
+
+
 def build_stats():
     with open(TILE_INDEX) as f:
         index = json.load(f)
@@ -46,8 +53,10 @@ def build_stats():
         "sources": [
             {"id": "osm", "label": "OpenStreetMap", "asOf": osm_as_of()},
             {"id": "overture", "label": "Overture Places", "asOf": overture_release()[:10]},
-            {"id": "sdot", "label": "SDOT / Sound Transit"},
-            {"id": "mapbox", "label": "Mapbox walk routing"},
+            {"id": "sdot", "label": "SDOT / Sound Transit", "asOf": sdot_refreshed()},
+            # Walkshed polygons are drawn by the browser straight from the
+            # Mapbox Isochrone API on every station select — always current.
+            {"id": "mapbox", "label": "Mapbox walksheds", "live": True},
         ],
     }
 
