@@ -74,3 +74,52 @@ describe('LineLegend feedback control', () => {
     expect(screen.getByRole('link', { name: 'Bug', exact: true })).toBeTruthy()
   })
 })
+
+const STATS = {
+  pois: 26510,
+  stations: 38,
+  sources: [
+    { id: 'osm', label: 'OpenStreetMap', asOf: '2026-04-24' },
+    { id: 'overture', label: 'Overture Places', asOf: '2026-04-15' },
+    { id: 'sdot', label: 'SDOT / Sound Transit' },
+    { id: 'mapbox', label: 'Mapbox walk routing' },
+  ],
+}
+
+describe('LineLegend statistics section', () => {
+  it('is collapsed by default and expands to counts, sources, and freshness', () => {
+    renderLegend({ stats: STATS })
+    const toggle = screen.getByRole('button', { name: /Statistics/ })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('26,510')).toBeNull()
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('Points of interest')).toBeTruthy()
+    expect(screen.getByText('26,510')).toBeTruthy()
+    expect(screen.getByText('Stations')).toBeTruthy()
+    expect(screen.getByText('38')).toBeTruthy()
+    expect(screen.getByText('OpenStreetMap')).toBeTruthy()
+    expect(screen.getByText('Apr 24, 2026')).toBeTruthy()
+    expect(screen.getByText('Overture Places')).toBeTruthy()
+    // Sources without a pinned date list only their label.
+    expect(screen.getByText('SDOT / Sound Transit')).toBeTruthy()
+  })
+
+  it('collapses again on a second click', () => {
+    renderLegend({ stats: STATS })
+    const toggle = screen.getByRole('button', { name: /Statistics/ })
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
+    expect(screen.queryByText('26,510')).toBeNull()
+  })
+
+  it('is absent while stats have not loaded', () => {
+    renderLegend()
+    expect(screen.queryByRole('button', { name: /Statistics/ })).toBeNull()
+  })
+
+  it('is absent from the collapsed legend bar (expanded legend only)', () => {
+    renderLegend({ collapsed: true, stats: STATS })
+    expect(screen.queryByRole('button', { name: /Statistics/ })).toBeNull()
+  })
+})

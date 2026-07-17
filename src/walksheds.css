@@ -435,6 +435,75 @@ body,
   transition: opacity 0.15s ease;
 }
 
+/* ── Statistics section (expandable, collapsed by default) ── */
+
+.legend-stats-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  color: #999;
+}
+
+.legend-stats-title {
+  margin-bottom: 0;
+}
+
+.legend-stats-chevron {
+  transition: transform 0.15s ease;
+}
+
+.legend-stats-chevron.open {
+  transform: rotate(90deg);
+}
+
+.legend-stats-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 8px 0 0;
+}
+
+.legend-stats-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.legend-stats-row dt {
+  font-size: 11px;
+  color: #555;
+}
+
+.legend-stats-row dd {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.legend-stats-subhead {
+  font-size: 10px;
+  font-weight: 700;
+  color: #999;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 5px;
+}
+
+.app.dark .legend-stats-toggle { color: rgba(255, 255, 255, 0.4); }
+.app.dark .legend-stats-row dt { color: rgba(255, 255, 255, 0.55); }
+.app.dark .legend-stats-row dd { color: rgba(255, 255, 255, 0.8); }
+.app.dark .legend-stats-subhead { color: rgba(255, 255, 255, 0.4); }
+
 .legend-walkshed-label {
   font-size: 12px;
   color: #555;

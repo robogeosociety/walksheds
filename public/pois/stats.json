@@ -1,0 +1,24 @@
+{
+  "pois": 26510,
+  "stations": 38,
+  "sources": [
+    {
+      "id": "osm",
+      "label": "OpenStreetMap",
+      "asOf": "2026-04-24"
+    },
+    {
+      "id": "overture",
+      "label": "Overture Places",
+      "asOf": "2026-04-15"
+    },
+    {
+      "id": "sdot",
+      "label": "SDOT / Sound Transit"
+    },
+    {
+      "id": "mapbox",
+      "label": "Mapbox walk routing"
+    }
+  ]
+}

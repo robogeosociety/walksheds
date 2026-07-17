@@ -38,6 +38,7 @@ IDs are **append-only and stable** (`INV-NNN` — never reused; a retired invari
 - **INV-020 station-tile-lookup** — `index.json` carries a precomputed `station_tiles` map (station key `{lines}-{stopCode}` → tile keys), so the runtime maps a selected station straight to its tiles without bbox math (it still clips against the live isochrone). For every station the lookup must include the tile of every POI inside that station's walkshed (a correct superset of membership), and every listed tile must be a real populated tile.
 - **INV-021 station-exits-wellformed** — every feature in `public/station-exits.geojson` has a unique `id`, a `stationKey` resolving to a real station in `all-stations.geojson`, a non-empty `name`, a finite `bearingFromStation ∈ [0,360)`, `source ⊆ {osm}`, and coordinates inside the padded station bbox. (`test_invariants.py`)
 - **INV-022 exit-nearest-station** — each exit's `stationKey` is the nearest Link station to its coordinates and within the build cutoff (`NEAREST_CUTOFF_M`), so the panel never lists an exit under a station a closer one should own. (`test_invariants.py`)
+- **INV-023 stats-current** — `public/pois/stats.json` (the legend's expandable Statistics section: POI/station counts, data sources, freshness dates) matches a regeneration from the committed tile index, stations file, raw OSM dump, and pinned Overture release. Rebuild with `python3 data/pois/build_stats.py` after any data refresh. (`test_invariants.py`)
 
 ## Commands
 
@@ -57,6 +58,7 @@ python3 data/pois/fetch_walking_distances.py --refresh   # Refetch POI↔station
 python3 data/pois/fetch_station_exits.py                 # Rebuild station-exits.geojson from the committed OSM entrance dump (no network)
 python3 data/pois/fetch_station_exits.py --refresh       # Refetch station entrances from Overpass, then rebuild
 python3 data/icons/fetch_app_icon.py                     # Rebuild iOS home-screen icons from the committed walksheds dump
+python3 data/pois/build_stats.py                         # Rebuild public/pois/stats.json (legend Statistics section; no network)
 ```
 
 ## Architecture
