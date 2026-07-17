@@ -40,6 +40,7 @@ const MapView = forwardRef(function MapView({
   onGeolocate,
   onTrackUserLocationStart,
   onTrackUserLocationEnd,
+  onMapLoad,
   units,
 }, ref) {
   const mapRef = useRef(null)
@@ -69,7 +70,10 @@ const MapView = forwardRef(function MapView({
     if (import.meta.env.DEV) {
       window.__mapForTest = map
     }
-  }, [])
+    // Let the parent know the map style is loaded, so it can defer the initial
+    // deep-link camera move (fitBounds) until fitBounds actually takes effect.
+    onMapLoad?.()
+  }, [onMapLoad])
 
   useEffect(() => {
     if (!mapLoaded) return
