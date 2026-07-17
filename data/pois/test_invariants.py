@@ -265,6 +265,18 @@ def test_inv_022_exit_nearest_station(station_exits):
             f"exit {p['id']} assigned {p['stationKey']} but nearest is {fetch_walksheds.station_key(nearest)}"
 
 
+# ── INV-023 — stats-current: committed stats.json matches a regeneration ──
+def test_inv_023_stats_current():
+    """public/pois/stats.json (the legend's Statistics section) stays in sync
+    with the artifacts it summarizes — regenerating from the committed tile
+    index, stations, and raw dumps reproduces the committed file exactly."""
+    import build_stats  # noqa: E402
+
+    committed = _load_json(os.path.join(fetch_pois.OUTPUT_DIR, "stats.json"))
+    assert committed == build_stats.build_stats(), \
+        "stats.json is stale — re-run: python3 data/pois/build_stats.py"
+
+
 # ── INV-014 — deterministic-build: sprite manifest reproducible (local; needs cairosvg) ──
 def test_inv_014_deterministic_build(tmp_path):
     pytest.importorskip("cairosvg")

@@ -154,6 +154,7 @@ export default function Walksheds() {
   const [tileIndex, setTileIndex] = useState(null)
   const [walkshedPois, setWalkshedPois] = useState({ type: 'FeatureCollection', features: [] })
   const [tagCategories, setTagCategories] = useState(null)
+  const [dataStats, setDataStats] = useState(null)
   // Three independent state sets per the category/filter/spotlight model
   // (see README.md → "POI selection logic"):
   //   - enabledSpotlights: curated pill ids from MAIN_POI_CATEGORIES
@@ -206,6 +207,12 @@ export default function Walksheds() {
     fetch(`${base}pois/tag-categories.json`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setTagCategories(d) })
+    // Dataset summary (counts, sources, freshness) for the legend's
+    // expandable Statistics section; built by data/pois/build_stats.py.
+    fetch(`${base}pois/stats.json`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setDataStats(d) })
+      .catch(() => {})
     // Station exits/entrances: a small flat point set (~113 features), loaded
     // upfront and grouped per station for the station detail panel + map dots.
     fetch(`${base}station-exits.geojson`)
@@ -976,6 +983,7 @@ export default function Walksheds() {
           showGuide={embed.chrome.guide}
           showDark={embed.chrome.darkToggle}
           showFeedback={embed.chrome.feedback}
+          stats={dataStats}
         />
       )}
 

@@ -98,6 +98,60 @@ function FeedbackControl({ className }) {
   )
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// "2026-04-24" -> "Apr 24, 2026". Parsed by hand rather than via new Date()
+// so a date-only ISO string can't shift a day across timezones.
+function formatAsOf(iso) {
+  const [y, m, d] = (iso || '').split('-').map(Number)
+  if (!y || !m || !d) return iso
+  return `${MONTHS[m - 1]} ${d}, ${y}`
+}
+
+// Expandable dataset-statistics section, collapsed by default. `stats` is the
+// committed public/pois/stats.json summary (counts, sources, freshness) built
+// by data/pois/build_stats.py; the section only renders once it has loaded.
+function LegendStats({ stats }) {
+  const [open, setOpen] = useState(false)
+  if (!stats) return null
+  return (
+    <div className="legend-stats">
+      <div className="legend-divider" />
+      <button
+        className="legend-stats-toggle"
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        data-hint-keep="true"
+      >
+        <span className="legend-title legend-stats-title">Data Statistics</span>
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className={`legend-stats-chevron ${open ? 'open' : ''}`}>
+          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <dl className="legend-stats-body">
+          <div className="legend-stats-row">
+            <dt>Points of interest</dt>
+            <dd>{stats.pois.toLocaleString('en-US')}</dd>
+          </div>
+          <div className="legend-stats-row">
+            <dt>Stations</dt>
+            <dd>{stats.stations}</dd>
+          </div>
+          <div className="legend-stats-subhead">Sources</div>
+          {stats.sources.map(s => (
+            <div className="legend-stats-row" key={s.id}>
+              <dt>{s.label}</dt>
+              {s.live && <dd className="legend-stats-live">Live</dd>}
+              {s.asOf && <dd>{formatAsOf(s.asOf)}</dd>}
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  )
+}
+
 export default function LineLegend({
   lineColors,
   enabledWalksheds,
@@ -115,6 +169,7 @@ export default function LineLegend({
   showGuide = true,
   showDark = true,
   showFeedback = true,
+  stats = null,
 }) {
   const posClass = position === 'bottom-right' ? 'bottom-right' : ''
   const touchStartY = useRef(null)
@@ -303,6 +358,8 @@ export default function LineLegend({
           )
         })}
       </div>
+
+      <LegendStats stats={stats} />
 
     </div>
   )
