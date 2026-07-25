@@ -1,0 +1,127 @@
+name: Uptime
+
+# Synthetic availability probe for the live site, run from a GitHub-hosted
+# runner (i.e. from outside the LAN, which is the point of an uptime check).
+#
+# This replaces the uptime half of the retired host-side `walksheds-uptime`
+# launchd collector on the Mac mini, which wrote to an InfluxDB that no longer
+# exists (robogeosociety/observability-config, retired in rgs#167 WS5). This
+# lane is alerting-only by design: a failed probe posts to Discord #dev and
+# turns the run red. No metrics history is kept.
+#
+# Deliberately separate from `smoke.yml`: that one is a heavyweight Playwright
+# job (checkout + npm install + chromium, ~45s) asserting the app renders
+# correctly. This one is a dependency-free curl that asks a narrower question --
+# is the origin serving at all -- so it can run far more often and cannot break
+# for reasons unrelated to the site.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# No checkout, so no contents access is needed. `actions: read` is only for the
+# alert-once gate, which reads this workflow's own previous run conclusion.
+permissions:
+  actions: read
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+env:
+  TARGET_URL: https://walksheds.xyz/
+  ALERT_CHANNEL: dev
+
+jobs:
+  probe:
+    name: Probe walksheds.xyz
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe the live site
+        id: probe
+        run: |
+          set -uo pipefail
+          up=0 code=000 ms=0
+          for attempt in 1 2 3; do
+            out=$(curl -sS -o /dev/null -m 20 \
+                    -w '%{http_code} %{time_total}' \
+                    -A 'walksheds-uptime (github-actions)' \
+                    "$TARGET_URL") || out="000 0"
+            code="${out% *}"
+            secs="${out#* }"
+            ms=$(awk -v s="$secs" 'BEGIN { printf "%.0f", s * 1000 }')
+            echo "attempt $attempt: status=$code latency=${ms}ms"
+            # Matches the retired collector's threshold: 2xx and 3xx are up.
+            if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then
+              up=1
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep 15; fi
+          done
+          {
+            echo "up=$up"
+            echo "status=$code"
+            echo "latency_ms=$ms"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this outage was already announced
+        id: gate
+        if: steps.probe.outputs.up != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          # Stateless alert-once gate: if the previous completed run of this
+          # workflow also failed, the outage has already been announced, so stay
+          # quiet until it recovers. Any error here falls through to "announce" --
+          # a duplicate alert is a far better failure mode than a silent outage.
+          prev=$(curl -sS --fail-with-body -m 20 \
+                   -H "authorization: Bearer $GH_TOKEN" \
+                   -H "accept: application/vnd.github+json" \
+                   "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/uptime.yml/runs?status=completed&per_page=1" \
+                 | jq -r '.workflow_runs[0].conclusion // "none"') || prev="unknown"
+          echo "previous completed run: $prev"
+          if [ "$prev" = "failure" ]; then
+            echo "announce=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "announce=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Alert Discord
+        if: steps.probe.outputs.up != '1' && steps.gate.outputs.announce == 'true'
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          STATUS: ${{ steps.probe.outputs.status }}
+        run: |
+          set -uo pipefail
+          api() { curl -sS --fail-with-body -m 20 \
+                    -H "authorization: Bot $DISCORD_BOT_TOKEN" "$@"; }
+
+          # Resolve #dev by name across the guilds the bot is in -- the same
+          # lookup the cicd-collector Worker uses, so no channel ID is hardcoded.
+          channel_id=""
+          for gid in $(api https://discord.com/api/v10/users/@me/guilds | jq -r '.[].id'); do
+            hit=$(api "https://discord.com/api/v10/guilds/$gid/channels" \
+                  | jq -r --arg n "$ALERT_CHANNEL" \
+                      'first(.[] | select(.type == 0 and .name == $n) | .id) // empty')
+            if [ -n "$hit" ]; then channel_id="$hit"; break; fi
+          done
+          if [ -z "$channel_id" ]; then
+            echo "::error::channel #${ALERT_CHANNEL} not found in any guild the bot is in"
+            exit 1
+          fi
+
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          text=$(printf '**walksheds.xyz is DOWN** -- HTTP %s after 3 attempts over ~30s.\nProbed from a GitHub-hosted runner. <%s>' \
+                   "$STATUS" "$run_url")
+          jq -n --arg c "$text" '{content: $c}' \
+            | api -X POST -H 'content-type: application/json' -d @- \
+                "https://discord.com/api/v10/channels/$channel_id/messages" > /dev/null
+          echo "alerted #${ALERT_CHANNEL}"
+
+      - name: Fail the run when the site is down
+        if: steps.probe.outputs.up != '1'
+        run: |
+          echo "::error::walksheds.xyz unreachable -- last status ${{ steps.probe.outputs.status }}"
+          exit 1

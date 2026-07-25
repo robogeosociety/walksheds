@@ -1,10 +1,13 @@
 name: Live smoke
 
-# Probes the live site with Playwright. Its run conclusions + the github-pages
-# deployment_status events are ingested into InfluxDB by the host-side
-# walksheds-uptime collector (observability repo) and shown on the Grafana
-# uptime dashboard. schedule + deployment_status fire from the default branch
-# once merged; workflow_dispatch works on any branch.
+# Probes the live site with Playwright -- does the app actually render. This is
+# the functional check; `uptime.yml` is the cheap availability check that runs
+# far more often. Run conclusions are collected org-wide by the cicd-collector
+# Worker (robogeosociety/observability-config) into Analytics Engine, which also
+# posts red default-branch runs to Discord #dev; the old host-side
+# walksheds-uptime InfluxDB collector this used to feed is retired.
+# schedule + deployment_status fire from the default branch once merged;
+# workflow_dispatch works on any branch.
 on:
   schedule:
     - cron: '*/30 * * * *'   # periodic uptime probe
