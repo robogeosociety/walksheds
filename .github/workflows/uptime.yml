@@ -14,11 +14,37 @@ name: Uptime
 # correctly. This one is a dependency-free curl that asks a narrower question --
 # is the origin serving at all -- so it can run far more often and cannot break
 # for reasons unrelated to the site.
+#
+# --- Why the alert goes through the deploy-gate Worker (walksheds#92) ---------
+#
+# The first cut of this lane posted straight to Discord with
+# `secrets.DISCORD_BOT_TOKEN`. That token is an ORGANISATION secret, and org
+# secrets resolve to an EMPTY STRING in a job that does not declare
+# `environment: production` -- measured 2026-07-26 in robogeosociety/discobots by
+# printing secret lengths inside a real run (repo secret: 108 chars; the org
+# secrets DISCORD_BOT_TOKEN and APP_PRIVATE_KEY: 0). Declaring the environment is
+# not an option here: it would park every ten-minute probe behind a deploy
+# approval card.
+#
+# So the alert would have failed with 401 -- and only ever while the site was
+# actually down. Every green run passes regardless, so the lane would have looked
+# healthy indefinitely and failed the single time it mattered.
+#
+# The fix is the one robogeosociety/discobots#106 and #108 landed for the same
+# class of bug: hand the alert to the deploy-gate Worker, which already owns the
+# bot identity that can post to #dev. Auth is an HMAC-SHA256 of the raw request
+# body with `NOTIFY_SECRET` -- a REPO secret, which this job can read.
+# Reference: `workers/deploy-gate/README.md` in robogeosociety/discobots.
 
 on:
   schedule:
     - cron: '*/10 * * * *'
   workflow_dispatch:
+    inputs:
+      drill:
+        description: 'Alert drill: treat the site as down and post a clearly-labelled test alert to #dev. Does not fail the run.'
+        type: boolean
+        default: false
 
 # No checkout, so no contents access is needed. `actions: read` is only for the
 # alert-once gate, which reads this workflow's own previous run conclusion.
@@ -31,13 +57,37 @@ concurrency:
 
 env:
   TARGET_URL: https://walksheds.xyz/
-  ALERT_CHANNEL: dev
+  GATE_URL: https://deploy-gate.tommy-b-doerr.workers.dev
+  # 'true' on a drill dispatch, 'false' on every scheduled run.
+  DRILL: ${{ inputs.drill == true }}
 
 jobs:
   probe:
     name: Probe walksheds.xyz
     runs-on: ubuntu-latest
     steps:
+      # Runs on every probe, green or red. An alerting path exercised only during
+      # an outage is one nobody can trust, so each run at least proves the signing
+      # key is reachable from this job -- the precise thing that was silently
+      # broken before. A warning, never a failure: a failing preflight would
+      # poison the alert-once gate below (it reads this workflow's previous
+      # conclusion) and mute the alert for a real outage.
+      - name: Preflight -- is the alert lane wired up?
+        id: preflight
+        env:
+          NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
+        run: |
+          set -uo pipefail
+          if [ -z "$NOTIFY_SECRET" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::NOTIFY_SECRET is empty in this job -- a site-down alert cannot be signed and will not reach #dev. See robogeosociety/walksheds#92."
+            echo "- **Alert lane: NOT wired.** \`NOTIFY_SECRET\` is unset on this repository; a real outage would go unannounced." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "NOTIFY_SECRET present (${#NOTIFY_SECRET} chars)"
+            echo "- Alert lane: wired (signing key reachable from this job)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Probe the live site
         id: probe
         run: |
@@ -59,6 +109,12 @@ jobs:
             fi
             if [ "$attempt" -lt 3 ]; then sleep 15; fi
           done
+          # The drill forces the DOWN branch so the alert can be exercised on
+          # demand instead of waiting for a real outage. `status` stays honest.
+          if [ "$DRILL" = "true" ]; then
+            echo "::notice::alert drill -- forcing the DOWN branch despite status $code"
+            up=0
+          fi
           {
             echo "up=$up"
             echo "status=$code"
@@ -67,7 +123,7 @@ jobs:
 
       - name: Check whether this outage was already announced
         id: gate
-        if: steps.probe.outputs.up != '1'
+        if: steps.probe.outputs.up != '1' && inputs.drill != true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -88,40 +144,52 @@ jobs:
             echo "announce=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Alert Discord
-        if: steps.probe.outputs.up != '1' && steps.gate.outputs.announce == 'true'
+      # A drill always announces -- the gate is skipped for it, because the whole
+      # point of a drill is to watch the message land.
+      - name: 'Alert #dev through the deploy gate'
+        if: steps.probe.outputs.up != '1' && (inputs.drill == true || steps.gate.outputs.announce == 'true')
         env:
-          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
           STATUS: ${{ steps.probe.outputs.status }}
         run: |
           set -uo pipefail
-          api() { curl -sS --fail-with-body -m 20 \
-                    -H "authorization: Bot $DISCORD_BOT_TOKEN" "$@"; }
-
-          # Resolve #dev by name across the guilds the bot is in -- the same
-          # lookup the cicd-collector Worker uses, so no channel ID is hardcoded.
-          channel_id=""
-          for gid in $(api https://discord.com/api/v10/users/@me/guilds | jq -r '.[].id'); do
-            hit=$(api "https://discord.com/api/v10/guilds/$gid/channels" \
-                  | jq -r --arg n "$ALERT_CHANNEL" \
-                      'first(.[] | select(.type == 0 and .name == $n) | .id) // empty')
-            if [ -n "$hit" ]; then channel_id="$hit"; break; fi
-          done
-          if [ -z "$channel_id" ]; then
-            echo "::error::channel #${ALERT_CHANNEL} not found in any guild the bot is in"
+          if [ -z "$NOTIFY_SECRET" ]; then
+            echo "::error::NOTIFY_SECRET is not set on this repository, so the alert cannot be signed. Set it as a repo secret (robogeosociety/walksheds#92) and re-run."
             exit 1
           fi
 
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          text=$(printf '**walksheds.xyz is DOWN** -- HTTP %s after 3 attempts over ~30s.\nProbed from a GitHub-hosted runner. <%s>' \
-                   "$STATUS" "$run_url")
-          jq -n --arg c "$text" '{content: $c}' \
-            | api -X POST -H 'content-type: application/json' -d @- \
-                "https://discord.com/api/v10/channels/$channel_id/messages" > /dev/null
-          echo "alerted #${ALERT_CHANNEL}"
+          if [ "$DRILL" = "true" ]; then
+            title="Uptime alert DRILL -- walksheds.xyz is fine"
+            level="warn"
+            body=$(printf 'This is a test of the walksheds uptime alert. There is no outage.\n\nThe live probe returned HTTP %s; the drill forced the alert path so it could be proven end to end.\n\n%s' \
+                     "$STATUS" "$run_url")
+          else
+            title="walksheds.xyz is DOWN"
+            level="error"
+            body=$(printf 'HTTP %s after 3 attempts over roughly 30s, probed from a GitHub-hosted runner.\n\n%s' \
+                     "$STATUS" "$run_url")
+          fi
+
+          payload=$(jq -nc --arg t "$title" --arg b "$body" --arg l "$level" \
+                      '{title: $t, body: $b, level: $l}')
+          # HMAC-SHA256 over exactly the bytes sent as the body.
+          sig=$(printf '%s' "$payload" \
+                | openssl dgst -sha256 -hmac "$NOTIFY_SECRET" | awk '{print $NF}')
+
+          # --fail-with-body so a 401 (wrong or absent key) or 503 (Worker not
+          # configured) turns this step red rather than passing silently. A
+          # dropped alert has to be loud.
+          curl -sS --fail-with-body -m 20 "${GATE_URL}/notify" \
+            -H "x-request-signature: sha256=${sig}" \
+            -H 'content-type: application/json' \
+            -d "$payload"
+          echo
+          echo "posted to #dev via the deploy gate"
+          echo "- Alert posted to #dev via the deploy gate (level: ${level})." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail the run when the site is down
-        if: steps.probe.outputs.up != '1'
+        if: steps.probe.outputs.up != '1' && inputs.drill != true
         run: |
           echo "::error::walksheds.xyz unreachable -- last status ${{ steps.probe.outputs.status }}"
           exit 1
