@@ -1,7 +1,11 @@
 #!/usr/bin/env -S uv run --script
+# cairosvg and pillow are process.py's dependencies, not this script's, but
+# download() runs process.py with sys.executable — the isolated interpreter uv
+# builds from the metadata below — so they have to be declared here too.
+# cairosvg also needs the system cairo library (libcairo2 on Ubuntu).
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["httpx"]
+# dependencies = ["cairosvg", "httpx", "pillow"]
 # ///
 """Refresh SDOT light rail data from Seattle ArcGIS and reprocess.
 
