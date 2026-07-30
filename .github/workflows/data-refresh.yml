@@ -251,12 +251,21 @@ jobs:
           path: ${{ runner.temp }}/refresh-summary.json
           if-no-files-found: ignore
 
+      # `cancelled()` is load-bearing: a `timeout-minutes` kill concludes as CANCELLED, not
+      # FAILURE, so a plain `if: failure()` would stay silent on exactly the hang this job's
+      # 90-minute budget exists to catch. Safe to widen here because `cancel-in-progress` is
+      # false — no supersession can fire this spuriously.
       - name: Surface failure as an issue
-        if: failure()
+        if: failure() || cancelled()
         run: |
           title="Data refresh failed for $(date -u +%Y-%m)"
           existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
-          body="The scheduled data refresh failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "${{ job.status }}" = "cancelled" ]; then
+            what="was cancelled or hit its timeout"
+          else
+            what="failed"
+          fi
+          body="The scheduled data refresh $what: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
           else
