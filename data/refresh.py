@@ -95,7 +95,24 @@ def download(dry_run: bool = False) -> tuple[dict, dict]:
     )
 
     print("\nProcessing...")
-    subprocess.check_call([sys.executable, str(ROOT / "data" / "process.py")])
+    try:
+        subprocess.check_call([sys.executable, str(ROOT / "data" / "process.py")])
+    except subprocess.CalledProcessError as exc:
+        # The child's own traceback already printed above (stdio is inherited,
+        # not captured) — but CI failure summaries and bots often surface only
+        # this exception's message, not the full log. Make that message useful
+        # on its own instead of the bare "Command [...] returned non-zero exit
+        # status 1" — the actual cause is almost always either a missing
+        # dependency (declare it in this file's `# /// script` metadata — see
+        # the comment at the top) or an unexpected SDOT schema change (see
+        # data/process.py's SDOTSchemaError and this file's validate_stations
+        # / validate_alignment).
+        raise RuntimeError(
+            f"data/process.py failed reprocessing the freshly-downloaded SDOT data "
+            f"(exit code {exc.returncode}). Scroll up for its traceback — the most "
+            "likely causes are a dependency missing from this script's inline "
+            "metadata, or SDOT having changed the shape of its GeoJSON."
+        ) from exc
 
     print("\nDone. Review changes with: git diff public/")
     return stations, alignment

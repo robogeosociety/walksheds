@@ -175,6 +175,30 @@ OFFSET_METERS = 30
 LINE1_DESCS = {"Central Link", "University Link", "North Link", "Airport Link", "Angle Lake"}
 
 
+class SDOTSchemaError(RuntimeError):
+    """Raised when a downloaded SDOT GeoJSON feature is missing a field this
+    script depends on — signals an upstream schema change rather than a bug
+    in this script."""
+
+
+def station_name(feat):
+    """Extract a station feature's NAME, failing clearly if SDOT's schema changed.
+
+    Reads by key rather than by position: the station layer's field order
+    (OBJECTID_1, STATUS, NAME, STATION, ...) is not guaranteed to be stable,
+    so indexing into properties.values() would silently pick the wrong field
+    (or throw an opaque IndexError) if SDOT ever reorders or renames columns.
+    """
+    props = feat["properties"]
+    if "NAME" not in props:
+        raise SDOTSchemaError(
+            "SDOT station feature is missing the 'NAME' property — the "
+            f"upstream schema may have changed. Got properties: {sorted(props.keys())}. "
+            "Update data/process.py (and refresh.py's validate_stations) to match."
+        )
+    return props["NAME"]
+
+
 def dist(a, b):
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
@@ -347,12 +371,12 @@ def main():
         feat
         for feat in raw_stations["features"]
         if feat["properties"].get("STATUS") == "Existing / Under Construction"
-        and not any(kw in list(feat["properties"].values())[2] for kw in TACOMA_KW)
+        and not any(kw in station_name(feat) for kw in TACOMA_KW)
     ]
 
     station_coords = {}
     for feat in existing:
-        raw_name = list(feat["properties"].values())[2]
+        raw_name = station_name(feat)
         name = NAME_MAP.get(raw_name, raw_name)
         station_coords[name] = feat["geometry"]["coordinates"]
 

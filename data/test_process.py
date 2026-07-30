@@ -1,5 +1,6 @@
 """Tests for data processing — verify line alignment and station data integrity."""
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -20,6 +21,15 @@ def generate_data():
 def load(name):
     with open(os.path.join(PUBLIC, f"{name}.geojson")) as f:
         return json.load(f)
+
+
+def load_process_module():
+    """Import data/process.py as a module (for unit-testing its helpers directly,
+    rather than only exercising it end-to-end via the subprocess fixture above)."""
+    spec = importlib.util.spec_from_file_location("process", os.path.join(ROOT, "data", "process.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class TestLineAlignment:
@@ -122,3 +132,27 @@ class TestStationData:
         assert by_name["Lynnwood City Center Station"] == 40
         assert by_name["Federal Way Downtown Station"] == 68
         assert by_name["Downtown Redmond Station"] == 65
+
+
+class TestSDOTSchemaGuard:
+    """station_name() reads the SDOT NAME field by key, not by position, and
+    fails with a clear, actionable error rather than an opaque IndexError (or
+    silently picking the wrong field) if SDOT ever reorders or renames its
+    station properties. Guards the fix for the 2026-07-26 monthly-refresh
+    failure mode (a missing dependency crashed process.py; this hardens the
+    related-but-distinct risk of an actual upstream schema change)."""
+
+    @pytest.mark.unit
+    def test_missing_name_raises_clear_schema_error(self):
+        process = load_process_module()
+        feat = {"properties": {"STATUS": "Existing / Under Construction", "STATION": "X"}}
+        with pytest.raises(process.SDOTSchemaError, match="NAME"):
+            process.station_name(feat)
+
+    @pytest.mark.unit
+    def test_name_read_by_key_not_by_column_position(self):
+        process = load_process_module()
+        # Property order deliberately does NOT match SDOT's usual
+        # OBJECTID_1, STATUS, NAME, ... layout, to prove this reads by key.
+        feat = {"properties": {"NAME": "Westlake Station", "STATUS": "Existing / Under Construction"}}
+        assert process.station_name(feat) == "Westlake Station"
