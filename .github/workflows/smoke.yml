@@ -39,3 +39,18 @@ jobs:
         run: npx playwright test e2e/uptime.spec.js --project=chromium
         env:
           BASE_URL: https://walksheds.xyz
+
+  # `cancelled()` is deliberate, not just copy-pasted: this job has no explicit
+  # `timeout-minutes`, so it falls back to GitHub's 360-minute default, and a hang
+  # there (e.g. a stuck `npx playwright install --with-deps`) would report as
+  # cancelled, not failed. There's also no `concurrency` block on this workflow, so
+  # `cancelled()` can't fire from routine cancel-in-progress supersession -- the
+  # only realistic sources are a real hang or a human cancelling the run, both
+  # worth paging on.
+  notify-failure:
+    needs: [smoke]
+    if: failure() || cancelled()
+    uses: robogeosociety/.github/.github/workflows/notify-failure.yml@main
+    with:
+      lane: smoke
+    secrets: inherit
