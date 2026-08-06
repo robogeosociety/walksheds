@@ -1,6 +1,10 @@
 # walksheds
 Points of interest within walking distance of a Seattle light rail station
 
+[![Reader guide](https://img.shields.io/badge/docs-reader%20guide-38B030)](https://wiki.walksheds.xyz/)
+[![Engineering codex](https://img.shields.io/badge/docs-engineering%20codex-00A0E0)](https://wiki.walksheds.xyz/dev/)
+[![Live site](https://img.shields.io/badge/live-walksheds.xyz-2b2f36)](https://walksheds.xyz)
+
 # Objectives
 1. A clickable and scrollable map of Seattle light rail stations that displays dynamic walksheds (circles reachable within a given time walking from the station)
 2. These walksheds will include a sortable and filtered list of attractions (restaurants, shops, concert venues &c) within this walking range
