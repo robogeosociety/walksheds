@@ -1,11 +1,10 @@
 import { Source, Layer } from 'react-map-gl'
 import { polygonToLine } from './mapbox'
-import { WALKSHED_STYLES, WALKSHED_ACCENT_LIGHT, WALKSHED_ACCENT_DARK, WALKSHED_RENDER_ORDER } from './constants'
+import { WALKSHED_STYLES, WALKSHED_RENDER_ORDER } from './constants'
 
-export default function WalkshedLayers({ walksheds, enabledWalksheds, darkMode, mapLoaded }) {
+export default function WalkshedLayers({ walksheds, enabledWalksheds, darkMode, mapLoaded, accent }) {
   if (!mapLoaded) return null
 
-  const accent = WALKSHED_ACCENT_LIGHT
   const styles = darkMode ? WALKSHED_STYLES.dark : WALKSHED_STYLES.light
   const mode = darkMode ? 'dark' : 'light'
 

@@ -36,6 +36,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import fetch_pois  # noqa: E402
 from fetch_pois import (  # noqa: E402
     OVERPASS_TIMEOUT,
     compute_bbox,
@@ -45,8 +46,18 @@ from fetch_pois import (  # noqa: E402
 from fetch_walksheds import station_key  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(HERE))
-RAW_DUMP = os.path.join(ROOT, "data", "pois", "raw", "station-exits.json.gz")
-OUTPUT = os.path.join(ROOT, "public", "station-exits.geojson")
+
+# Path overrides; normally None, in which case they follow fetch_pois.CITY.
+RAW_DUMP = None
+OUTPUT = None
+
+
+def raw_dump_path():
+    return RAW_DUMP or str(fetch_pois.CITY.exits_dump)
+
+
+def output_path():
+    return OUTPUT or str(fetch_pois.CITY.station_exits_geojson)
 
 # An entrance node beyond this distance from every Link station is treated as
 # unrelated (a different transit stop caught by the padded bbox) and dropped.
@@ -101,8 +112,9 @@ def build_query(bbox):
     )
 
 
-def refresh_raw_dump(bbox, out_path=RAW_DUMP, dry_run=False):
+def refresh_raw_dump(bbox, out_path=None, dry_run=False):
     """Fetch entrance nodes for the bbox and write them gzipped to out_path."""
+    out_path = out_path or raw_dump_path()
     print("Refreshing station-exit dump from Overpass...")
     print(f"  Values: {', '.join(ENTRANCE_VALUES)}")
     print(f"  Bbox: {bbox}")
@@ -120,12 +132,14 @@ def refresh_raw_dump(bbox, out_path=RAW_DUMP, dry_run=False):
     return result
 
 
-def load_raw_dump(path=RAW_DUMP):
+def load_raw_dump(path=None):
     """Load the committed gzipped entrance dump."""
+    path = path or raw_dump_path()
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"Raw dump not found at {path}. Run "
-            f"`python3 data/pois/fetch_station_exits.py --refresh` to fetch it."
+            f"Raw dump not found at {path}. Run `python3 "
+            f"data/pois/fetch_station_exits.py --city {fetch_pois.CITY.slug} "
+            "--refresh` to fetch it."
         )
     with gzip.open(path, "rb") as f:
         return json.loads(f.read().decode("utf-8"))
@@ -196,10 +210,12 @@ def build_exits(elements, stations):
 
 def main():
     ap = argparse.ArgumentParser(description="Build station-exit points from OSM")
+    fetch_pois.city_registry.add_city_arg(ap, allow_all=False)
     ap.add_argument("--refresh", action="store_true",
                     help="Refetch the entrance dump from Overpass before building")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    fetch_pois.set_city(args.city)
 
     stations = load_station_index()
     bbox = compute_bbox(stations)
@@ -220,11 +236,12 @@ def main():
         print("[dry-run] no files written")
         return
 
-    os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)
+    out = output_path()
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     fc = {"type": "FeatureCollection", "features": features}
-    with open(OUTPUT, "w") as f:
+    with open(out, "w") as f:
         json.dump(fc, f)
-    print(f"Wrote {OUTPUT}")
+    print(f"Wrote {out}")
 
 
 if __name__ == "__main__":

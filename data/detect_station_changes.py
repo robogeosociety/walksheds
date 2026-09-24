@@ -8,15 +8,19 @@ against the committed baseline: station names in HEAD's all-stations.geojson
 union process.py's hardcoded line orders. Diffing against HEAD (not the
 previous raw dump) makes the check self-healing across skipped months.
 
-Because process.py's station wiring is hardcoded (LINE_1_ORDER / LINE_2_ORDER,
-STOP_CODES, MISSING_STATIONS, SHARED_COUNT, the 38-count assertions), a new
-station needs human-judged code edits — this script only DETECTS and reports;
-it never edits process.py. Its output feeds the refresh PR body and, when
-non-empty, an escalation issue for the @claude responder.
+Because the Seattle processor's station wiring is hardcoded (LINE_1_ORDER /
+LINE_2_ORDER, STOP_CODES, MISSING_STATIONS, SHARED_COUNT, the 38-count
+assertions), a new station needs human-judged code edits — this script only
+DETECTS and reports; it never edits the processor. Its output feeds the refresh
+PR body and, when non-empty, an escalation issue for the @claude responder.
+
+Seattle-only by design: it exists because SDOT publishes stations the app has
+not been wired for. Honolulu's processor derives everything from HART's ID
+ordinal, so a new Skyline station needs only OPEN_STATION_MAX_ID raised.
 
 Usage:
   python3 data/detect_station_changes.py \
-      [--raw data/raw/light-rail-stations.geojson] \
+      [--raw data/cities/seattle/raw/light-rail-stations.geojson] \
       [--github-output "$GITHUB_OUTPUT"] [--issue-body PATH]
 """
 import argparse
@@ -29,14 +33,23 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-from process import LINE_1_ORDER, LINE_2_ORDER, MISSING_STATIONS, NAME_MAP, TACOMA_KW  # noqa: E402
+import cities as city_registry  # noqa: E402
+from processors.seattle import (  # noqa: E402
+    LINE_1_ORDER,
+    LINE_2_ORDER,
+    MISSING_STATIONS,
+    NAME_MAP,
+    TACOMA_KW,
+)
 
-DEFAULT_RAW = os.path.join(HERE, "raw", "light-rail-stations.geojson")
+CITY = city_registry.get_city("seattle")
+DEFAULT_RAW = str(CITY.raw_dir / "light-rail-stations.geojson")
+COMMITTED_STATIONS = str(CITY.stations_geojson.relative_to(city_registry.ROOT))
 MISSING_NAMES = {name for name, _lng, _lat in MISSING_STATIONS}
 
 
 def sdot_station_names(raw):
-    """Station names in the feed after process.py's exact filter.
+    """Station names in the feed after the Seattle processor's exact filter.
 
     Mirrors process.py main(): STATUS gate, Tacoma keyword exclusion on the
     NAME property (positionally the third value, as process.py reads it),
@@ -57,7 +70,7 @@ def sdot_station_names(raw):
 def committed_station_names():
     """Station names in all-stations.geojson at HEAD (pre-refresh baseline)."""
     out = subprocess.run(
-        ["git", "show", "HEAD:public/all-stations.geojson"],
+        ["git", "show", f"HEAD:{COMMITTED_STATIONS}"],
         capture_output=True, text=True, check=True, cwd=ROOT,
     ).stdout
     return {f["properties"]["name"] for f in json.loads(out)["features"]}
@@ -83,7 +96,8 @@ def render_issue_body(report):
     new = ", ".join(report["new_stations"]) or "none"
     lines = [
         "@claude The monthly data refresh detected Sound Transit station changes",
-        "in the SDOT feed that need hardcoded wiring in data/process.py. The",
+        "in the SDOT feed that need hardcoded wiring in",
+        "data/processors/seattle.py. The",
         "refresh PR intentionally does not make these code edits.",
         "",
         f"New stations (Existing / Under Construction, not in the app): {new}",
@@ -100,15 +114,18 @@ def render_issue_body(report):
         "",
         "Touch points for wiring a new station (open as a follow-up PR, do not",
         "piggyback on the refresh PR):",
-        "- data/process.py: LINE_1_ORDER / LINE_2_ORDER insertion point,",
+        "- data/processors/seattle.py: LINE_1_ORDER / LINE_2_ORDER insertion",
+        "  point,",
         "  STOP_CODES entry (three-digit code reference in CLAUDE.md, Station",
         "  Codes section), MISSING_STATIONS removal if applicable, SHARED_COUNT",
         "  only if the shared trunk changes.",
         "- data/test_process.py: the 38 / 13 shared / 13 line-1 / 12 line-2",
         "  count assertions.",
-        "- data/pois/test_invariants.py + CLAUDE.md: INV-012's station count.",
-        "- Sprites: rerun data/process.py (INV-013 / INV-014).",
-        "- Downstream, in order: fetch_walksheds.py --refresh (new coordinates;",
+        "- data/cities.py: SEATTLE.station_count (INV-012), and",
+        "  data/pois/test_invariants.py + CLAUDE.md if the invariant text moves.",
+        "- Sprites: rerun data/process.py --city seattle (INV-013 / INV-014).",
+        "- Downstream, in order (all take --city seattle): fetch_walksheds.py",
+        "  --refresh (new coordinates;",
         "  bumps the walkshed version and correctly invalidates the whole",
         "  Matrix cache), fetch_pois.py, fetch_walking_distances.py --refresh,",
         "  build_refined.py, build_stats.py.",

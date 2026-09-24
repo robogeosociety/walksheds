@@ -26,8 +26,28 @@ import urllib.parse
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-STATION_INDEX = os.path.join(ROOT, "data", "station-index.json")
-RAW_DUMP = os.path.join(ROOT, "data", "pois", "raw", "walksheds.json.gz")
+sys.path.insert(0, os.path.join(ROOT, "data"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import cities as city_registry  # noqa: E402
+
+# Path overrides; normally None, in which case they follow fetch_pois.CITY (set
+# via fetch_pois.set_city). Tests set them to a fixture tree.
+STATION_INDEX = None
+RAW_DUMP = None
+
+
+def _city():
+    import fetch_pois
+    return fetch_pois.CITY
+
+
+def station_index_path():
+    return STATION_INDEX or str(_city().station_index)
+
+
+def raw_dump_path():
+    return RAW_DUMP or str(_city().walksheds_dump)
 
 ISOCHRONE_URL = "https://api.mapbox.com/isochrone/v1/mapbox/walking"
 CONTOURS = (5, 10, 15)
@@ -45,7 +65,7 @@ def station_key(station):
 
 
 def load_station_index():
-    with open(STATION_INDEX) as f:
+    with open(station_index_path()) as f:
         return json.load(f)["stations"]
 
 
@@ -75,8 +95,9 @@ def fetch_one(station, token):
                 raise
 
 
-def refresh_dump(stations, token, out_path=RAW_DUMP, dry_run=False):
+def refresh_dump(stations, token, out_path=None, dry_run=False):
     """Fetch isochrones for every station and write the keyed dump."""
+    out_path = out_path or raw_dump_path()
     print(f"Refreshing walksheds from Mapbox Isochrone (contours={CONTOURS})...")
     by_station = {}
     for i, station in enumerate(stations, 1):
@@ -125,7 +146,7 @@ def refresh_dump(stations, token, out_path=RAW_DUMP, dry_run=False):
 def load_dump(path=None):
     """Load the committed walkshed dump. Looks up RAW_DUMP at call time so tests can monkeypatch it."""
     if path is None:
-        path = RAW_DUMP
+        path = raw_dump_path()
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"Walkshed dump not found at {path}. "
@@ -137,9 +158,12 @@ def load_dump(path=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch walkshed polygons from Mapbox Isochrone")
+    city_registry.add_city_arg(parser, allow_all=False)
     parser.add_argument("--refresh", action="store_true", help="Refetch from Mapbox (requires MAPBOX_TOKEN)")
     parser.add_argument("--dry-run", action="store_true", help="Print plan, don't write")
     args = parser.parse_args()
+    import fetch_pois
+    fetch_pois.set_city(args.city)
 
     stations = load_station_index()
     print(f"Stations: {len(stations)}")

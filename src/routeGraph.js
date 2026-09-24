@@ -1,82 +1,77 @@
 /**
- * Route graph for keyboard navigation along light rail lines.
+ * Route graph for keyboard navigation along rail lines.
  *
- * The 1 Line and 2 Line share a north/downtown segment (Lynnwood through
- * Intl District/Chinatown). At International District Station the lines diverge:
- *   - 1 Line continues south to Stadium → Federal Way Downtown
- *   - 2 Line branches east to Judkins Park → Downtown Redmond
+ * Line order is DERIVED from the station data, not hardcoded: a station's
+ * `stopCode` is an ordinal along its line in every city the app covers (Sound
+ * Transit's three-digit codes increase away from Westlake=50; HART's station IDs
+ * run 1..21 west to east), so each line's order is its stations sorted by
+ * stopCode. That is what makes this file city-agnostic — Seattle's two lines
+ * with a shared downtown trunk and Honolulu's single Skyline line both fall out
+ * of the same derivation.
  *
- * Navigation tracks which line the user is "on" so traversal through
- * shared stations stays on the same line, and junction stations show
- * directional hints for line switching.
+ * Where two or more lines share a leading run of stations, they diverge at the
+ * last station of that common prefix — the junction, which gets directional
+ * hints for line switching. A single-line city has no junction.
  *
- * Station names match Sound Transit's official current names.
+ * Navigation tracks which line the user is "on" so traversal through shared
+ * stations stays on the same line.
  */
-
-const LINE_1_ORDER = [
-  'Lynnwood City Center Station',
-  'Mountlake Terrace Station',
-  'Shoreline North/185th Station',
-  'Shoreline South/148th Station',
-  'Northgate Station',
-  'Roosevelt Station',
-  'U District Station',
-  'University of Washington Station',
-  'Capitol Hill Station',
-  'Westlake Station',
-  'Symphony Station',
-  'Pioneer Square Station',
-  'International District Station',
-  'Stadium Station',
-  'SODO Station',
-  'Beacon Hill Station',
-  'Mount Baker Station',
-  'Columbia City Station',
-  'Othello Station',
-  'Rainier Beach Station',
-  'Tukwila International Blvd Station',
-  'Airport / SeaTac Station',
-  'Angle Lake Station',
-  'Kent Des Moines Station',
-  'Star Lake Station',
-  'Federal Way Downtown Station',
-]
-
-const LINE_2_ORDER = [
-  'Lynnwood City Center Station',
-  'Mountlake Terrace Station',
-  'Shoreline North/185th Station',
-  'Shoreline South/148th Station',
-  'Northgate Station',
-  'Roosevelt Station',
-  'U District Station',
-  'University of Washington Station',
-  'Capitol Hill Station',
-  'Westlake Station',
-  'Symphony Station',
-  'Pioneer Square Station',
-  'International District Station',
-  'Judkins Park Station',
-  'Mercer Island Station',
-  'South Bellevue Station',
-  'East Main Station',
-  'Bellevue Downtown Station',
-  'Wilburton Station',
-  'Spring District/120th Station',
-  'Bel-Red/130th Station',
-  'Overlake Village Station',
-  'Redmond Technology Center Station',
-  'Marymoor Village Station',
-  'Downtown Redmond Station',
-]
-
-const JUNCTION_STATION = 'International District Station'
 
 const ARROW_BEARINGS = {
   ArrowUp: 0,
   ArrowRight: 90,
   ArrowDown: 180,
   ArrowLeft: 270,
+}
+
+/**
+ * Per-line station order, derived from the station features.
+ *
+ * Returns a Map of line id → ordered station names. A station's `lines`
+ * property is the comma-joined list of line keys it serves ('1', '2', '1,2'),
+ * so a shared station appears in every line it belongs to.
+ */
+export function deriveLineOrders(stationsGeoJSON, city) {
+  const orders = new Map()
+  if (!city?.lines) return orders
+
+  // One entry per (name, line) pair, deduplicated: shared stations are emitted
+  // once per line in the GeoJSON for Seattle but only once overall elsewhere.
+  for (const line of city.lines) {
+    const seen = new Set()
+    const rows = []
+    for (const f of stationsGeoJSON.features) {
+      const { name, lines, stopCode } = f.properties
+      const keys = String(lines ?? '').split(',').map(k => k.trim()).filter(Boolean)
+      // Fall back to the per-feature `line` id when `lines` is absent, so a
+      // partial fixture still wires up.
+      const serves = keys.length ? keys.includes(line.key) : f.properties.line === line.id
+      if (!serves || seen.has(name)) continue
+      seen.add(name)
+      rows.push({ name, stopCode })
+    }
+    rows.sort((a, b) => (a.stopCode ?? 0) - (b.stopCode ?? 0))
+    orders.set(line.id, rows.map(r => r.name))
+  }
+  return orders
+}
+
+/**
+ * The station where the lines diverge: the last station shared by the leading
+ * run of every line's order. `null` for a single-line city, or when the lines
+ * share no common prefix.
+ */
+export function deriveJunction(orders) {
+  const lists = [...orders.values()].filter(o => o.length > 0)
+  if (lists.length < 2) return null
+  let junction = null
+  const shortest = Math.min(...lists.map(l => l.length))
+  for (let i = 0; i < shortest; i++) {
+    const name = lists[0][i]
+    if (!lists.every(l => l[i] === name)) break
+    junction = name
+  }
+  return junction
 }
 
 function bearing(lngA, latA, lngB, latB) {
@@ -99,7 +94,7 @@ function angleDiff(a, b) {
  * Build adjacency graph from station GeoJSON.
  * Each neighbor is tagged with its line so navigation can stay on the current line.
  */
-export function buildGraph(stationsGeoJSON) {
+export function buildGraph(stationsGeoJSON, city) {
   const stations = new Map()
 
   for (const f of stationsGeoJSON.features) {
@@ -134,11 +129,17 @@ export function buildGraph(stationsGeoJSON) {
     }
   }
 
-  wireAdjacency(LINE_1_ORDER, '1-line')
-  wireAdjacency(LINE_2_ORDER, '2-line')
+  const orders = deriveLineOrders(stationsGeoJSON, city)
+  for (const [lineId, order] of orders) wireAdjacency(order, lineId)
+  for (const [lineId, order] of orders) indexSegmentCardinals(stations, order, lineId)
 
-  indexSegmentCardinals(stations, LINE_1_ORDER, '1-line')
-  indexSegmentCardinals(stations, LINE_2_ORDER, '2-line')
+  // Line metadata the navigation helpers need, carried on the graph so they
+  // keep their (graph, stationName) signatures instead of reaching for globals.
+  stations.meta = {
+    orders,
+    junction: deriveJunction(orders),
+    lineLabels: new Map((city?.lines || []).map(l => [l.id, l.label])),
+  }
 
   return stations
 }
@@ -207,11 +208,12 @@ function indexSegmentCardinals(stations, order, lineId) {
 }
 
 export function isJunction(graph, stationName) {
-  return stationName === JUNCTION_STATION
+  const junction = graph?.meta?.junction
+  return Boolean(junction) && stationName === junction
 }
 
 /**
- * If `stationName` is the start or end of either line order, return the
+ * If `stationName` is the start or end of any line order, return the
  * cardinal direction the line "points off the map" in (as the arrow key
  * the user can no longer travel) and which lines terminate here.
  * Returns null for non-terminus stations.
@@ -227,8 +229,11 @@ export function getTerminusInfo(graph, stationName) {
   if (!node || node.neighbors.length === 0) return null
 
   const lines = []
-  if (LINE_1_ORDER[0] === stationName || LINE_1_ORDER[LINE_1_ORDER.length - 1] === stationName) lines.push('1-line')
-  if (LINE_2_ORDER[0] === stationName || LINE_2_ORDER[LINE_2_ORDER.length - 1] === stationName) lines.push('2-line')
+  for (const [lineId, order] of graph.meta?.orders || []) {
+    if (order.length && (order[0] === stationName || order[order.length - 1] === stationName)) {
+      lines.push(lineId)
+    }
+  }
   if (lines.length === 0) return null
 
   const neighbor = node.neighbors[0]
@@ -269,7 +274,7 @@ export function getJunctionHints(graph, stationName) {
     const arrowKey = neighbor.cardinal
       || nearestCardinal(bearing(current.coords[0], current.coords[1], neighbor.coords[0], neighbor.coords[1]))
 
-    const lineLabel = neighbor.line === '1-line' ? '1 Line' : '2 Line'
+    const lineLabel = graph.meta?.lineLabels?.get(neighbor.line) || neighbor.line
     hints.push({
       arrowKey,
       line: neighbor.line,

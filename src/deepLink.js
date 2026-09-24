@@ -2,19 +2,26 @@
  * Deep linking utilities for station URLs.
  *
  * URL format: /{system}/{line}/{stopCode}?walkshed=5&walkshed=10
- * Example:    /seattle/1/50  →  Westlake Station on Line 1
+ * Example:    /seattle/1/50    →  Westlake Station on Line 1
+ *             /honolulu/1/8    →  Kalauao (Pearlridge) on Skyline
  *
- * The {system} segment scopes the path to a transit system, leaving room for
- * future additions (e.g. /portland/…, /bart/…). Legacy two-segment paths
- * (/1/50) still parse — they're treated as Seattle and auto-rewritten to the
- * new form on the next history.replaceState.
+ * The {system} segment is the city slug, so the supported set and each city's
+ * valid line keys both come from the city registry rather than being listed
+ * here. Legacy two-segment paths (/1/50) still parse — they're treated as the
+ * default city and auto-rewritten to the new form on the next
+ * history.replaceState.
  */
 
 import { WALKSHED_OPTIONS } from './constants'
+import { CITY_SLUGS, DEFAULT_CITY_SLUG, cityBySlug, isCitySlug } from './cities'
 
-const VALID_LINES = new Set(['1', '2'])
-export const SUPPORTED_SYSTEMS = new Set(['seattle'])
-export const DEFAULT_SYSTEM = 'seattle'
+export const SUPPORTED_SYSTEMS = new Set(CITY_SLUGS)
+export const DEFAULT_SYSTEM = DEFAULT_CITY_SLUG
+
+/** The line keys valid for one system (city slug). */
+export function validLinesFor(system) {
+  return new Set(cityBySlug(system).lines.map(l => l.key))
+}
 
 /**
  * Parse a station path into system, line, and stop code.
@@ -32,7 +39,7 @@ export function parseStationPath(pathname, basePath) {
   let system, line, codeStr
   if (parts.length === 3) {
     [system, line, codeStr] = parts
-    if (!SUPPORTED_SYSTEMS.has(system)) return null
+    if (!isCitySlug(system)) return null
   } else if (parts.length === 2) {
     // Legacy /{line}/{stopCode} — default to the only system that existed
     // when those URLs were minted.
@@ -42,7 +49,7 @@ export function parseStationPath(pathname, basePath) {
     return null
   }
 
-  if (!VALID_LINES.has(line)) return null
+  if (!validLinesFor(system).has(line)) return null
 
   const stopCode = parseInt(codeStr, 10)
   if (isNaN(stopCode)) return null
@@ -51,9 +58,9 @@ export function parseStationPath(pathname, basePath) {
 }
 
 /**
- * Build a station URL path. `system` defaults to DEFAULT_SYSTEM ('seattle')
- * since that's currently the only one — pass it explicitly when more systems
- * are added.
+ * Build a station URL path. `system` is the city slug; it defaults to the
+ * registry's default city, so callers that already know the active city should
+ * pass its slug explicitly.
  */
 export function buildStationPath(line, stopCode, basePath, system = DEFAULT_SYSTEM) {
   const base = basePath.endsWith('/') ? basePath : basePath + '/'

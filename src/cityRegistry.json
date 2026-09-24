@@ -1,0 +1,86 @@
+{
+  "defaultCity": "seattle",
+  "cities": [
+    {
+      "slug": "honolulu",
+      "name": "Honolulu",
+      "system": "Skyline",
+      "agency": "HART",
+      "center": [
+        -157.97,
+        21.365
+      ],
+      "zoom": 12.0,
+      "lines": [
+        {
+          "id": "1-line",
+          "key": "1",
+          "label": "Skyline",
+          "glyph": "S",
+          "color": "#134574",
+          "colorDark": "#4A90C2",
+          "alignment": "line1-alignment.geojson"
+        }
+      ],
+      "walkshedAccent": {
+        "light": "#134574",
+        "dark": "#4A90C2"
+      },
+      "defaultStation": {
+        "lines": "1",
+        "stopCode": 8
+      },
+      "stationCount": 13,
+      "capabilities": [
+        "exits"
+      ],
+      "sourceNote": "HART / Honolulu Open Geospatial Data"
+    },
+    {
+      "slug": "seattle",
+      "name": "Seattle",
+      "system": "Link Light Rail",
+      "agency": "Sound Transit",
+      "center": [
+        -122.33,
+        47.6
+      ],
+      "zoom": 11.5,
+      "lines": [
+        {
+          "id": "1-line",
+          "key": "1",
+          "label": "1 Line",
+          "glyph": "1",
+          "color": "#38B030",
+          "colorDark": "#38B030",
+          "alignment": "line1-alignment.geojson"
+        },
+        {
+          "id": "2-line",
+          "key": "2",
+          "label": "2 Line",
+          "glyph": "2",
+          "color": "#00A0E0",
+          "colorDark": "#00A0E0",
+          "alignment": "line2-alignment.geojson"
+        }
+      ],
+      "walkshedAccent": {
+        "light": "#00A0E0",
+        "dark": "#00A0E0"
+      },
+      "defaultStation": {
+        "lines": "1,2",
+        "stopCode": 50
+      },
+      "stationCount": 38,
+      "capabilities": [
+        "exits",
+        "pois",
+        "walksheds"
+      ],
+      "sourceNote": "SDOT / Sound Transit"
+    }
+  ]
+}

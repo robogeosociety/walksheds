@@ -44,8 +44,19 @@ import fetch_pois
 import fetch_walksheds
 
 ROOT = fetch_pois.ROOT
-OUTPUT_DIR = fetch_pois.OUTPUT_DIR
-DUMP = os.path.join(ROOT, "data", "pois", "raw", "walking-distances.json.gz")
+
+# Path overrides; normally None, in which case they follow fetch_pois.CITY
+# (set via fetch_pois.set_city). Tests set them to a fixture tree.
+OUTPUT_DIR = None
+DUMP = None
+
+
+def dump_path():
+    return DUMP or str(fetch_pois.CITY.distances_dump)
+
+
+def output_dir():
+    return OUTPUT_DIR or fetch_pois.output_dir()
 
 MATRIX_URL = "https://api.mapbox.com/directions-matrix/v1/mapbox/walking"
 MATRIX_MAX_DESTS = 24  # Mapbox walking matrix caps at 25 coords; 1 source + 24 destinations.
@@ -101,7 +112,7 @@ def load_pois():
     """Load every per-category POI FeatureCollection from public/pois/."""
     pois = {}
     for cat in fetch_pois.CATEGORIES:
-        path = os.path.join(OUTPUT_DIR, f"{cat}.geojson")
+        path = os.path.join(output_dir(), f"{cat}.geojson")
         if not os.path.exists(path):
             raise FileNotFoundError(f"POI file missing: {path}. Run fetch_pois.py first.")
         with open(path) as f:
@@ -112,7 +123,7 @@ def load_pois():
 def load_dump(path=None):
     """Load the committed distance dump. Looks up DUMP at call time so tests can monkeypatch it."""
     if path is None:
-        path = DUMP
+        path = dump_path()
     if not os.path.exists(path):
         return None
     with gzip.open(path, "rb") as f:
@@ -302,7 +313,8 @@ def refresh_pairs(pairs, walkshed_version, token, existing=None, dry_run=False,
     return cache
 
 
-def write_dump(cache, walkshed_version, path=DUMP, dry_run=False):
+def write_dump(cache, walkshed_version, path=None, dry_run=False):
+    path = path or dump_path()
     payload = {"version": walkshed_version, "pairs": cache}
     serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     if dry_run:
@@ -316,6 +328,7 @@ def write_dump(cache, walkshed_version, path=DUMP, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Precompute walking distances POI ↔ station")
+    fetch_pois.city_registry.add_city_arg(parser, allow_all=False)
     parser.add_argument("--refresh", action="store_true",
                         help="Fetch missing pairs from Mapbox Matrix (needs MAPBOX_TOKEN)")
     parser.add_argument("--dry-run", action="store_true", help="Plan only, don't write")
@@ -324,6 +337,7 @@ def main():
     parser.add_argument("--rate", type=float, default=SLEEP_BETWEEN_REQUESTS,
                         help="Min seconds between request starts across the pool.")
     args = parser.parse_args()
+    fetch_pois.set_city(args.city)
 
     stations = fetch_pois.load_station_index()
     walkshed_payload = fetch_walksheds.load_dump()
