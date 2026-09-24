@@ -92,38 +92,6 @@ def haversine_m(a, b):
     return 2 * r * math.asin(math.sqrt(h))
 
 
-def resample_by_station_order(points, station_coords):
-    """Order a bag of alignment points along a station sequence.
-
-    Walks the station list in order and, between each consecutive pair, keeps
-    the alignment points that project onto that segment (0 < t < 1) and sit
-    within `max_deviation` of it — the same projection test the SDOT enrichment
-    uses, but applied to a single continuous guideway rather than scattered
-    per-segment feeds.
-    """
-    ordered = [station_coords[0]]
-    for i in range(len(station_coords) - 1):
-        a, b = station_coords[i], station_coords[i + 1]
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        seg2 = dx * dx + dy * dy
-        if seg2 == 0:
-            continue
-        between = []
-        for pt in points:
-            t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / seg2
-            if not (0.02 < t < 0.98):
-                continue
-            perp = dist(pt, [a[0] + t * dx, a[1] + t * dy])
-            if perp < 0.004:
-                between.append((t, pt))
-        between.sort(key=lambda x: x[0])
-        for _t, pt in between:
-            if dist(ordered[-1], pt) > 0.0002:
-                ordered.append(list(pt))
-        ordered.append(list(b))
-    return ordered
-
-
 def simplify_rdp(coords, tolerance_m, *, lat0=None):
     """Ramer-Douglas-Peucker simplification with a metre tolerance.
 
