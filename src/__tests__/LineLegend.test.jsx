@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import LineLegend from '../LineLegend'
+import { CITIES, cityBySlug, lineColors, walkshedAccent } from '../cities'
 
 const LINE_COLORS = {
   '1-line': { color: '#38B030', label: '1 Line' },
@@ -124,5 +125,85 @@ describe('LineLegend statistics section', () => {
   it('is absent from the collapsed legend bar (expanded legend only)', () => {
     renderLegend({ collapsed: true, stats: STATS })
     expect(screen.queryByRole('button', { name: /Data Statistics/ })).toBeNull()
+  })
+})
+
+describe('LineLegend — per-city rendering', () => {
+  const SEATTLE = cityBySlug('seattle')
+  const HONOLULU = cityBySlug('honolulu')
+
+  function renderFor(city, overrides = {}) {
+    return renderLegend({
+      city,
+      lineColors: lineColors(city, false),
+      walkshedAccent: walkshedAccent(city, false),
+      ...overrides,
+    })
+  }
+
+  it('renders one row per line, in the city\'s line order', () => {
+    renderFor(SEATTLE)
+    expect(screen.getByText('1 Line')).toBeTruthy()
+    expect(screen.getByText('2 Line')).toBeTruthy()
+  })
+
+  it('renders a single-line city with one row and its glyph', () => {
+    renderFor(HONOLULU)
+    expect(screen.getByText('Skyline')).toBeTruthy()
+    expect(screen.queryByText('1 Line')).toBeNull()
+    // The roundel prints the line's glyph ("S"), not its key ("1").
+    expect(screen.getAllByText('S').length).toBeGreaterThan(0)
+  })
+
+  it('hides the walkshed key for a city with no isochrones, and says why', () => {
+    renderFor(HONOLULU, { showWalksheds: false })
+    expect(screen.queryByText('5 min walk')).toBeNull()
+    expect(screen.getByText(/Walkshed isochrones are not built for Honolulu yet/)).toBeTruthy()
+  })
+
+  it('shows the walkshed key for a city that has isochrones', () => {
+    renderFor(SEATTLE, { showWalksheds: true })
+    expect(screen.getByText('5 min walk')).toBeTruthy()
+    expect(screen.queryByText(/not built for/)).toBeNull()
+  })
+})
+
+describe('LineLegend — city switcher', () => {
+  const SEATTLE = cityBySlug('seattle')
+
+  function renderPicker(overrides = {}) {
+    const onCityChange = vi.fn()
+    renderLegend({
+      city: SEATTLE,
+      lineColors: lineColors(SEATTLE, false),
+      cityEnabled: true,
+      onCityChange,
+      ...overrides,
+    })
+    return onCityChange
+  }
+
+  it('lists every registered city', () => {
+    renderPicker()
+    for (const c of CITIES) {
+      expect(screen.getByText(c.name)).toBeTruthy()
+    }
+  })
+
+  it('marks the active city pressed', () => {
+    renderPicker()
+    expect(screen.getByText('Seattle').closest('button').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('Honolulu').closest('button').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('reports the chosen city', () => {
+    const onCityChange = renderPicker()
+    fireEvent.click(screen.getByText('Honolulu'))
+    expect(onCityChange).toHaveBeenCalledWith(expect.objectContaining({ slug: 'honolulu' }))
+  })
+
+  it('is hidden unless explicitly enabled (embeds default it off)', () => {
+    renderLegend({ city: SEATTLE, lineColors: lineColors(SEATTLE, false), cityEnabled: false })
+    expect(screen.queryByRole('group', { name: 'Choose a city' })).toBeNull()
   })
 })

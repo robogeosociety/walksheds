@@ -5,7 +5,7 @@ The route lines and stations come from the Seattle Department of Transportation 
 ## Pipeline
 
 ```
-data/raw/  ──►  data/process.py  ──►  public/*.geojson
+data/cities/seattle/raw/  ──►  data/process.py  ──►  public/*.geojson
 ```
 
 `data/process.py` reads the committed raw SDOT GeoJSON and writes processed files into `public/`:

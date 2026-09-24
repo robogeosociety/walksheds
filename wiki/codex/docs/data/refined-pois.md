@@ -12,21 +12,21 @@ flowchart TD
   WS[walksheds dump] --> ATT
   WD[walking-distances dump] --> ATT
   ATT --> TILE[write_tiles]
-  TILE --> GRID[public/pois/tiles/col_row.geojson]
-  TILE --> IDX[public/pois/index.json]
-  CONF --> TC[public/pois/tag-categories.json]
+  TILE --> GRID[public/cities/<slug>/pois/tiles/col_row.geojson]
+  TILE --> IDX[public/cities/<slug>/pois/index.json]
+  CONF --> TC[public/cities/<slug>/pois/tag-categories.json]
 ```
 
 Conflation is best-of-both: Overture contributes contact data, OSM contributes hours and qualifier tags. The result is around **26,000 POIs** carrying every tag, all preserved across the tiles.
 
 Run it with `python3 data/pois/build_refined.py`. It needs network for the Overture S3 query; the OSM side reads the committed dump.
 
-!!! note "There are no per-category `public/pois/*.geojson` files in production"
+!!! note "There are no per-category `public/cities/<slug>/pois/*.geojson` files in production"
     The refined build emits *only* the tile grid plus `tag-categories.json`. The per-category files described on the [POIs](pois.md) page are the older, OSM-only `fetch_pois.py` output. The app streams tiles.
 
 ## Why tiles
 
-Loading all 26k POIs would be a ~12 MB download. Instead the dataset is partitioned into a grid of `public/pois/tiles/{col}_{row}.geojson` files plus an `index.json`. For a selected station the runtime loads only the roughly 11 tiles overlapping its walkshed — about 20 KB — then clips against the live isochrone.
+Loading all 26k POIs would be a ~12 MB download. Instead the dataset is partitioned into a grid of `public/cities/<slug>/pois/tiles/{col}_{row}.geojson` files plus an `index.json`. For a selected station the runtime loads only the roughly 11 tiles overlapping its walkshed — about 20 KB — then clips against the live isochrone.
 
 `src/poiTiles.js` is the runtime loader. The full dataset (all tags, including marginal and just-outside POIs) is retained; only the *transfer* is reduced.
 
