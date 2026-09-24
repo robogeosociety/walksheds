@@ -34,7 +34,7 @@ flowchart TD
   POPUP --> NEAR[Show nearby stations with<br/>real walking distance + best exit]
 ```
 
-The key performance idea is **spatial tiling** (see [INV-019](invariants.md) and [Refined POIs](data/refined-pois.md)): the full POI set is partitioned into a grid of `public/pois/tiles/{col}_{row}.geojson` files, and `index.json` carries a precomputed `station_tiles` map so the runtime jumps straight from a selected station to the handful of tiles it needs.
+The key performance idea is **spatial tiling** (see [INV-019](invariants.md) and [Refined POIs](data/refined-pois.md)): the full POI set is partitioned into a grid of `public/cities/<slug>/pois/tiles/{col}_{row}.geojson` files, and `index.json` carries a precomputed `station_tiles` map so the runtime jumps straight from a selected station to the handful of tiles it needs.
 
 ## Key frontend modules
 

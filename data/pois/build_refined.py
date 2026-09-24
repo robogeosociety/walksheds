@@ -36,10 +36,10 @@ from collections import defaultdict
 
 import duckdb
 
+import fetch_pois
 import fetch_walksheds
 from fetch_pois import (
     CATEGORIES,
-    OUTPUT_DIR,
     build_category,
     compute_bbox,
     load_raw_dump,
@@ -341,7 +341,7 @@ def write_tiles(all_fcs, stations=None, walkshed_payload=None, dry_run=False):
             lon, lat = feat["geometry"]["coordinates"]
             tiles.setdefault(tile_key(lon, lat), []).append(feat)
 
-    tiles_dir = os.path.join(OUTPUT_DIR, "tiles")
+    tiles_dir = os.path.join(fetch_pois.output_dir(), "tiles")
     populated = {f"{c}_{r}" for (c, r) in tiles}
     index = {
         "tile_deg": TILE_DEG,
@@ -381,9 +381,11 @@ def write_tiles(all_fcs, stations=None, walkshed_payload=None, dry_run=False):
 
 def main():
     ap = argparse.ArgumentParser(description="Conflate OSM + Overture into a refined dataset")
+    fetch_pois.city_registry.add_city_arg(ap, allow_all=False)
     ap.add_argument("--min-confidence", type=float, default=0.5)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    fetch_pois.set_city(args.city)
 
     stations = load_station_index()
     bbox = compute_bbox(stations)
@@ -432,13 +434,13 @@ def main():
 
     # Tiles are the sole POI artifact; the app streams them per-walkshed. Remove
     # any legacy per-category files so they don't ship as dead weight.
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(fetch_pois.output_dir(), exist_ok=True)
     for b in BUCKETS:
-        legacy = os.path.join(OUTPUT_DIR, f"{b}.geojson")
+        legacy = os.path.join(fetch_pois.output_dir(), f"{b}.geojson")
         if os.path.exists(legacy):
             os.remove(legacy)
     write_tag_categories_manifest(all_fcs)
-    print(f"\nWrote tiles/ + tag-categories.json to {OUTPUT_DIR}")
+    print(f"\nWrote tiles/ + tag-categories.json to {fetch_pois.output_dir()}")
 
 
 if __name__ == "__main__":

@@ -37,11 +37,57 @@ import urllib.error
 from aliases import load_tag_aliases
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-STATION_INDEX = os.path.join(ROOT, "data", "station-index.json")
-OUTPUT_DIR = os.path.join(ROOT, "public", "pois")
-RAW_DUMP = os.path.join(ROOT, "data", "pois", "raw", "osm-seattle.json.gz")
+sys.path.insert(0, os.path.join(ROOT, "data"))
+
+import cities as city_registry  # noqa: E402
+
+# The city this module operates on. Every path below is derived from it, so a
+# caller switches cities with set_city() (or `--city` on the CLI) rather than
+# by rewriting paths.
+CITY = city_registry.get_city(city_registry.DEFAULT_CITY)
+
 MAIN_CATEGORIES_JSON = os.path.join(ROOT, "src", "mainCategories.json")
 FILTER_REGISTRY_JSON = os.path.join(ROOT, "data", "pois", "filter-registry.json")
+
+
+# Explicit path overrides. Normally None (paths come from CITY); tests set them
+# to point the pipeline at a fixture tree, and they win over the city when set.
+STATION_INDEX = None
+OUTPUT_DIR = None
+RAW_DUMP = None
+
+
+def set_city(city):
+    """Point this module and the sibling Mapbox modules at `city`.
+
+    The sibling modules keep their own module-level path constants (test seams),
+    so switching the city rebinds theirs too — there is exactly one call that
+    moves the whole POI pipeline to another city.
+    """
+    global CITY
+    CITY = city if hasattr(city, "slug") else city_registry.get_city(city)
+
+    # Imported lazily: fetch_walking_distances imports this module at load time.
+    import fetch_walking_distances as fwd
+    import fetch_walksheds as fws
+
+    fws.STATION_INDEX = None
+    fws.RAW_DUMP = None
+    fwd.DUMP = None
+    fwd.OUTPUT_DIR = None
+    return CITY
+
+
+def station_index_path():
+    return STATION_INDEX or str(CITY.station_index)
+
+
+def output_dir():
+    return OUTPUT_DIR or str(CITY.pois_dir)
+
+
+def raw_dump_path():
+    return RAW_DUMP or str(CITY.osm_dump)
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 OVERPASS_TIMEOUT = 180
@@ -121,8 +167,8 @@ def is_closed_or_denied(element):
 
 
 def load_station_index():
-    """Load station index and return list of {name, lng, lat}."""
-    with open(STATION_INDEX) as f:
+    """Load the active city's station index and return list of {name, lng, lat}."""
+    with open(station_index_path()) as f:
         data = json.load(f)
     return data["stations"]
 
@@ -172,8 +218,9 @@ def fetch_overpass(query):
                 raise
 
 
-def refresh_raw_dump(bbox, out_path=RAW_DUMP, dry_run=False):
+def refresh_raw_dump(bbox, out_path=None, dry_run=False):
     """Fetch the Overpass superset for the bbox and write it gzipped to out_path."""
+    out_path = out_path or raw_dump_path()
     query = build_raw_query(bbox)
     print("Refreshing raw OSM dump from Overpass...")
     print(f"  Keys: {', '.join(RAW_KEYS)}")
@@ -195,12 +242,14 @@ def refresh_raw_dump(bbox, out_path=RAW_DUMP, dry_run=False):
     return result
 
 
-def load_raw_dump(path=RAW_DUMP):
+def load_raw_dump(path=None):
     """Load the committed gzipped raw Overpass dump."""
+    path = path or raw_dump_path()
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"Raw dump not found at {path}. "
-            f"Run `python3 data/pois/fetch_pois.py --refresh` to fetch it from Overpass."
+            f"Raw dump not found at {path}. Run "
+            f"`python3 data/pois/fetch_pois.py --city {CITY.slug} --refresh` "
+            "to fetch it from Overpass."
         )
     with gzip.open(path, "rb") as f:
         return json.loads(f.read().decode("utf-8"))
@@ -815,10 +864,10 @@ def attach_station_distances(all_fcs):
     import fetch_walking_distances as fwd
     import fetch_walksheds as fws
 
-    if not os.path.exists(fws.RAW_DUMP) or not os.path.exists(fwd.DUMP):
+    if not os.path.exists(fws.raw_dump_path()) or not os.path.exists(fwd.dump_path()):
         print("\nSkipping station-distance attachment: walkshed / distance dumps not committed yet.")
-        print("  Run `python3 data/pois/fetch_walksheds.py --refresh` and")
-        print("       `python3 data/pois/fetch_walking_distances.py --refresh` to populate.")
+        print(f"  Run `python3 data/pois/fetch_walksheds.py --city {CITY.slug} --refresh` and")
+        print(f"       `python3 data/pois/fetch_walking_distances.py --city {CITY.slug} --refresh` to populate.")
         return
 
     print("\nAttaching station distances to POIs...")
@@ -952,7 +1001,7 @@ def write_tag_categories_manifest(all_fcs, dry_run=False):
                 all_tags.add(tag)
 
     manifest = build_tag_categories_manifest(all_tags, tag_index)
-    path = os.path.join(OUTPUT_DIR, "tag-categories.json")
+    path = os.path.join(output_dir(), "tag-categories.json")
     schema = manifest["filter_schema"]
     if dry_run:
         print(f"  [dry-run] Would write {path}")
@@ -1029,6 +1078,7 @@ def print_compression_report(elements, normalize):
 
 def main():
     parser = argparse.ArgumentParser(description="Build POI GeoJSONs from committed OSM dump")
+    city_registry.add_city_arg(parser, allow_all=False)
     parser.add_argument("--category", choices=list(CATEGORIES.keys()), help="Build single category")
     parser.add_argument("--refresh", action="store_true",
                         help="Refetch raw OSM dump from Overpass before building")
@@ -1038,6 +1088,7 @@ def main():
     parser.add_argument("--no-normalize", action="store_true",
                         help="Skip the optional tag normalization step (lowercase + ASCII-fold + alias resolution)")
     args = parser.parse_args()
+    set_city(args.city)
     normalize = not args.no_normalize
 
     stations = load_station_index()
@@ -1046,7 +1097,7 @@ def main():
     print(f"Stations: {len(stations)}")
 
     categories_to_build = [args.category] if args.category else list(CATEGORIES.keys())
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(output_dir(), exist_ok=True)
 
     all_fcs = {}
 
@@ -1054,7 +1105,7 @@ def main():
         print("\nValidating existing files...")
         all_errors = []
         for cat in categories_to_build:
-            path = os.path.join(OUTPUT_DIR, f"{cat}.geojson")
+            path = os.path.join(output_dir(), f"{cat}.geojson")
             if not os.path.exists(path):
                 all_errors.append(f"{cat}: file not found at {path}")
                 continue
@@ -1102,7 +1153,7 @@ def main():
                     print(f"    - {e}")
 
             if not args.dry_run:
-                path = os.path.join(OUTPUT_DIR, f"{cat}.geojson")
+                path = os.path.join(output_dir(), f"{cat}.geojson")
                 with open(path, "w") as f:
                     json.dump(fc, f)
                 print(f"  Wrote {path} ({len(fc['features'])} features)")

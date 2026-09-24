@@ -1,7 +1,8 @@
 /**
  * Runtime spatial-tile loading for POIs.
  *
- * The build (data/pois/build_refined.py) emits public/pois/tiles/{col}_{row}.geojson
+ * The build (data/pois/build_refined.py) emits
+ * public/cities/<slug>/pois/tiles/{col}_{row}.geojson
  * — a spatial grid over the full POI set — plus tiles/index.json with the grid
  * params and the keys of populated tiles. Instead of loading the whole 11.7 MB
  * dataset upfront, the app loads only the handful of tiles overlapping the active
@@ -9,16 +10,19 @@
  * station visits are free.
  */
 
-let tileIndex = null         // { tile_deg, count, tiles: Set<string> }
-const tileCache = new Map()  // "c_r" -> Promise<Feature[]>
+// Both caches are keyed by `base` (a city's public data root), so switching
+// cities cannot serve one city's tiles for another, and switching back is free.
+const tileIndexes = new Map()  // base -> { tileDeg, count, tiles, stationTiles }
+const tileCache = new Map()    // `${base}|c_r` -> Promise<Feature[]>
 
-/** Load and memoize tiles/index.json. */
+/** Load and memoize a city's tiles/index.json. */
 export async function loadTileIndex(base) {
-  if (tileIndex) return tileIndex
+  const cached = tileIndexes.get(base)
+  if (cached) return cached
   const res = await fetch(`${base}pois/tiles/index.json`)
   if (!res.ok) throw new Error(`tile index ${res.status}`)
   const raw = await res.json()
-  tileIndex = {
+  const tileIndex = {
     tileDeg: raw.tile_deg,
     count: raw.count,
     tiles: new Set(raw.tiles),
@@ -27,6 +31,7 @@ export async function loadTileIndex(base) {
     // against the grid). Runtime still clips against the live isochrone.
     stationTiles: raw.station_tiles || {},
   }
+  tileIndexes.set(base, tileIndex)
   return tileIndex
 }
 
@@ -65,13 +70,14 @@ export function walkshedBbox(walkshedFC) {
 
 /** Fetch one tile's features (cached). Missing tiles resolve to []. */
 function loadTile(base, key) {
-  if (!tileCache.has(key)) {
-    tileCache.set(key, fetch(`${base}pois/tiles/${key}.geojson`)
+  const cacheKey = `${base}|${key}`
+  if (!tileCache.has(cacheKey)) {
+    tileCache.set(cacheKey, fetch(`${base}pois/tiles/${key}.geojson`)
       .then(r => (r.ok ? r.json() : { features: [] }))
       .then(fc => fc.features ?? [])
       .catch(() => []))
   }
-  return tileCache.get(key)
+  return tileCache.get(cacheKey)
 }
 
 /**

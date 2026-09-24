@@ -82,6 +82,8 @@
               <option value="seattle/1/58">Columbia City (1 · 58)</option>
               <option value="seattle/2/58">Bellevue Downtown (2 · 58)</option>
               <option value="seattle/1/64">SeaTac/Airport (1 · 64)</option>
+              <option value="honolulu/1/8">Kalauao / Pearlridge (Skyline · 8)</option>
+              <option value="honolulu/1/11">Lelepaua / Airport (Skyline · 11)</option>
             </select>
           </label>
           <div class="row" id="bands">
@@ -135,7 +137,9 @@
           <tr><td><code>walkshed</code></td><td><code>5</code>/<code>10</code>/<code>15</code> (repeatable)</td><td>Which walkshed bands start enabled.</td></tr>
           <tr><td><code>pois</code></td><td>e.g. <code>coffee,park</code></td><td>Initial POI filters.</td></tr>
           <tr><td><code>origin</code></td><td>e.g. <code>https://host.example</code></td><td>Pin the postMessage peer origin (recommended).</td></tr>
-          <tr><td>path</td><td><code>/seattle/{line}/{stopCode}</code></td><td>Initial station, e.g. <code>/seattle/1/50</code> = <span class="pill"><span class="c" style="background:var(--line1)">1</span><span class="c" style="background:var(--line2)">2</span>&nbsp;Westlake</span>.</td></tr>
+          <tr><td>path</td><td><code>/{city}/{line}/{stopCode}</code></td><td>Initial station, e.g. <code>/seattle/1/50</code> = <span class="pill"><span class="c" style="background:var(--line1)">1</span><span class="c" style="background:var(--line2)">2</span>&nbsp;Westlake</span>. <code>{city}</code> is the city slug (<code>seattle</code>, <code>honolulu</code>).</td></tr>
+              <tr><td><code>city</code></td><td><code>seattle</code> | <code>honolulu</code></td><td>City to show when no station path is given.</td></tr>
+              <tr><td><code>citypicker</code></td><td><code>0</code> | <code>1</code></td><td>Show the legend's city switcher. Off in embeds by default.</td></tr>
         </tbody>
       </table>
     </div>

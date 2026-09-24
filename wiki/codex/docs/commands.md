@@ -17,7 +17,10 @@ npm run e2e            # Playwright smoke tests
 ## Transit data
 
 ```bash
-python3 data/process.py   # regenerate transit GeoJSON from committed raw SDOT data
+python3 data/cities.py            # regenerate src/cityRegistry.json from the registry (INV-024)
+python3 data/cities.py --list pois # city slugs with a capability — CI drives its loops from this
+python3 data/process.py           # regenerate every city's transit GeoJSON + sprites from committed raw data
+python3 data/process.py --city honolulu   # ...for one city
 python3 data/refresh.py   # re-download raw SDOT GeoJSON from Seattle ArcGIS, then run process.py
 ```
 

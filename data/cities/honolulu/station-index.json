@@ -1,0 +1,96 @@
+{
+  "stations": [
+    {
+      "lat": 21.3455523406063,
+      "lines": "1",
+      "lng": -158.051023987542,
+      "name": "Kualaka\u02bbi Station",
+      "stopCode": 1
+    },
+    {
+      "lat": 21.3585112784192,
+      "lines": "1",
+      "lng": -158.051206328336,
+      "name": "Keone\u02bbae Station",
+      "stopCode": 2
+    },
+    {
+      "lat": 21.3669266912792,
+      "lines": "1",
+      "lng": -158.045281842757,
+      "name": "Honouliuli Station",
+      "stopCode": 3
+    },
+    {
+      "lat": 21.3781615359324,
+      "lines": "1",
+      "lng": -158.022685593,
+      "name": "H\u014d\u02bbae\u02bbae Station",
+      "stopCode": 4
+    },
+    {
+      "lat": 21.3840729981172,
+      "lines": "1",
+      "lng": -158.00383750789,
+      "name": "Pouhala Station",
+      "stopCode": 5
+    },
+    {
+      "lat": 21.3943086921707,
+      "lines": "1",
+      "lng": -157.985626646487,
+      "name": "H\u0101laulani Station",
+      "stopCode": 6
+    },
+    {
+      "lat": 21.3966524363227,
+      "lines": "1",
+      "lng": -157.979915080123,
+      "name": "Waiawa Station",
+      "stopCode": 7
+    },
+    {
+      "lat": 21.3838612062439,
+      "lines": "1",
+      "lng": -157.947115721222,
+      "name": "Kalauao Station",
+      "stopCode": 8
+    },
+    {
+      "lat": 21.3710616465305,
+      "lines": "1",
+      "lng": -157.933841311732,
+      "name": "H\u0101lawa Station",
+      "stopCode": 9
+    },
+    {
+      "lat": 21.352024849957,
+      "lines": "1",
+      "lng": -157.935375383065,
+      "name": "Makalapa Station",
+      "stopCode": 10
+    },
+    {
+      "lat": 21.3337622226329,
+      "lines": "1",
+      "lng": -157.920974014074,
+      "name": "Lelepaua Station",
+      "stopCode": 11
+    },
+    {
+      "lat": 21.3327633472269,
+      "lines": "1",
+      "lng": -157.901404562186,
+      "name": "\u0100hua Station",
+      "stopCode": 12
+    },
+    {
+      "lat": 21.3327254693821,
+      "lines": "1",
+      "lng": -157.888827186567,
+      "name": "Kahauiki Station",
+      "stopCode": 13
+    }
+  ],
+  "version": 1
+}
