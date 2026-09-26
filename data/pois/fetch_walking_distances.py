@@ -45,14 +45,14 @@ import fetch_walksheds
 
 ROOT = fetch_pois.ROOT
 
-# Path overrides; normally None, in which case they follow fetch_pois.CITY
+# Path overrides; normally None, in which case they follow the active city
 # (set via fetch_pois.set_city). Tests set them to a fixture tree.
 OUTPUT_DIR = None
 DUMP = None
 
 
 def dump_path():
-    return DUMP or str(fetch_pois.CITY.distances_dump)
+    return DUMP or str(fetch_pois.active_city().distances_dump)
 
 
 def output_dir():

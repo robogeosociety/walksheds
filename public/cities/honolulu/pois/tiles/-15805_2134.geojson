@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 7183118776, "name": "RAFT", "category": "restaurant", "tags": ["restaurant"], "sources": ["osm"], "address": "91-1760 Park Row"}, "geometry": {"type": "Point", "coordinates": [-158.0405856, 21.3438024]}}]}

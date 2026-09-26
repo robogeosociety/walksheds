@@ -47,17 +47,17 @@ from fetch_walksheds import station_key  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(HERE))
 
-# Path overrides; normally None, in which case they follow fetch_pois.CITY.
+# Path overrides; normally None, in which case they follow the active city.
 RAW_DUMP = None
 OUTPUT = None
 
 
 def raw_dump_path():
-    return RAW_DUMP or str(fetch_pois.CITY.exits_dump)
+    return RAW_DUMP or str(fetch_pois.active_city().exits_dump)
 
 
 def output_path():
-    return OUTPUT or str(fetch_pois.CITY.station_exits_geojson)
+    return OUTPUT or str(fetch_pois.active_city().station_exits_geojson)
 
 # An entrance node beyond this distance from every Link station is treated as
 # unrelated (a different transit stop caught by the padded bbox) and dropped.
@@ -138,7 +138,7 @@ def load_raw_dump(path=None):
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"Raw dump not found at {path}. Run `python3 "
-            f"data/pois/fetch_station_exits.py --city {fetch_pois.CITY.slug} "
+            f"data/pois/fetch_station_exits.py --city {fetch_pois.active_city().slug} "
             "--refresh` to fetch it."
         )
     with gzip.open(path, "rb") as f:

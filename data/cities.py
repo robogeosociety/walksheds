@@ -253,11 +253,7 @@ HONOLULU = City(
     walkshed_accent_dark="#4A90C2",
     default_station=("1", 8),  # Kalauao (Pearlridge) — the densest open walkshed
     station_count=13,
-    # No Mapbox isochrones have been built for Honolulu yet, and POI membership
-    # is defined by those isochrones, so both capabilities stay off until
-    # `fetch_walksheds.py --city honolulu --refresh` runs with a MAPBOX_TOKEN.
-    # See docs/adding-a-city.md.
-    capabilities=frozenset({CAP_EXITS}),
+    capabilities=frozenset(ALL_CAPABILITIES),
     source_note="HART / Honolulu Open Geospatial Data",
     agency_source_id="hart",
 )
@@ -267,6 +263,29 @@ CITIES = {c.slug: c for c in (SEATTLE, HONOLULU)}
 DEFAULT_CITY = "seattle"
 
 REGISTRY_JSON = ROOT / "src" / "cityRegistry.json"
+
+# ── The active city ─────────────────────────────────────────────────────────
+#
+# Deliberately held HERE rather than in fetch_pois, because a script run as
+# `python data/pois/fetch_pois.py` is `sys.modules["__main__"]` — so when it
+# imports a sibling that imports `fetch_pois`, Python loads a *second* copy of
+# that module. State set on one copy is invisible to the other, which silently
+# resolved one city's dumps while another city's POIs were being built. This
+# module is always imported under the name `cities`, so there is exactly one of
+# it no matter which file is the entry point.
+_ACTIVE = None
+
+
+def set_active(city):
+    """Set the process-wide active city. Accepts a City or a slug."""
+    global _ACTIVE
+    _ACTIVE = city if hasattr(city, "slug") else get_city(city)
+    return _ACTIVE
+
+
+def active():
+    """The active city, defaulting to DEFAULT_CITY until set_active is called."""
+    return _ACTIVE or get_city(DEFAULT_CITY)
 
 
 def get_city(slug: str) -> City:

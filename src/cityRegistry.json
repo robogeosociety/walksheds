@@ -32,7 +32,9 @@
       },
       "stationCount": 13,
       "capabilities": [
-        "exits"
+        "exits",
+        "pois",
+        "walksheds"
       ],
       "sourceNote": "HART / Honolulu Open Geospatial Data"
     },

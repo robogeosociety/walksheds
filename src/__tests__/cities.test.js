@@ -33,11 +33,11 @@ describe('city registry', () => {
     }
   })
 
-  it('reports Honolulu as rail-and-exits only', () => {
+  it('reports Honolulu as fully built out', () => {
     const honolulu = cityBySlug('honolulu')
-    expect(hasCapability(honolulu, CAP_EXITS)).toBe(true)
-    expect(hasCapability(honolulu, CAP_WALKSHEDS)).toBe(false)
-    expect(hasCapability(honolulu, CAP_POIS)).toBe(false)
+    for (const cap of [CAP_EXITS, CAP_WALKSHEDS, CAP_POIS]) {
+      expect(hasCapability(honolulu, cap)).toBe(true)
+    }
   })
 
   it('scopes assets under the city', () => {

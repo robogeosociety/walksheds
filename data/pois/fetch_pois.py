@@ -41,31 +41,25 @@ sys.path.insert(0, os.path.join(ROOT, "data"))
 
 import cities as city_registry  # noqa: E402
 
-# The city this module operates on. Every path below is derived from it, so a
-# caller switches cities with set_city() (or `--city` on the CLI) rather than
-# by rewriting paths.
-CITY = city_registry.get_city(city_registry.DEFAULT_CITY)
-
 MAIN_CATEGORIES_JSON = os.path.join(ROOT, "src", "mainCategories.json")
 FILTER_REGISTRY_JSON = os.path.join(ROOT, "data", "pois", "filter-registry.json")
 
 
-# Explicit path overrides. Normally None (paths come from CITY); tests set them
-# to point the pipeline at a fixture tree, and they win over the city when set.
+# Explicit path overrides. Normally None (paths come from the active city); tests
+# set them to point the pipeline at a fixture tree, and they win when set.
 STATION_INDEX = None
 OUTPUT_DIR = None
 RAW_DUMP = None
 
 
 def set_city(city):
-    """Point this module and the sibling Mapbox modules at `city`.
+    """Point the whole POI pipeline at `city`.
 
-    The sibling modules keep their own module-level path constants (test seams),
-    so switching the city rebinds theirs too — there is exactly one call that
-    moves the whole POI pipeline to another city.
+    The city itself lives in data/cities.py (see the note there on why), so this
+    only has to clear the sibling modules' path overrides — the test seams that
+    would otherwise pin a previous city's fixture paths.
     """
-    global CITY
-    CITY = city if hasattr(city, "slug") else city_registry.get_city(city)
+    city_registry.set_active(city)
 
     # Imported lazily: fetch_walking_distances imports this module at load time.
     import fetch_walking_distances as fwd
@@ -75,19 +69,24 @@ def set_city(city):
     fws.RAW_DUMP = None
     fwd.DUMP = None
     fwd.OUTPUT_DIR = None
-    return CITY
+    return city_registry.active()
+
+
+def active_city():
+    """The city this module is currently operating on."""
+    return city_registry.active()
 
 
 def station_index_path():
-    return STATION_INDEX or str(CITY.station_index)
+    return STATION_INDEX or str(active_city().station_index)
 
 
 def output_dir():
-    return OUTPUT_DIR or str(CITY.pois_dir)
+    return OUTPUT_DIR or str(active_city().pois_dir)
 
 
 def raw_dump_path():
-    return RAW_DUMP or str(CITY.osm_dump)
+    return RAW_DUMP or str(active_city().osm_dump)
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 OVERPASS_TIMEOUT = 180
@@ -248,7 +247,7 @@ def load_raw_dump(path=None):
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"Raw dump not found at {path}. Run "
-            f"`python3 data/pois/fetch_pois.py --city {CITY.slug} --refresh` "
+            f"`python3 data/pois/fetch_pois.py --city {active_city().slug} --refresh` "
             "to fetch it from Overpass."
         )
     with gzip.open(path, "rb") as f:
@@ -866,8 +865,8 @@ def attach_station_distances(all_fcs):
 
     if not os.path.exists(fws.raw_dump_path()) or not os.path.exists(fwd.dump_path()):
         print("\nSkipping station-distance attachment: walkshed / distance dumps not committed yet.")
-        print(f"  Run `python3 data/pois/fetch_walksheds.py --city {CITY.slug} --refresh` and")
-        print(f"       `python3 data/pois/fetch_walking_distances.py --city {CITY.slug} --refresh` to populate.")
+        print(f"  Run `python3 data/pois/fetch_walksheds.py --city {active_city().slug} --refresh` and")
+        print(f"       `python3 data/pois/fetch_walking_distances.py --city {active_city().slug} --refresh` to populate.")
         return
 
     print("\nAttaching station distances to POIs...")

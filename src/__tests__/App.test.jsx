@@ -56,15 +56,31 @@ describe('Walksheds — active city', () => {
     expect(container.querySelectorAll('.legend-walkshed-item').length).toBe(3)
   })
 
-  it('honors ?city=honolulu: one line, no walkshed toggles', () => {
+  it('honors ?city=honolulu: one line', () => {
     at('/?city=honolulu')
     const { container } = render(<Walksheds />)
     // Scoped to the line key: "Skyline" also appears as the city tab's subtitle.
     expect(lineLabels(container)).toEqual(['Skyline'])
-    // Honolulu declares no `walksheds` capability, so the section is withheld
-    // and replaced by a note rather than showing toggles that do nothing.
-    expect(container.querySelectorAll('.legend-walkshed-item').length).toBe(0)
-    expect(container.querySelector('.legend-note')).toBeTruthy()
+  })
+
+  // Registry-driven rather than pinned to one city's current state: the rule is
+  // that the walkshed key appears exactly when the city declares the capability,
+  // and a city that lacks it explains the gap instead of showing dead toggles.
+  it('shows the walkshed key exactly for cities that declare it', () => {
+    for (const c of CITIES) {
+      at(`/?city=${c.slug}`)
+      const { container, unmount } = render(<Walksheds />)
+      const toggles = container.querySelectorAll('.legend-walkshed-item').length
+      const note = container.querySelector('.legend-note')
+      if (c.capabilities.includes('walksheds')) {
+        expect(toggles, `${c.slug} should show toggles`).toBe(3)
+        expect(note, `${c.slug} should not show the gap note`).toBeNull()
+      } else {
+        expect(toggles, `${c.slug} should show no toggles`).toBe(0)
+        expect(note, `${c.slug} should explain the gap`).toBeTruthy()
+      }
+      unmount()
+    }
   })
 
   it('takes the city from a station deep link, over ?city=', () => {
@@ -80,8 +96,18 @@ describe('Walksheds — active city', () => {
     expect(urls.length).toBeGreaterThan(0)
     expect(urls.every(u => !u.includes('cities/seattle/'))).toBe(true)
     expect(urls.some(u => u.includes('cities/honolulu/all-stations.geojson'))).toBe(true)
-    // No POI tile index or stats for a city without the `pois` capability.
-    expect(urls.some(u => u.includes('pois/'))).toBe(false)
+  })
+
+  it('requests POI data only for cities that declare it', () => {
+    for (const c of CITIES) {
+      globalThis.fetch.mockClear()
+      at(`/?city=${c.slug}`)
+      const { unmount } = render(<Walksheds />)
+      const urls = globalThis.fetch.mock.calls.map(u => String(u[0]))
+      const askedForPois = urls.some(u => u.includes('/pois/'))
+      expect(askedForPois, `${c.slug} pois fetch`).toBe(c.capabilities.includes('pois'))
+      unmount()
+    }
   })
 
   it('offers a city tab per registered city', () => {

@@ -42,23 +42,43 @@ def agency_refreshed(city):
         return json.load(f)["refreshedAt"]
 
 
+def uses_overture(city):
+    """Whether this city's committed tiles actually contain Overture-sourced POIs.
+
+    A city built with `build_refined.py --no-overture` has none, and the legend
+    must not claim a source the dataset does not carry.
+    """
+    index_dir = city.tiles_dir
+    with open(city.tile_index) as f:
+        for key in json.load(f)["tiles"]:
+            with open(index_dir / (key + ".geojson")) as tf:
+                for feat in json.load(tf)["features"]:
+                    if "overture" in (feat["properties"].get("sources") or []):
+                        return True
+    return False
+
+
 def build_stats(city):
     with open(city.tile_index) as f:
         index = json.load(f)
     with open(city.stations_geojson) as f:
         stations = json.load(f)
+    sources = [{"id": "osm", "label": "OpenStreetMap", "asOf": osm_as_of(city)}]
+    if uses_overture(city):
+        sources.append(
+            {"id": "overture", "label": "Overture Places", "asOf": overture_release()[:10]}
+        )
+    sources += [
+        {"id": city.agency_source_id, "label": city.source_note,
+         "asOf": agency_refreshed(city)},
+        # Walkshed polygons are drawn by the browser straight from the
+        # Mapbox Isochrone API on every station select — always current.
+        {"id": "mapbox", "label": "Mapbox walksheds", "live": True},
+    ]
     return {
         "pois": index["count"],
         "stations": len(stations["features"]),
-        "sources": [
-            {"id": "osm", "label": "OpenStreetMap", "asOf": osm_as_of(city)},
-            {"id": "overture", "label": "Overture Places", "asOf": overture_release()[:10]},
-            {"id": city.agency_source_id, "label": city.source_note,
-             "asOf": agency_refreshed(city)},
-            # Walkshed polygons are drawn by the browser straight from the
-            # Mapbox Isochrone API on every station select — always current.
-            {"id": "mapbox", "label": "Mapbox walksheds", "live": True},
-        ],
+        "sources": sources,
     }
 
 

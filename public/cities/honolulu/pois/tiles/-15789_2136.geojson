@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 10874455491, "name": "Spark M. Matsunaga VA Medical Center", "category": "clinic", "tags": ["clinic"], "sources": ["osm"], "website": "https://www.hawaii.va.gov", "phone": "+1 808 433 0600", "address": "459 Patterson Road"}, "geometry": {"type": "Point", "coordinates": [-157.889402, 21.361343]}}]}

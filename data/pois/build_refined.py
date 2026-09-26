@@ -383,6 +383,14 @@ def main():
     ap = argparse.ArgumentParser(description="Conflate OSM + Overture into a refined dataset")
     fetch_pois.city_registry.add_city_arg(ap, allow_all=False)
     ap.add_argument("--min-confidence", type=float, default=0.5)
+    ap.add_argument(
+        "--no-overture",
+        action="store_true",
+        help="Build from the committed OSM dump alone, skipping the Overture "
+             "conflation. Lets a city ship POIs without pulling in an Overture "
+             "release bump (which would rewrite every other city's tiles); the "
+             "next monthly refresh conflates it like the rest.",
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     fetch_pois.set_city(args.city)
@@ -393,9 +401,13 @@ def main():
     print("Loading OSM records (committed dump)...")
     osm = get_osm_records()
     print(f"  {len(osm):,} OSM features")
-    print(f"Querying Overture (confidence >= {args.min_confidence}, dropping closed)...")
-    ovt = get_overture_records(bbox, args.min_confidence)
-    print(f"  {len(ovt):,} Overture features")
+    if args.no_overture:
+        print("Skipping Overture (--no-overture): OSM-only build.")
+        ovt = []
+    else:
+        print(f"Querying Overture (confidence >= {args.min_confidence}, dropping closed)...")
+        ovt = get_overture_records(bbox, args.min_confidence)
+        print(f"  {len(ovt):,} Overture features")
 
     clusters = cluster(osm + ovt)
     all_fcs = {b: {"type": "FeatureCollection", "features": []} for b in BUCKETS}

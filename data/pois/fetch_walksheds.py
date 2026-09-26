@@ -31,15 +31,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cities as city_registry  # noqa: E402
 
-# Path overrides; normally None, in which case they follow fetch_pois.CITY (set
+# Path overrides; normally None, in which case they follow the active city (set
 # via fetch_pois.set_city). Tests set them to a fixture tree.
 STATION_INDEX = None
 RAW_DUMP = None
 
 
 def _city():
-    import fetch_pois
-    return fetch_pois.CITY
+    return city_registry.active()
 
 
 def station_index_path():

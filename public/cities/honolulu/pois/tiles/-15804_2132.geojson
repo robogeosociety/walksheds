@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 10082913437, "name": "60fore Bar & Grill", "category": "restaurant", "tags": ["restaurant"], "sources": ["osm"], "address": "2249 Essex Rd"}, "geometry": {"type": "Point", "coordinates": [-158.0389252, 21.3246384]}}]}

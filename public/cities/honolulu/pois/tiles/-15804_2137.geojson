@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 10874453451, "name": "Kahi Mohala", "category": "hospital", "tags": ["hospital"], "sources": ["osm"], "website": "https://www.sutterhealth.org/kahi", "phone": "+1 808 671 8511", "address": "91-2301 Fort Weaver Road"}, "geometry": {"type": "Point", "coordinates": [-158.0340265, 21.3739369]}}]}
