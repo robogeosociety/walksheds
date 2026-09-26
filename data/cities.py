@@ -82,6 +82,10 @@ class City:
     capabilities: frozenset
     source_note: str         # provenance line shown in the legend's Statistics
     agency_source_id: str    # stats.json `sources[].id` for the rail feed
+    # Preview cities are stripped from the public build entirely — both from the
+    # registry the bundle carries and from the data copied into dist/ — and only
+    # appear in a build made with VITE_PREVIEW_CITIES=1. See docs/adding-a-city.md.
+    preview: bool = False
 
     # ── Paths ───────────────────────────────────────────────────────────────
     @property
@@ -192,6 +196,7 @@ class City:
             "stationCount": self.station_count,
             "capabilities": sorted(self.capabilities),
             "sourceNote": self.source_note,
+            "preview": self.preview,
         }
 
 
@@ -256,6 +261,9 @@ HONOLULU = City(
     capabilities=frozenset(ALL_CAPABILITIES),
     source_note="HART / Honolulu Open Geospatial Data",
     agency_source_id="hart",
+    # Not public yet: shipped behind the gated preview at honolulu.walksheds.xyz
+    # while the dataset is reviewed. Flip to False to launch.
+    preview=True,
 )
 
 CITIES = {c.slug: c for c in (SEATTLE, HONOLULU)}

@@ -1,0 +1,85 @@
+# Deploy workflow for the Honolulu preview site.
+#
+# This file belongs in the SECOND repo (robogeosociety/walksheds-honolulu), not
+# here — GitHub Pages allows one custom domain per repo, so the gated preview at
+# honolulu.walksheds.xyz needs its own Pages site (the same reason
+# wiki.walksheds.xyz lives in walksheds-wiki).
+#
+# It builds FROM this repo rather than vendoring a copy, so the preview is
+# always the real app at a chosen ref. No cross-repo write token is needed:
+# checkout of a public repo is unauthenticated, and deploy-pages uses the
+# preview repo's own GITHUB_TOKEN.
+#
+# Required in the preview repo (or inherited from the org):
+#   secrets.MAPBOX_ACCESS_TOKEN   — the browser token for the map
+# Required settings: Pages source "GitHub Actions", custom domain
+#   honolulu.walksheds.xyz (this is what makes the walksheds content stop being
+#   served at <user>.github.io, which is what lets Cloudflare Access actually
+#   gate it).
+name: Deploy Honolulu preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Ref of robogeosociety/walksheds to build
+        default: main
+  # Rebuild nightly so the preview does not silently rot behind main.
+  schedule:
+    - cron: '17 9 * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: robogeosociety/walksheds
+          ref: ${{ inputs.ref || 'main' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm install
+
+      # The flag that includes preview cities. Without it the build prunes
+      # Honolulu from both the registry and dist/ (see src/previewCities.js),
+      # which is exactly what the public walksheds.xyz deploy does.
+      - run: npm run build
+        env:
+          VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+          VITE_PREVIEW_CITIES: '1'
+
+      # This site answers on honolulu.walksheds.xyz, so it must claim that
+      # domain rather than the apex the main build writes.
+      - run: echo 'honolulu.walksheds.xyz' > dist/CNAME
+
+      - name: Fail if the preview city is missing
+        run: |
+          test -d dist/cities/honolulu \
+            || { echo "::error::preview build has no Honolulu data — is VITE_PREVIEW_CITIES set?"; exit 1; }
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -115,11 +115,11 @@ Shared code lives where it always did (`data/*.py`, `data/pois/*.py`); only
 
 ## Honolulu's current state
 
-Honolulu ships stations, the Skyline route, sprites and station exits. It does
-**not** declare `walksheds` or `pois`: no Mapbox token was available when it was
-added, and POI membership is defined by the isochrones. To finish it, run step 7
-with `--city honolulu` and move the capabilities into `HONOLULU` in
-`data/cities.py`.
+Complete: stations, the Skyline route, sprites, station exits, 13 walkshed
+isochrones and 691 POIs across 93 tiles. It is marked `preview=True`, so it is
+withheld from the public build and served from the gated site instead — see
+`docs/honolulu-preview.md`. Its POIs are OSM-only (`build_refined.py
+--no-overture`) until the next monthly refresh bumps the Overture pin.
 
 One known wart: HART's published guideway centre line diverges from its own
 station geometry near Honouliuli (Hoʻopili) by ~400 m, and the section has a

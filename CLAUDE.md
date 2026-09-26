@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Walksheds — a rail walkshed explorer. Interactive React SPA showing areas reachable within walking distance of rail stations, with Mapbox isochrone visualization.
 
-**Multi-city.** Two cities ship today: **Seattle** (Sound Transit Link, 2 lines, 38 stations) and **Honolulu** (HART Skyline, 1 line, 13 open stations). Nothing outside the registry names a city — see "Cities" below and `docs/adding-a-city.md`.
+**Multi-city.** Two cities: **Seattle** (Sound Transit Link, 2 lines, 38 stations) is public; **Honolulu** (HART Skyline, 1 line, 13 open stations) is complete but behind a gated preview while its data is reviewed. Nothing outside the registry names a city — see "Cities" below, `docs/adding-a-city.md`, and `docs/honolulu-preview.md`.
 
 ## Design & House Style
 
@@ -75,6 +75,8 @@ python3 data/pois/latest_overture_release.py             # Report the newest Ove
 python3 data/detect_station_changes.py                   # Diff the raw SDOT feed against the app's station set (Seattle only)
 ```
 
+`npm run build` produces the **public** bundle; prefix `VITE_PREVIEW_CITIES=1` to include preview cities.
+
 `cairosvg` needs the system cairo library. On this Mac there is no Homebrew — it comes from pixi (`pixi global install cairo`), and Python must be pointed at it:
 `export DYLD_FALLBACK_LIBRARY_PATH="$HOME/.pixi/envs/cairo/lib"`. On CI it is `libcairo2` from apt.
 
@@ -86,12 +88,12 @@ Run the JS suite with `--pool=forks`; the default threads pool is pathologically
 
 **Capabilities** declare which datasets a city actually has: `walksheds` (Mapbox isochrones), `pois` (the tile grid — requires `walksheds`, since membership *is* the isochrone), `exits` (OSM entrances). The frontend hides the chrome for anything a city lacks, so a city can ship rail-only and gain walksheds later without the UI promising data that isn't there. INV-025 keeps the declaration honest in both directions.
 
-| City | System | Lines | Stations | Capabilities |
-| --- | --- | --- | --- | --- |
-| `seattle` | Link Light Rail (Sound Transit) | 1 Line, 2 Line | 38 | walksheds, pois, exits |
-| `honolulu` | Skyline (HART) | Skyline | 13 open | exits |
+| City | System | Lines | Stations | Capabilities | Public |
+| --- | --- | --- | --- | --- | --- |
+| `seattle` | Link Light Rail (Sound Transit) | 1 Line, 2 Line | 38 | walksheds, pois, exits | yes |
+| `honolulu` | Skyline (HART) | Skyline | 13 open | walksheds, pois, exits | no — `preview` |
 
-Honolulu has no walkshed isochrones yet — none could be built without a `MAPBOX_TOKEN` — so it also has no POIs. `docs/adding-a-city.md` has the finish-it runbook and the full add-a-city checklist.
+**Preview cities.** A city marked `preview` in the registry is stripped from the public build entirely: the Vite plugin in `vite.config.js` rewrites the registry the bundle imports (so not even the city's name ships) and deletes `dist/cities/<slug>/` (so its data isn't served at a guessable path). Only a build with `VITE_PREVIEW_CITIES=1` includes it, which is what the gated site at `honolulu.walksheds.xyz` deploys. The rule is one module, `src/previewCities.js`. Launching a city = `preview=False` + regenerate the registry. Full story, including the Cloudflare Access door and its prerequisites: `docs/honolulu-preview.md`.
 
 **Layout.** Shared code stays put; only *data* is namespaced:
 
@@ -172,6 +174,8 @@ Two committed dumps power the "Nearest stations" section of POI popups:
 
 **Mapbox token for refresh scripts:** set `MAPBOX_TOKEN` (or `MAPBOX_ACCESS_TOKEN`) in the environment. Public (`pk.`) and secret (`sk.`) tokens have identical capability for Isochrone + Matrix (both are read endpoints); the practical reason for a build-only token is URL restrictions — if the browser-side `VITE_MAPBOX_ACCESS_TOKEN` is restricted to `walksheds.xyz`, calls from a Python script will fail the referrer check. Easiest fix: add the build host's URL (or leave unrestricted) on that token, or mint a separate token for the scripts.
 
+**Honolulu is OSM-only for now.** The pinned Overture release has aged off S3, and bumping the pin would rewrite every Seattle tile and force a Matrix top-up — so Honolulu was built with `build_refined.py --no-overture`. The next monthly refresh bumps the pin and conflates it like Seattle. `build_stats.py` lists Overture as a source only when a city's tiles actually contain Overture-sourced POIs, so the legend never claims a source the data lacks.
+
 ### Automated monthly refresh (.github/workflows/data-refresh.yml)
 
 A scheduled workflow (26th monthly, ~10 days after Overture's mid-month release; also `workflow_dispatch` with `dry_run` / `skip_overture` / `force_walksheds` / `branch_suffix` inputs) refreshes the whole pipeline and opens a PR for human review on branch `data-refresh/YYYY-MM` (same-month reruns update the same branch; older open refresh PRs are closed as superseded). Step order is load-bearing:
@@ -227,7 +231,8 @@ The app is embeddable in other sites/dashboards as an iframe served from `walksh
 ## Ports & Credentials
 
 - Vite dev server: **5187** (registered in `~/.claude/vite-ports.json`)
-- Mapbox token: `.env` → `VITE_MAPBOX_ACCESS_TOKEN`; managed in `~/.mapbox/credentials` under `[walksheds]`
+- Mapbox token: `.env` → `VITE_MAPBOX_ACCESS_TOKEN`; managed in `~/.mapbox/credentials` under `[walksheds]` (browser, URL-restricted to walksheds.xyz)
+- Build-script Mapbox token: `~/.mapbox/credentials` under `[walksheds-build]` — unrestricted, so Isochrone/Matrix calls from Python need no Referer workaround. Minted out-of-band from the `sk.` token on the mini because `/Volumes/dev/infra/mapbox` was unreachable; **pending `terraform import`** into that root (id `cmuixvw7j04r62wof40966oj6`)
 - `cairosvg` needs system cairo. No Homebrew on this Mac — it comes from pixi: `pixi global install cairo`, then `export DYLD_FALLBACK_LIBRARY_PATH="$HOME/.pixi/envs/cairo/lib"`
 
 ## Mapbox Style
