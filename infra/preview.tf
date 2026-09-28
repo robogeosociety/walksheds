@@ -1,4 +1,10 @@
-# ── honolulu.walksheds.xyz — the gated Honolulu preview ─────────────────────
+# ── honolulu.walksheds.xyz — an OPTIONAL gated preview, NOT APPLIED ─────────
+#
+# Nothing here is in use. Honolulu is reviewed locally instead
+# (VITE_PREVIEW_CITIES=1), because a hosted door would add a Cloudflare Access
+# app while robogeosociety/robot-geographical-society#187 is deleting them, in an
+# account that has no Zero Trust organization. Read docs/honolulu-preview.md
+# before enabling this.
 #
 # Replicates the Pages preview lane on its own hostname instead of overriding
 # the live site, and puts a Cloudflare Access door in front of it so the

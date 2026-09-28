@@ -1,4 +1,7 @@
-# Deploy workflow for the Honolulu preview site.
+# Deploy workflow for an OPTIONAL hosted Honolulu preview. NOT IN USE — Honolulu
+# is reviewed locally (VITE_PREVIEW_CITIES=1 npm run dev). Kept only so a hosted
+# preview is a copy-paste away if one is ever wanted; see
+# docs/honolulu-preview.md, including why it is not wanted today.
 #
 # This file belongs in the SECOND repo (robogeosociety/walksheds-honolulu), not
 # here — GitHub Pages allows one custom domain per repo, so the gated preview at

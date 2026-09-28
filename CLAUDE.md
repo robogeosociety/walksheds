@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Walksheds — a rail walkshed explorer. Interactive React SPA showing areas reachable within walking distance of rail stations, with Mapbox isochrone visualization.
 
-**Multi-city.** Two cities: **Seattle** (Sound Transit Link, 2 lines, 38 stations) is public; **Honolulu** (HART Skyline, 1 line, 13 open stations) is complete but behind a gated preview while its data is reviewed. Nothing outside the registry names a city — see "Cities" below, `docs/adding-a-city.md`, and `docs/honolulu-preview.md`.
+**Multi-city.** Two cities: **Seattle** (Sound Transit Link, 2 lines, 38 stations) is public; **Honolulu** (HART Skyline, 1 line, 13 open stations) is complete but marked `preview`, so it is withheld from the public build and reviewed locally (`VITE_PREVIEW_CITIES=1 npm run dev`) until launched. Nothing outside the registry names a city — see "Cities" below, `docs/adding-a-city.md`, and `docs/honolulu-preview.md`.
 
 ## Design & House Style
 
@@ -93,7 +93,7 @@ Run the JS suite with `--pool=forks`; the default threads pool is pathologically
 | `seattle` | Link Light Rail (Sound Transit) | 1 Line, 2 Line | 38 | walksheds, pois, exits | yes |
 | `honolulu` | Skyline (HART) | Skyline | 13 open | walksheds, pois, exits | no — `preview` |
 
-**Preview cities.** A city marked `preview` in the registry is stripped from the public build entirely: the Vite plugin in `vite.config.js` rewrites the registry the bundle imports (so not even the city's name ships) and deletes `dist/cities/<slug>/` (so its data isn't served at a guessable path). Only a build with `VITE_PREVIEW_CITIES=1` includes it, which is what the gated site at `honolulu.walksheds.xyz` deploys. The rule is one module, `src/previewCities.js`. Launching a city = `preview=False` + regenerate the registry. Full story, including the Cloudflare Access door and its prerequisites: `docs/honolulu-preview.md`.
+**Preview cities.** A city marked `preview` in the registry is stripped from the public build entirely: the Vite plugin in `vite.config.js` rewrites the registry the bundle imports (so not even the city's name ships) and deletes `dist/cities/<slug>/` (so its data isn't served at a guessable path even with the UI hiding it). Only a build with `VITE_PREVIEW_CITIES=1` includes it — that is how a preview city is reviewed, locally. The rule is one module, `src/previewCities.js`. Launching a city = `preview=False` + regenerate the registry, with nothing to tear down. There is deliberately **no hosted preview and no Cloudflare Access door**; `infra/preview.tf` exists but is unapplied, and `docs/honolulu-preview.md` records why (it would add Access footprint while rgs#187 prunes it, in an account with no Zero Trust org).
 
 **Layout.** Shared code stays put; only *data* is namespaced:
 
