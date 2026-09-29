@@ -119,8 +119,10 @@ Complete: stations, the Skyline route, sprites, station exits, 13 walkshed
 isochrones and 691 POIs across 93 tiles. It is marked `preview=True`, so it is
 withheld from the public build and reviewed locally with
 `VITE_PREVIEW_CITIES=1 npm run dev` — see `docs/honolulu-preview.md`. Its POIs are
-OSM-only (`build_refined.py --no-overture`) until the next monthly refresh bumps
-the Overture pin.
+OSM-only (`build_refined.py --no-overture`) because the Overture side of the
+pipeline is broken in both directions: the committed pin has aged off S3, and the
+current release changed its places schema. See CLAUDE.md and issue #100 — this
+does not self-heal on the next scheduled refresh.
 
 One known wart: HART's published guideway centre line diverges from its own
 station geometry near Honouliuli (Hoʻopili) by ~400 m, and the section has a

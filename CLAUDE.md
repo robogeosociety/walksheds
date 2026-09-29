@@ -174,7 +174,12 @@ Two committed dumps power the "Nearest stations" section of POI popups:
 
 **Mapbox token for refresh scripts:** set `MAPBOX_TOKEN` (or `MAPBOX_ACCESS_TOKEN`) in the environment. Public (`pk.`) and secret (`sk.`) tokens have identical capability for Isochrone + Matrix (both are read endpoints); the practical reason for a build-only token is URL restrictions — if the browser-side `VITE_MAPBOX_ACCESS_TOKEN` is restricted to `walksheds.xyz`, calls from a Python script will fail the referrer check. Easiest fix: add the build host's URL (or leave unrestricted) on that token, or mint a separate token for the scripts.
 
-**Honolulu is OSM-only for now.** The pinned Overture release has aged off S3, and bumping the pin would rewrite every Seattle tile and force a Matrix top-up — so Honolulu was built with `build_refined.py --no-overture`. The next monthly refresh bumps the pin and conflates it like Seattle. `build_stats.py` lists Overture as a source only when a city's tiles actually contain Overture-sourced POIs, so the legend never claims a source the data lacks.
+**The Overture side is currently broken, and Honolulu is OSM-only because of it.** Two independent problems:
+
+- The committed pin (`2026-04-15.0`) has **aged off S3** — Overture prunes old releases — so `build_refined.py` cannot run against it at all.
+- The newest release (`2026-09-23.1`) has a **different places schema**: the query in `fetch_overture.py` fails with `Binder Error: Referenced table "categories" not found!`. That is what killed the 2026-09-26 monthly refresh (issue #100).
+
+So the lane is stuck in both directions and needs the Overture SQL updated to the current schema — it will **not** self-heal on the next scheduled run. Honolulu therefore shipped with `build_refined.py --no-overture` (OSM-only), and Seattle's committed tiles are the last ones built against a release that still existed. `build_stats.py` lists Overture as a source only when a city's tiles actually contain Overture-sourced POIs, so the legend never claims a source the data lacks.
 
 ### Automated monthly refresh (.github/workflows/data-refresh.yml)
 
