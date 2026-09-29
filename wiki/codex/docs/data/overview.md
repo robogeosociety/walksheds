@@ -5,7 +5,7 @@ Every layer on the map is a static asset built offline from a committed source d
 ```mermaid
 flowchart LR
   subgraph raw[Committed raw dumps]
-    R1[data/raw/*.geojson<br/>SDOT]
+    R1[data/cities/seattle/raw/*.geojson<br/>SDOT]
     R2[osm-seattle.json.gz<br/>OSM]
     R3[walksheds.json.gz<br/>Mapbox Isochrone]
     R4[walking-distances.json.gz<br/>Mapbox Matrix]
@@ -36,11 +36,11 @@ flowchart LR
 
 | Source | Raw dump | Build script | Output | Page |
 | --- | --- | --- | --- | --- |
-| SDOT alignment + stations | `data/raw/*.geojson` | `data/process.py` | line + station GeoJSON | [Transit](transit.md) |
-| OpenStreetMap POIs | `data/pois/raw/osm-seattle.json.gz` | `fetch_pois.py` | per-category GeoJSON | [POIs](pois.md) |
+| SDOT alignment + stations | `data/cities/seattle/raw/*.geojson` | `data/process.py` | line + station GeoJSON | [Transit](transit.md) |
+| OpenStreetMap POIs | `data/cities/<slug>/raw/pois/osm-pois.json.gz` | `fetch_pois.py` | per-category GeoJSON | [POIs](pois.md) |
 | OSM + Overture (production) | OSM dump + Overture S3 | `build_refined.py` | spatial tile grid | [Refined POIs](refined-pois.md) |
 | Mapbox Isochrone + Matrix | `walksheds.json.gz`, `walking-distances.json.gz` | `fetch_walksheds.py`, `fetch_walking_distances.py` | walkshed polygons + `stations[]` arrays | [Walksheds](walksheds.md) |
-| OSM station entrances | `data/pois/raw/station-exits.json.gz` | `fetch_station_exits.py` | `station-exits.geojson` | [Station exits](station-exits.md) |
+| OSM station entrances | `data/cities/<slug>/raw/pois/station-exits.json.gz` | `fetch_station_exits.py` | `station-exits.geojson` | [Station exits](station-exits.md) |
 
 ## Refresh order
 

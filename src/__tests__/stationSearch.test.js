@@ -72,3 +72,43 @@ describe('matchStations', () => {
     expect(matchStations([], 'westlake')).toEqual([])
   })
 })
+
+describe('matchStations — Skyline names', () => {
+  // Honolulu's official names carry macrons and the ʻokina, which nobody types.
+  const skyline = [
+    { properties: { name: 'Hālawa Station', altName: 'Aloha Stadium', lines: '1', stopCode: 9 } },
+    { properties: { name: 'Hōʻaeʻae Station', altName: 'West Loch', lines: '1', stopCode: 4 } },
+    { properties: { name: 'Kalauao Station', altName: 'Pearlridge', lines: '1', stopCode: 8 } },
+    { properties: { name: 'Waiawa Station', altName: 'Pearl Highlands', lines: '1', stopCode: 7 } },
+    { properties: { name: 'Lelepaua Station', altName: 'Daniel K. Inouye International Airport', lines: '1', stopCode: 11 } },
+  ]
+
+  it('matches a macron-less query', () => {
+    expect(matchStations(skyline, 'halawa')[0].properties.name).toBe('Hālawa Station')
+  })
+
+  it('matches an okina-less query', () => {
+    expect(matchStations(skyline, 'hoaeae')[0].properties.name).toBe('Hōʻaeʻae Station')
+  })
+
+  it('matches the place descriptor', () => {
+    expect(matchStations(skyline, 'pearlridge')[0].properties.name).toBe('Kalauao Station')
+    expect(matchStations(skyline, 'aloha stadium')[0].properties.name).toBe('Hālawa Station')
+  })
+
+  it('ranks an official-name hit above a descriptor hit', () => {
+    // "pearl" prefixes no official name but prefixes two descriptors; Pearl
+    // Highlands (Waiawa) and Pearlridge (Kalauao) both qualify, ordered by name.
+    const names = matchStations(skyline, 'pearl').map(f => f.properties.name)
+    expect(names).toContain('Waiawa Station')
+    expect(names).toContain('Kalauao Station')
+  })
+
+  it('finds the airport by its descriptor', () => {
+    expect(matchStations(skyline, 'airport')[0].properties.name).toBe('Lelepaua Station')
+  })
+
+  it('matches a two-digit Skyline stop code', () => {
+    expect(matchStations(skyline, '11')[0].properties.name).toBe('Lelepaua Station')
+  })
+})

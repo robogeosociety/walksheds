@@ -27,7 +27,7 @@ POI
 :   Point of interest — a restaurant, cafe, bar, shop, museum, park, and so on. Sourced from OpenStreetMap and Overture. See [POIs](data/pois.md).
 
 Tile
-:   One cell of the spatial grid the POI dataset is partitioned into: `public/pois/tiles/{col}_{row}.geojson`. The runtime loads only the tiles overlapping a selected station's walkshed. See [Refined POIs](data/refined-pois.md).
+:   One cell of the spatial grid the POI dataset is partitioned into: `public/cities/<slug>/pois/tiles/{col}_{row}.geojson`. The runtime loads only the tiles overlapping a selected station's walkshed. See [Refined POIs](data/refined-pois.md).
 
 `station_tiles`
 :   A precomputed map in `index.json` from a station key to the tile keys it needs — lets the runtime skip bbox math. Guarded by [INV-020](invariants.md).

@@ -2,7 +2,8 @@ import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHand
 import Map, { Source, Layer, GeolocateControl } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { registerStationIcons } from './stationIcons'
-import { MAPBOX_TOKEN, SEATTLE_CENTER, SEATTLE_ZOOM, LINE_COLORS, POI_INTERACTIVE_LAYERS } from './constants'
+import { MAPBOX_TOKEN, POI_INTERACTIVE_LAYERS } from './constants'
+import { lineColors, walkshedAccent } from './cities'
 import { computeSnapTarget } from './mapbox'
 import WalkshedLayers from './WalkshedLayers'
 import POILayer from './POILayer'
@@ -17,8 +18,8 @@ const MapView = forwardRef(function MapView({
   dpadHints,
   junctionHints,
   terminusInfo,
-  line1Data,
-  line2Data,
+  city,
+  alignments,
   stationsData,
   onStationClick,
   visiblePois,
@@ -60,6 +61,8 @@ const MapView = forwardRef(function MapView({
   const [mapLoaded, setMapLoaded] = useState(false)
   const [iconsReady, setIconsReady] = useState(false)
 
+  const colors = lineColors(city, darkMode)
+
   const handleMapLoad = useCallback(() => {
     mapLoadedRef.current = true
     setMapLoaded(true)
@@ -79,11 +82,13 @@ const MapView = forwardRef(function MapView({
     if (!mapLoaded) return
     const map = mapRef.current?.getMap()
     if (!map) return
-    registerStationIcons(map).then(() => {
+    // Sprite sheets are per-city (each city's stations get their own pills),
+    // so a city switch re-registers them.
+    registerStationIcons(map, city).then(() => {
       iconsReadyRef.current = true
       setIconsReady(true)
     })
-  }, [mapLoaded])
+  }, [mapLoaded, city])
 
   // Apply dark/light mode
   useEffect(() => {
@@ -225,9 +230,9 @@ const MapView = forwardRef(function MapView({
     <Map
       ref={mapRef}
       initialViewState={{
-        longitude: SEATTLE_CENTER[0],
-        latitude: SEATTLE_CENTER[1],
-        zoom: SEATTLE_ZOOM,
+        longitude: city.center[0],
+        latitude: city.center[1],
+        zoom: city.zoom,
       }}
       style={{ width: '100%', height: '100%' }}
       mapStyle="mapbox://styles/mapbox/standard"
@@ -270,21 +275,22 @@ const MapView = forwardRef(function MapView({
         enabledWalksheds={enabledWalksheds}
         darkMode={darkMode}
         mapLoaded={mapLoaded}
+        accent={walkshedAccent(city, darkMode)}
       />
 
-      {mapLoaded && line1Data && (
-        <Source id="line-1" type="geojson" data={line1Data}>
-          <Layer id="line-1-casing" type="line" paint={{ 'line-color': '#000000', 'line-width': 7, 'line-opacity': 0.3 }} />
-          <Layer id="line-1-stroke" type="line" paint={{ 'line-color': LINE_COLORS['1-line'].color, 'line-width': 4, 'line-opacity': 0.9, 'line-emissive-strength': 1.0 }} />
-        </Source>
-      )}
-
-      {mapLoaded && line2Data && (
-        <Source id="line-2" type="geojson" data={line2Data}>
-          <Layer id="line-2-casing" type="line" paint={{ 'line-color': '#000000', 'line-width': 7, 'line-opacity': 0.3 }} />
-          <Layer id="line-2-stroke" type="line" paint={{ 'line-color': LINE_COLORS['2-line'].color, 'line-width': 4, 'line-opacity': 0.9, 'line-emissive-strength': 1.0 }} />
-        </Source>
-      )}
+      {/* One casing + stroke pair per line the city declares, so a single-line
+          city draws one route and a branching one draws each branch in its own
+          color without this file knowing how many lines exist. */}
+      {mapLoaded && city.lines.map((line) => {
+        const data = alignments?.[line.id]
+        if (!data) return null
+        return (
+          <Source key={line.id} id={`line-${line.key}`} type="geojson" data={data}>
+            <Layer id={`line-${line.key}-casing`} type="line" paint={{ 'line-color': '#000000', 'line-width': 7, 'line-opacity': 0.3 }} />
+            <Layer id={`line-${line.key}-stroke`} type="line" paint={{ 'line-color': colors[line.id].color, 'line-width': 4, 'line-opacity': 0.9, 'line-emissive-strength': 1.0 }} />
+          </Source>
+        )
+      })}
 
       {mapLoaded && visiblePois && (
         <POILayer

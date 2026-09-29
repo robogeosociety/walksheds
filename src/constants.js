@@ -2,8 +2,9 @@ import MAIN_CATEGORY_IDS from './mainCategories.json'
 
 export const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
-export const SEATTLE_CENTER = [-122.33, 47.60]
-export const SEATTLE_ZOOM = 11.5
+// Map framing, line identity and walkshed accents are per-city and live in
+// src/cities.js (generated from data/cities.py). Everything below is shared by
+// every city: walkshed bands, POI taxonomy and filter defaults.
 
 export const WALKSHED_OPTIONS = [5, 10, 15]
 export const WALKSHED_RENDER_ORDER = [15, 10, 5]
@@ -20,14 +21,6 @@ export const WALKSHED_STYLES = {
     5:  { opacity: 0.22, outlineOpacity: 1.0, lineWidth: 3 },
   },
 }
-
-export const LINE_COLORS = {
-  '1-line': { color: '#38B030', label: '1 Line' },
-  '2-line': { color: '#00A0E0', label: '2 Line' },
-}
-
-export const WALKSHED_ACCENT_LIGHT = '#00A0E0'
-export const WALKSHED_ACCENT_DARK = '#38B030'
 
 export const POI_CATEGORIES = {
   restaurant:      { color: '#E67E22', group: 'dining', label: 'Restaurant' },

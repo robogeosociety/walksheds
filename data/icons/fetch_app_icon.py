@@ -8,7 +8,7 @@ circles (Line 1 green + Line 2 blue) centered at the station's projected
 coordinate. Light and dark variants use the actual Mapbox Standard basemap
 land tones (sampled from walksheds.xyz) for the background.
 
-Reads from the canonical walksheds dump at data/pois/raw/walksheds.json.gz
+Reads from the canonical walksheds dump at data/cities/seattle/raw/pois/walksheds.json.gz
 (maintained by data/pois/fetch_walksheds.py — refresh it there to pick up
 new Mapbox data). This script is build-only; no network.
 
@@ -21,13 +21,21 @@ Usage:
 import argparse
 import gzip
 import json
+import sys
 import math
 from pathlib import Path
 
 import cairosvg
 
 ROOT = Path(__file__).resolve().parents[2]
-WALKSHEDS_DUMP = ROOT / "data" / "pois" / "raw" / "walksheds.json.gz"
+sys.path.insert(0, str(ROOT / "data"))
+
+import cities as city_registry  # noqa: E402
+
+# Site-level branding (favicon / home-screen icon / OG card) is drawn from
+# Seattle's walksheds — it is the flagship city, not a per-city asset.
+BRAND_CITY = city_registry.get_city("seattle")
+WALKSHEDS_DUMP = BRAND_CITY.walksheds_dump
 OUT_DIR = ROOT / "public"
 
 # University of Washington Station — shared station 48, intersection of Lines 1

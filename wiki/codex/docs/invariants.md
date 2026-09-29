@@ -31,7 +31,7 @@ Most are checked by `data/pois/test_invariants.py` (the CI job "Data invariants"
 | INV-009 | cache-version-match | The walking-distance cache `version` equals the walkshed dump `version`. | build warns/errors on mismatch |
 | INV-010 | band-matches-geometry | A POI's `stations[]` (stopCode, band) set equals its walkshed membership by point-in-polygon — no spurious or missing stations, correct band. | test |
 | INV-011 | distances-sane | Every `stations[]` entry has finite, non-negative meters/seconds and `band` in `{5, 10, 15}`. | test |
-| INV-012 | station-data | `all-stations.geojson` has exactly 38 stations; each has an integer `stopCode` and `lines` in `{"1", "2", "1,2"}`. | test |
+| INV-012 | station-data | Each city's `all-stations.geojson` has exactly `City.station_count` stations (Seattle 38, Honolulu 13); each has an integer `stopCode` and a `lines` value built from that city's line keys. | test |
 
 ### Sprites + assets
 
@@ -66,7 +66,22 @@ Most are checked by `data/pois/test_invariants.py` (the CI job "Data invariants"
 | ID | Name | Contract | Enforced by |
 | --- | --- | --- | --- |
 | INV-021 | station-exits-wellformed | Every exit has a unique `id`, a `stationKey` resolving to a real station, a non-empty `name`, a finite `bearingFromStation` in `[0, 360)`, `source` a subset of `{osm}`, and coords inside the padded bbox. | `test_invariants.py` |
-| INV-022 | exit-nearest-station | Each exit's `stationKey` is the nearest Link station to its coordinates and within `NEAREST_CUTOFF_M`. | `test_invariants.py` |
+| INV-022 | exit-nearest-station | Each exit's `stationKey` is the nearest station to its coordinates and within `NEAREST_CUTOFF_M`. | `test_invariants.py` |
+
+### Freshness + cities
+
+| ID | Name | Contract | Enforced by |
+| --- | --- | --- | --- |
+| INV-023 | stats-current | `public/cities/<slug>/pois/stats.json` (the legend's Statistics section) matches a regeneration from the committed tile index, stations file, raw OSM dump, and pinned Overture release. | `test_invariants.py` |
+| INV-024 | city-registry-sync | `src/cityRegistry.json` (what the frontend reads) matches `data/cities.py` (the source). Regenerate with `python3 data/cities.py`. | `test_invariants.py` + a named CI step |
+| INV-025 | city-data-complete | A city's declared `capabilities` match what is committed, **in both directions** — declaring `walksheds` / `pois` / `exits` requires the artifact, and having the artifact requires declaring it. `pois` additionally requires `walksheds`. | `test_invariants.py` |
+
+!!! info "Every invariant runs per city"
+    Each data invariant is parametrized over the cities it applies to, gated on
+    that city's [capabilities](cities.md#capabilities) — a city without walkshed
+    isochrones has no POI tiles to check, so the POI invariants simply do not
+    run for it rather than failing on data that was never meant to exist. Test
+    ids carry the city slug, so a failure names the city it came from.
 
 !!! info "Numbering vs. ordering"
-    The tables above group invariants by theme, so they are not in numeric order — INV-015 through INV-017 (filters) sit after INV-019/INV-020 (tiling) here. The numbers themselves are assigned in append-only creation order. All of INV-001 through INV-022 are live; if a number were ever retired, its slot would stay reserved forever rather than being reused.
+    The tables above group invariants by theme, so they are not in numeric order — INV-015 through INV-017 (filters) sit after INV-019/INV-020 (tiling) here. The numbers themselves are assigned in append-only creation order. All of INV-001 through INV-025 are live; if a number were ever retired, its slot would stay reserved forever rather than being reused.

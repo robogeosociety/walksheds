@@ -952,3 +952,70 @@ class TestIsClosedOrDenied:
 
     def test_dispensary_of_seattle_leafb_is_denied(self):
         assert 6246048863 in DENY_OSM_IDS
+
+
+class TestActiveCityIsProcessWide:
+    """The active city must be single-sourced across module aliases.
+
+    A script run as `python data/pois/fetch_pois.py` is sys.modules["__main__"],
+    so when it imports a sibling that imports `fetch_pois`, Python loads a
+    SECOND copy of that module. When the active city lived in fetch_pois, state
+    set on one copy was invisible to the other: `--city honolulu` built
+    Honolulu's POIs while the sibling resolved *Seattle's* walkshed and distance
+    dumps, so every POI silently came out with no `stations[]` and no error.
+    Holding the city in `cities` (always imported under that one name) fixes it.
+    """
+
+    def _second_copy(self):
+        """Load fetch_pois again under a different name, as __main__ would."""
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "fetch_pois_alias", fetch_pois.__file__
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    @pytest.mark.unit
+    def test_two_module_copies_agree_on_the_active_city(self):
+        alias = self._second_copy()
+        assert alias is not fetch_pois
+
+        original = fetch_pois.active_city().slug
+        try:
+            fetch_pois.set_city("honolulu")
+            # The other copy must observe the switch, not its own default.
+            assert alias.active_city().slug == "honolulu"
+            assert alias.station_index_path() == fetch_pois.station_index_path()
+            assert alias.raw_dump_path() == fetch_pois.raw_dump_path()
+        finally:
+            fetch_pois.set_city(original)
+
+    @pytest.mark.unit
+    def test_sibling_dump_paths_follow_the_active_city(self):
+        """The precise regression: the Mapbox dump paths a sibling resolves must
+        belong to the city fetch_pois is building."""
+        import fetch_walking_distances as fwd
+        import fetch_walksheds as fws
+
+        original = fetch_pois.active_city().slug
+        try:
+            for slug in ("honolulu", "seattle"):
+                fetch_pois.set_city(slug)
+                assert f"/cities/{slug}/" in fws.raw_dump_path()
+                assert f"/cities/{slug}/" in fwd.dump_path()
+                assert f"/cities/{slug}/" in fws.station_index_path()
+        finally:
+            fetch_pois.set_city(original)
+
+    @pytest.mark.unit
+    def test_set_city_accepts_a_slug_or_a_city(self):
+        import cities as city_registry
+
+        original = fetch_pois.active_city().slug
+        try:
+            assert fetch_pois.set_city("honolulu").slug == "honolulu"
+            assert fetch_pois.set_city(city_registry.get_city("seattle")).slug == "seattle"
+        finally:
+            fetch_pois.set_city(original)

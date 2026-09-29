@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState } from 'react'
 import { buildSiteFeedbackIssueUrl, SITE_FEEDBACK_REASONS } from './siteFeedback'
+import { CITIES } from './cities'
 
 const WALKSHED_ITEMS = [
   { minutes: 5, label: '5 min walk' },
@@ -8,6 +9,35 @@ const WALKSHED_ITEMS = [
 ]
 
 const WALKSHED_OPACITIES = { 5: 0.7, 10: 0.45, 15: 0.25 }
+
+/**
+ * City switcher: one tab per city in the registry, drawn as a route-tile strip
+ * in the same restrained idiom as the line key below it. Renders nothing when
+ * there is only one city, so a single-city deployment sees no chrome at all.
+ */
+function CityPicker({ city, onCityChange }) {
+  if (CITIES.length < 2) return null
+  return (
+    <div className="legend-cities" role="group" aria-label="Choose a city">
+      {CITIES.map((c) => {
+        const active = c.slug === city?.slug
+        return (
+          <button
+            key={c.slug}
+            type="button"
+            className={`legend-city-tab${active ? ' active' : ''}`}
+            aria-pressed={active}
+            title={`${c.name} — ${c.system} (${c.agency})`}
+            onClick={() => onCityChange(c)}
+          >
+            <span className="legend-city-name">{c.name}</span>
+            <span className="legend-city-system">{c.system}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 function UnitsToggle({ units, onToggle, className }) {
   const next = units === 'imperial' ? 'metric' : 'imperial'
@@ -154,7 +184,11 @@ function LegendStats({ stats }) {
 
 export default function LineLegend({
   lineColors,
+  city = null,
+  cityEnabled = false,
+  onCityChange = null,
   enabledWalksheds,
+  showWalksheds = true,
   walkshedAccent,
   onWalkshedToggle,
   darkMode,
@@ -173,6 +207,11 @@ export default function LineLegend({
 }) {
   const posClass = position === 'bottom-right' ? 'bottom-right' : ''
   const touchStartY = useRef(null)
+
+  // Ordered by the city's own line order, not object key order.
+  const legendLines = (city?.lines ?? []).map(l => ({ ...l, ...lineColors[l.id] }))
+  const sampleStopCode = city?.defaultStation?.stopCode ?? ''
+
 
   const handleTouchStart = useCallback((e) => {
     touchStartY.current = e.touches[0].clientY
@@ -314,50 +353,69 @@ export default function LineLegend({
         </button>
       </div>
 
+      {cityEnabled && onCityChange && <CityPicker city={city} onCityChange={onCityChange} />}
+
+      {/* One row per line the city runs — a single-line system shows one. */}
       <div className="legend-lines">
-        <div className="legend-line-item">
-          <span className="legend-line-circle" style={{ background: lineColors['1-line'].color }}>1</span>
-          <span className="legend-line-label">{lineColors['1-line'].label}</span>
-        </div>
-        <div className="legend-line-item">
-          <span className="legend-line-circle" style={{ background: lineColors['2-line'].color }}>2</span>
-          <span className="legend-line-label">{lineColors['2-line'].label}</span>
-        </div>
+        {legendLines.map(line => (
+          <div className="legend-line-item" key={line.id}>
+            <span className="legend-line-circle" style={{ background: line.color }}>{line.glyph}</span>
+            <span className="legend-line-label">{line.label}</span>
+          </div>
+        ))}
       </div>
 
+      {/* The sample pill wears every line's roundel, so it reads as the shared
+          downtown station in Seattle and as the only kind of station in a
+          single-line system. */}
       <div className="legend-station-example">
         <div className="legend-pill">
-          <span className="legend-pill-circle" style={{ background: lineColors['1-line'].color }}>1</span>
-          <span className="legend-pill-circle" style={{ background: lineColors['2-line'].color }}>2</span>
-          <span className="legend-pill-code">50</span>
+          {legendLines.map(line => (
+            <span className="legend-pill-circle" key={line.id} style={{ background: line.color }}>{line.glyph}</span>
+          ))}
+          <span className="legend-pill-code">{sampleStopCode}</span>
         </div>
         <span className="legend-station-desc">Station</span>
       </div>
 
-      <div className="legend-divider" />
+      {showWalksheds && (
+        <>
+          <div className="legend-divider" />
 
-      <h3 className="legend-title">Walksheds</h3>
-      <div className="legend-walkshed-list">
-        {WALKSHED_ITEMS.map(({ minutes, label }) => {
-          const enabled = enabledWalksheds.has(minutes)
-          return (
-            <button
-              key={minutes}
-              className={`legend-walkshed-item ${enabled ? '' : 'dimmed'}`}
-              onClick={() => onWalkshedToggle(minutes)}
-            >
-              <span
-                className="legend-swatch legend-swatch-walkshed"
-                style={{
-                  background: walkshedAccent,
-                  opacity: enabled ? WALKSHED_OPACITIES[minutes] : 0.05,
-                }}
-              />
-              <span className="legend-walkshed-label">{label}</span>
-            </button>
-          )
-        })}
-      </div>
+          <h3 className="legend-title">Walksheds</h3>
+          <div className="legend-walkshed-list">
+            {WALKSHED_ITEMS.map(({ minutes, label }) => {
+              const enabled = enabledWalksheds.has(minutes)
+              return (
+                <button
+                  key={minutes}
+                  className={`legend-walkshed-item ${enabled ? '' : 'dimmed'}`}
+                  onClick={() => onWalkshedToggle(minutes)}
+                >
+                  <span
+                    className="legend-swatch legend-swatch-walkshed"
+                    style={{
+                      background: walkshedAccent,
+                      opacity: enabled ? WALKSHED_OPACITIES[minutes] : 0.05,
+                    }}
+                  />
+                  <span className="legend-walkshed-label">{label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {!showWalksheds && (
+        <>
+          <div className="legend-divider" />
+          <p className="legend-note">
+            Walkshed isochrones are not built for {city?.name ?? 'this city'} yet —
+            stations, the route and station exits are.
+          </p>
+        </>
+      )}
 
       <LegendStats stats={stats} />
 

@@ -1,7 +1,9 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildGraph, isJunction, getJunctionHints, getTerminusInfo, getDpadHints } from './routeGraph'
 import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './mapbox'
-import { WALKSHED_OPTIONS, LINE_COLORS, WALKSHED_ACCENT_LIGHT, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS } from './constants'
+import { WALKSHED_OPTIONS, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS } from './constants'
+import { CAP_EXITS, CAP_POIS, CAP_WALKSHEDS, cityAsset, cityBySlug, hasCapability, lineColors, rememberCity, resolveCity, walkshedAccent } from './cities'
+import CityProvider from './CityProvider'
 import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
@@ -18,6 +20,14 @@ import { shouldShowHints, markHintsSeen } from './hintsState'
 import { parseEmbedConfig } from './embedConfig'
 import { useEmbedBridge } from './embedBridge'
 import './walksheds.css'
+
+/** localStorage, or null when it throws (private mode / blocked storage). */
+function safeLocalStorage() {
+  try {
+    window.localStorage.getItem('walksheds_city')
+    return window.localStorage
+  } catch { return null }
+}
 
 function computeSystemBounds(stationsData) {
   if (!stationsData?.features?.length) return null
@@ -110,8 +120,21 @@ export default function Walksheds() {
       return stored === 'imperial' ? 'imperial' : 'metric'
     } catch { return 'metric' }
   })
-  const [line1Data, setLine1Data] = useState(null)
-  const [line2Data, setLine2Data] = useState(null)
+  // The active city. A station deep link carries its own city in the path
+  // (/honolulu/1/8), so that wins outright — otherwise `?city=` (stable shared
+  // links), then this browser's last choice. Embeds never read or write storage
+  // (the iframe shares the real site's origin storage).
+  const [city, setCity] = useState(() => {
+    const parsed = parseStationPath(window.location.pathname, import.meta.env.BASE_URL)
+    if (parsed) return cityBySlug(parsed.system)
+    return resolveCity({
+      search: window.location.search,
+      storage: embed.embed ? null : safeLocalStorage(),
+    })
+  })
+  // One alignment FeatureCollection per line id, so a city with one line and a
+  // city with two go through the same path.
+  const [alignments, setAlignments] = useState({})
   const [stationsData, setStationsData] = useState(null)
   // Legend collapse: user preference (from localStorage or manual toggle) takes priority.
   // null = no preference, let auto-collapse decide based on overlap.
@@ -193,42 +216,86 @@ export default function Walksheds() {
   const resolvedRef = useRef(false)
   const poisResolvedRef = useRef(false)
 
-  const dataFetchedRef = useRef(false)
+  // Every fetch is scoped to the active city's data root, and each optional
+  // dataset is gated on the capability the city declares — a city without
+  // walkshed isochrones has no POI tiles or stats to load, so we don't ask.
   useEffect(() => {
-    if (dataFetchedRef.current) return
-    dataFetchedRef.current = true
-    const base = import.meta.env.BASE_URL
-    fetch(`${base}line1-alignment.geojson`).then(r => r.json()).then(setLine1Data)
-    fetch(`${base}line2-alignment.geojson`).then(r => r.json()).then(setLine2Data)
-    fetch(`${base}all-stations.geojson`).then(r => r.json()).then(setStationsData)
-    // POIs stream per-walkshed from spatial tiles (see poiTiles.js); only the
-    // small tile index is loaded upfront instead of the full 11.7 MB dataset.
-    loadTileIndex(base).then(setTileIndex).catch(() => {})
-    fetch(`${base}pois/tag-categories.json`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setTagCategories(d) })
-    // Dataset summary (counts, sources, freshness) for the legend's
-    // expandable Statistics section; built by data/pois/build_stats.py.
-    fetch(`${base}pois/stats.json`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setDataStats(d) })
-      .catch(() => {})
-    // Station exits/entrances: a small flat point set (~113 features), loaded
-    // upfront and grouped per station for the station detail panel + map dots.
-    fetch(`${base}station-exits.geojson`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setStationExits(d) })
-      .catch(() => {})
-  }, [])
+    let cancelled = false
+    const set = (fn) => (d) => { if (!cancelled && d) fn(d) }
+    const asset = (path) => cityAsset(city, path)
+    const json = (path) => fetch(asset(path)).then(r => (r.ok ? r.json() : null))
+
+    setAlignments({})
+    setStationsData(null)
+    setTileIndex(null)
+    setTagCategories(null)
+    setDataStats(null)
+    setStationExits(null)
+
+    for (const line of city.lines) {
+      json(line.alignment).then(set(d => setAlignments(prev => ({ ...prev, [line.id]: d }))))
+    }
+    json('all-stations.geojson').then(set(setStationsData))
+
+    if (hasCapability(city, CAP_POIS)) {
+      // POIs stream per-walkshed from spatial tiles (see poiTiles.js); only the
+      // small tile index is loaded upfront instead of the full dataset.
+      loadTileIndex(asset('')).then(set(setTileIndex)).catch(() => {})
+      json('pois/tag-categories.json').then(set(setTagCategories))
+      // Dataset summary (counts, sources, freshness) for the legend's
+      // expandable Statistics section; built by data/pois/build_stats.py.
+      json('pois/stats.json').then(set(setDataStats)).catch(() => {})
+    }
+    if (hasCapability(city, CAP_EXITS)) {
+      // Station exits/entrances: a small flat point set, loaded upfront and
+      // grouped per station for the station detail panel + map dots.
+      json('station-exits.geojson').then(set(setStationExits)).catch(() => {})
+    }
+
+    return () => { cancelled = true }
+  }, [city])
 
   // Build the adjacency graph once per stations payload. Kept both as a
   // memoized value (for render-time reads like the swipe hint) and mirrored
   // into graphRef so the navigation/selection event handlers can reach it
   // without re-subscribing.
-  const graph = useMemo(() => (stationsData ? buildGraph(stationsData) : null), [stationsData])
+  const graph = useMemo(() => (stationsData ? buildGraph(stationsData, city) : null), [stationsData, city])
   useEffect(() => {
     graphRef.current = graph
   }, [graph])
+
+  /**
+   * Switch cities. Clears everything tied to the old city's stations (selection,
+   * walkshed polygons, POI filters) and resets the initial-resolve latch, so the
+   * effect that picks a starting station runs again for the new city's data and
+   * frames its system bounds. The URL drops any station path — a Seattle stop
+   * code means nothing in Honolulu — and carries `?city=` so the link is stable.
+   */
+  const handleCityChange = useCallback((nextCity) => {
+    if (!nextCity || nextCity.slug === city.slug) return
+
+    setCity(nextCity)
+    if (!embed.embed) rememberCity(nextCity.slug, safeLocalStorage())
+
+    setPopup(null)
+    setPoiPopup(null)
+    setWalksheds({})
+    setCurrentLine(null)
+    setJunctionHints([])
+    setTerminusInfo(null)
+    setActiveCategories(new Set())
+    setActiveFilters(new Set())
+    setExpandedPoiTag(null)
+    selectedStationRef.current = null
+    userMovedSinceSelectRef.current = false
+    resolvedRef.current = false
+    poisResolvedRef.current = false
+
+    if (!embed.embed) {
+      const base = import.meta.env.BASE_URL
+      window.history.replaceState({}, '', `${base}?city=${nextCity.slug}`)
+    }
+  }, [city, embed])
 
   const handleWalkshedToggle = useCallback((minutes) => {
     const next = new Set(enabledWalksheds)
@@ -299,7 +366,7 @@ export default function Walksheds() {
       const lineNum = line.replace('-line', '')
       const schema = tagCategories?.filter_schema
       const mergedTags = new Set([...activeCategories, ...activeFilters])
-      const path = buildStationPath(lineNum, stopCode, base) + combineQuery(
+      const path = buildStationPath(lineNum, stopCode, base, city.slug) + combineQuery(
         buildWalkshedParams(enabledWalksheds),
         buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS),
       )
@@ -335,7 +402,7 @@ export default function Walksheds() {
       setLegendPosition(computeLegendPosition(map, results, enabledWalksheds))
       setAutoCollapsed(legendOverlapsWalkshed(map, results, enabledWalksheds))
     })
-  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories, compass, embed])
+  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories, compass, embed, city.slug])
 
   // Embed-bridge helper: select a station by line + stop code (e.g. '1', 50).
   const selectStationByCode = useCallback((line, stopCode) => {
@@ -740,8 +807,9 @@ export default function Walksheds() {
       queueMicrotask(() => selectStationFnRef.current(station.name, station.lng, station.lat, station.line))
       return
     }
-    // No deep link: snap to system-wide overview, then fly into Westlake.
-    const station = findStationByCode(stationsData, '1', 50)
+    // No deep link: snap to system-wide overview, then fly into the city's
+    // default station (data/cities.py `default_station`).
+    const station = findStationByCode(stationsData, city.defaultStation.lines, city.defaultStation.stopCode)
     if (!station) return
     const bounds = computeSystemBounds(stationsData)
     if (bounds) {
@@ -751,7 +819,7 @@ export default function Walksheds() {
       selectStationFnRef.current(station.name, station.lng, station.lat, station.line)
     }, 900)
     return () => clearTimeout(t)
-  }, [stationsData, mapReady])
+  }, [stationsData, mapReady, city.defaultStation.lines, city.defaultStation.stopCode])
 
   // Sync walkshed + POI filter query params when toggles change. The URL
   // codec uses a single tag namespace, so categories and filters are merged
@@ -766,12 +834,12 @@ export default function Walksheds() {
     if (!lineNum) return
     const schema = tagCategories?.filter_schema
     const mergedTags = new Set([...activeCategories, ...activeFilters])
-    const path = buildStationPath(lineNum, feat.properties.stopCode, base) + combineQuery(
+    const path = buildStationPath(lineNum, feat.properties.stopCode, base, city.slug) + combineQuery(
       buildWalkshedParams(enabledWalksheds),
       buildPoiFilterParam(enabledSpotlights, mergedTags, schema, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS),
     )
     window.history.replaceState(null, '', path)
-  }, [enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, stationsData, currentLine, tagCategories, embed])
+  }, [enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, stationsData, currentLine, tagCategories, embed, city.slug])
 
   // Apply a parsed `?pois=` result (from parsePoiFilterParam) to the three
   // filter state sets. Additive per bucket: only non-empty pieces are set, and
@@ -897,6 +965,7 @@ export default function Walksheds() {
   })
 
   return (
+    <CityProvider city={city} darkMode={darkMode}>
     <div className={[
       'app',
       darkMode && 'dark',
@@ -914,8 +983,8 @@ export default function Walksheds() {
         dpadHints={dpadHints}
         junctionHints={junctionHints}
         terminusInfo={terminusInfo}
-        line1Data={line1Data}
-        line2Data={line2Data}
+        city={city}
+        alignments={alignments}
         stationsData={stationsData}
         onStationClick={selectStation}
         visiblePois={visiblePois}
@@ -967,9 +1036,13 @@ export default function Walksheds() {
 
       {embed.chrome.legend && (
         <LineLegend
-          lineColors={LINE_COLORS}
+          lineColors={lineColors(city, darkMode)}
+          city={city}
+          cityEnabled={embed.chrome.cityPicker}
+          onCityChange={handleCityChange}
           enabledWalksheds={enabledWalksheds}
-          walkshedAccent={WALKSHED_ACCENT_LIGHT}
+          showWalksheds={hasCapability(city, CAP_WALKSHEDS)}
+          walkshedAccent={walkshedAccent(city, darkMode)}
           onWalkshedToggle={handleWalkshedToggle}
           darkMode={darkMode}
           onDarkModeToggle={() => setDarkMode(d => !d)}
@@ -989,5 +1062,6 @@ export default function Walksheds() {
 
       {hintsVisible && stationsData && <HintOverlay />}
     </div>
+    </CityProvider>
   )
 }

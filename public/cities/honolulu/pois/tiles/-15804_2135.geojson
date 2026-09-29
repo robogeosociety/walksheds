@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 587986352, "name": "Konane Park", "category": "park", "tags": ["park"], "sources": ["osm"]}, "geometry": {"type": "Point", "coordinates": [-158.0362247, 21.3520363]}}]}

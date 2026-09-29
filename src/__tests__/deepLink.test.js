@@ -1,3 +1,4 @@
+import { CITY_SLUGS } from '../cities'
 import { describe, it, expect } from 'vitest'
 import {
   parseStationPath,
@@ -6,6 +7,7 @@ import {
   parseWalkshedParams,
   buildWalkshedParams,
   combineQuery,
+  DEFAULT_SYSTEM,
 } from '../deepLink'
 
 const BASE = '/walksheds/'
@@ -185,5 +187,43 @@ describe('combineQuery', () => {
 
   it('handles parts without leading ?', () => {
     expect(combineQuery('walkshed=5', 'pois=abc')).toBe('?walkshed=5&pois=abc')
+  })
+})
+
+describe('deep links across cities', () => {
+  it('parses a Honolulu station path', () => {
+    expect(parseStationPath('/honolulu/1/8', '/')).toEqual({
+      system: 'honolulu', line: '1', stopCode: 8,
+    })
+  })
+
+  it('builds a path carrying the city', () => {
+    expect(buildStationPath('1', 8, '/', 'honolulu')).toBe('/honolulu/1/8')
+  })
+
+  it('round-trips every city', () => {
+    for (const slug of CITY_SLUGS) {
+      const path = buildStationPath('1', 7, '/', slug)
+      expect(parseStationPath(path, '/')).toEqual({ system: slug, line: '1', stopCode: 7 })
+    }
+  })
+
+  it('rejects a line the city does not run', () => {
+    // Skyline is a single line; /honolulu/2/... is not a real station.
+    expect(parseStationPath('/honolulu/2/8', '/')).toBeNull()
+    // The same path IS valid for Seattle, which has a 2 Line.
+    expect(parseStationPath('/seattle/2/58', '/')).toEqual({
+      system: 'seattle', line: '2', stopCode: 58,
+    })
+  })
+
+  it('rejects an unknown city', () => {
+    expect(parseStationPath('/atlantis/1/8', '/')).toBeNull()
+  })
+
+  it('still treats a legacy two-segment path as the default city', () => {
+    expect(parseStationPath('/1/50', '/')).toEqual({
+      system: DEFAULT_SYSTEM, line: '1', stopCode: 50,
+    })
   })
 })

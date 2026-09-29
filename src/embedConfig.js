@@ -26,7 +26,7 @@
  *   origin           pin the postMessage peer origin (e.g. https://host.example)
  *
  * Existing params still drive initial state in embed mode: the deep-link path
- * `/seattle/{line}/{stopCode}`, `?walkshed=`, and `?pois=`.
+ * `/{city}/{line}/{stopCode}`, `?city=`, `?walkshed=`, and `?pois=`.
  */
 
 // Chrome visibility defaults. In embed mode we hide onboarding and branding by
@@ -42,6 +42,9 @@ const CHROME_DEFAULTS_EMBED = {
   locate: true,
   darkToggle: true,
   unitsToggle: true,
+  // An embed is placed to show one city; letting a visitor switch would break
+  // the host's framing and its postMessage contract. Opt in with ?citypicker=1.
+  cityPicker: false,
 }
 
 // Outside embed mode every affordance shows and nothing is suppressed, so the
@@ -57,6 +60,7 @@ const CHROME_DEFAULTS_NORMAL = {
   locate: true,
   darkToggle: true,
   unitsToggle: true,
+  cityPicker: true,
 }
 
 // URL param name (lowercase) → chrome key.
@@ -71,6 +75,7 @@ const CHROME_PARAM = {
   locate: 'locate',
   darktoggle: 'darkToggle',
   unitstoggle: 'unitsToggle',
+  citypicker: 'cityPicker',
 }
 
 // Parse a boolean-ish flag. A bare flag (?help) or truthy string counts as

@@ -1,11 +1,11 @@
 site_name: Walksheds Codex
 site_url: https://wiki.walksheds.xyz/dev/
-site_description: The project codex for Walksheds — the Seattle Link light rail walkshed explorer. Architecture, data pipelines, invariants, design system, and operations.
+site_description: The project codex for Walksheds — the rail walkshed explorer covering Seattle Link and Honolulu Skyline. Architecture, cities, data pipelines, invariants, design system, and operations.
 site_author: tommyroar
 repo_url: https://github.com/robogeosociety/walksheds
 repo_name: robogeosociety/walksheds
 edit_uri: edit/main/wiki/codex/docs/
-copyright: Transit data from Sound Transit, SDOT, OpenStreetMap, and Overture Maps.
+copyright: Transit data from Sound Transit, SDOT, HART / Honolulu Open Geospatial Data, OpenStreetMap, and Overture Maps.
 
 theme:
   name: material
@@ -79,10 +79,11 @@ plugins:
 nav:
   - Home: index.md
   - Architecture: architecture.md
+  - Cities: cities.md
   - Design system: design-system.md
   - Data pipeline:
       - Overview: data/overview.md
-      - Transit (SDOT): data/transit.md
+      - Transit (agency feeds): data/transit.md
       - POIs (OSM): data/pois.md
       - Refined POIs + tiles: data/refined-pois.md
       - Walksheds + distances: data/walksheds.md

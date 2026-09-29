@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build public/pois/stats.json — the dataset summary behind the legend's
+"""Build public/cities/<slug>/pois/stats.json — the dataset summary behind the legend's
 expandable Statistics section (POI/station counts, data sources, freshness).
 
 Reads only committed artifacts (no network): the spatial tile index,
@@ -7,20 +7,20 @@ all-stations.geojson, the raw OSM dumps (for their as-of timestamps), and the
 Overture release pinned in fetch_overture.py. Deterministic — INV-023 checks
 the committed file matches a regeneration. Re-run after any data rebuild:
 
-    python3 data/pois/build_stats.py
+    python3 data/pois/build_stats.py [--city seattle]
 """
+import argparse
 import gzip
 import json
 import os
 import re
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PUBLIC = os.path.normpath(os.path.join(HERE, "..", "..", "public"))
-TILE_INDEX = os.path.join(PUBLIC, "pois", "tiles", "index.json")
-ALL_STATIONS = os.path.join(PUBLIC, "all-stations.geojson")
-OSM_DUMP = os.path.join(HERE, "raw", "osm-seattle.json.gz")
-SDOT_REFRESHED = os.path.join(os.path.dirname(HERE), "raw", "refreshed.json")
-STATS_JSON = os.path.join(PUBLIC, "pois", "stats.json")
+ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "data"))
+
+import cities as city_registry  # noqa: E402
 
 
 def overture_release():
@@ -30,44 +30,75 @@ def overture_release():
         return re.search(r'^RELEASE = "([^"]+)"', f.read(), re.M).group(1)
 
 
-def osm_as_of():
+def osm_as_of(city):
     """The Overpass dump's data timestamp (osm3s.timestamp_osm_base), as a date."""
-    with gzip.open(OSM_DUMP, "rt") as f:
+    with gzip.open(city.osm_dump, "rt") as f:
         return json.load(f)["osm3s"]["timestamp_osm_base"][:10]
 
 
-def sdot_refreshed():
-    """When data/refresh.py last pulled the SDOT station/alignment GeoJSON."""
-    with open(SDOT_REFRESHED) as f:
+def agency_refreshed(city):
+    """When data/refresh.py last pulled this city's rail station/alignment feed."""
+    with open(city.refreshed_marker) as f:
         return json.load(f)["refreshedAt"]
 
 
-def build_stats():
-    with open(TILE_INDEX) as f:
+def uses_overture(city):
+    """Whether this city's committed tiles actually contain Overture-sourced POIs.
+
+    A city built with `build_refined.py --no-overture` has none, and the legend
+    must not claim a source the dataset does not carry.
+    """
+    index_dir = city.tiles_dir
+    with open(city.tile_index) as f:
+        for key in json.load(f)["tiles"]:
+            with open(index_dir / (key + ".geojson")) as tf:
+                for feat in json.load(tf)["features"]:
+                    if "overture" in (feat["properties"].get("sources") or []):
+                        return True
+    return False
+
+
+def build_stats(city):
+    with open(city.tile_index) as f:
         index = json.load(f)
-    with open(ALL_STATIONS) as f:
+    with open(city.stations_geojson) as f:
         stations = json.load(f)
+    sources = [{"id": "osm", "label": "OpenStreetMap", "asOf": osm_as_of(city)}]
+    if uses_overture(city):
+        sources.append(
+            {"id": "overture", "label": "Overture Places", "asOf": overture_release()[:10]}
+        )
+    sources += [
+        {"id": city.agency_source_id, "label": city.source_note,
+         "asOf": agency_refreshed(city)},
+        # Walkshed polygons are drawn by the browser straight from the
+        # Mapbox Isochrone API on every station select — always current.
+        {"id": "mapbox", "label": "Mapbox walksheds", "live": True},
+    ]
     return {
         "pois": index["count"],
         "stations": len(stations["features"]),
-        "sources": [
-            {"id": "osm", "label": "OpenStreetMap", "asOf": osm_as_of()},
-            {"id": "overture", "label": "Overture Places", "asOf": overture_release()[:10]},
-            {"id": "sdot", "label": "SDOT / Sound Transit", "asOf": sdot_refreshed()},
-            # Walkshed polygons are drawn by the browser straight from the
-            # Mapbox Isochrone API on every station select — always current.
-            {"id": "mapbox", "label": "Mapbox walksheds", "live": True},
-        ],
+        "sources": sources,
     }
 
 
-def main():
-    stats = build_stats()
-    with open(STATS_JSON, "w") as f:
-        json.dump(stats, f, indent=2)
-        f.write("\n")
-    print(f"Wrote {os.path.relpath(STATS_JSON, os.getcwd())}: "
-          f"{stats['pois']:,} POIs, {stats['stations']} stations")
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__)
+    city_registry.add_city_arg(ap, default="all")
+    args = ap.parse_args(argv)
+
+    for city in city_registry.resolve(args.city):
+        # stats.json summarises the POI dataset; a city without POI tiles has
+        # nothing to summarise and the legend hides the section entirely.
+        if not city.has(city_registry.CAP_POIS):
+            print(f"{city.slug}: no POI dataset — skipping stats.json")
+            continue
+        stats = build_stats(city)
+        with open(city.stats_json, "w") as f:
+            json.dump(stats, f, indent=2)
+            f.write("\n")
+        print(f"Wrote {city.stats_json.relative_to(city_registry.ROOT)}: "
+              f"{stats['pois']:,} POIs, {stats['stations']} stations")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ Two committed Mapbox dumps power both the isochrone bands on the map and the "St
 
 ### 1. Walkshed polygons
 
-`data/pois/raw/walksheds.json.gz` — one Mapbox Isochrone call per station (38 stations × `contours_minutes=5,10,15`), built by:
+`data/cities/<slug>/raw/pois/walksheds.json.gz` — one Mapbox Isochrone call per station (38 stations × `contours_minutes=5,10,15`), built by:
 
 ```bash
 python3 data/pois/fetch_walksheds.py --refresh
@@ -18,7 +18,7 @@ You only need to refresh this when station coordinates change.
 
 ### 2. Walking distances
 
-`data/pois/raw/walking-distances.json.gz` — for every (station, POI) pair where the POI falls inside the station's 15-minute isochrone, the walking distance and duration from the Mapbox Matrix API, built by:
+`data/cities/<slug>/raw/pois/walking-distances.json.gz` — for every (station, POI) pair where the POI falls inside the station's 15-minute isochrone, the walking distance and duration from the Mapbox Matrix API, built by:
 
 ```bash
 python3 data/pois/fetch_walking_distances.py --refresh

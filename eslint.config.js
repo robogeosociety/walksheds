@@ -26,4 +26,10 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Build-time config runs in Node, not the browser: it reads process.env to
+    // decide whether the bundle includes preview cities.
+    files: ['*.config.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])

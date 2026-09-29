@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 650348379, "name": "Splash Pad Park", "category": "playground", "tags": ["playground"], "sources": ["osm"]}, "geometry": {"type": "Point", "coordinates": [-157.9829849, 21.3231346]}}]}

@@ -1,6 +1,12 @@
-"""Tests for data processing — verify line alignment and station data integrity."""
+"""Tests for data processing — verify line alignment and station data integrity.
 
-import importlib.util
+Seattle owns most of the assertions here because its processor carries the
+hardcoded Sound Transit wiring (line orders, stop codes, the shared-trunk
+offset). Honolulu's processor derives everything from HART's ID ordinal, so its
+checks are correspondingly thinner — see data/pois/test_invariants.py for the
+per-city invariants that both cities run.
+"""
+
 import json
 import os
 import subprocess
@@ -9,27 +15,26 @@ import sys
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PUBLIC = os.path.join(ROOT, "public")
+sys.path.insert(0, os.path.join(ROOT, "data"))
+
+import cities as city_registry  # noqa: E402
+import geometry  # noqa: E402
+from processors import honolulu as honolulu_processor  # noqa: E402
+from processors import seattle as seattle_processor  # noqa: E402
+
+SEATTLE = city_registry.get_city("seattle")
+HONOLULU = city_registry.get_city("honolulu")
 
 
 @pytest.fixture(scope="session", autouse=True)
 def generate_data():
-    """Run the processing script before tests."""
+    """Run the processing script for every city before tests."""
     subprocess.check_call([sys.executable, os.path.join(ROOT, "data", "process.py")])
 
 
-def load(name):
-    with open(os.path.join(PUBLIC, f"{name}.geojson")) as f:
+def load(city, name):
+    with open(city.public_dir / f"{name}.geojson") as f:
         return json.load(f)
-
-
-def load_process_module():
-    """Import data/process.py as a module (for unit-testing its helpers directly,
-    rather than only exercising it end-to-end via the subprocess fixture above)."""
-    spec = importlib.util.spec_from_file_location("process", os.path.join(ROOT, "data", "process.py"))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 class TestLineAlignment:
@@ -37,8 +42,8 @@ class TestLineAlignment:
 
     @pytest.mark.unit
     def test_line1_west_of_line2_in_shared_segment(self):
-        line1 = load("line1-alignment")
-        line2 = load("line2-alignment")
+        line1 = load(SEATTLE, "line1-alignment")
+        line2 = load(SEATTLE, "line2-alignment")
 
         line1_coords = line1["features"][0]["geometry"]["coordinates"]
         line2_coords = line2["features"][0]["geometry"]["coordinates"]
@@ -56,8 +61,8 @@ class TestLineAlignment:
 
     @pytest.mark.unit
     def test_lines_diverge_after_junction(self):
-        line1 = load("line1-alignment")
-        line2 = load("line2-alignment")
+        line1 = load(SEATTLE, "line1-alignment")
+        line2 = load(SEATTLE, "line2-alignment")
 
         line1_coords = line1["features"][0]["geometry"]["coordinates"]
         line2_coords = line2["features"][0]["geometry"]["coordinates"]
@@ -73,13 +78,13 @@ class TestLineAlignment:
 class TestStationData:
     @pytest.mark.unit
     def test_no_duplicate_stations(self):
-        stations = load("all-stations")
+        stations = load(SEATTLE, "all-stations")
         names = [f["properties"]["name"] for f in stations["features"]]
         assert len(names) == len(set(names)), f"Duplicate stations found: {[n for n in names if names.count(n) > 1]}"
 
     @pytest.mark.unit
     def test_shared_stations_have_both_lines(self):
-        stations = load("all-stations")
+        stations = load(SEATTLE, "all-stations")
         shared = [f for f in stations["features"] if f["properties"]["shared"]]
         for feat in shared:
             assert feat["properties"]["lines"] == "1,2", (
@@ -88,7 +93,7 @@ class TestStationData:
 
     @pytest.mark.unit
     def test_all_stations_have_stop_codes(self):
-        stations = load("all-stations")
+        stations = load(SEATTLE, "all-stations")
         for feat in stations["features"]:
             code = feat["properties"]["stopCode"]
             assert code is not None, f"{feat['properties']['name']} missing stopCode"
@@ -96,12 +101,12 @@ class TestStationData:
 
     @pytest.mark.unit
     def test_station_counts(self):
-        stations = load("all-stations")
+        stations = load(SEATTLE, "all-stations")
         total = len(stations["features"])
         shared = sum(1 for f in stations["features"] if f["properties"]["shared"])
         line1_only = sum(1 for f in stations["features"] if f["properties"]["lines"] == "1")
         line2_only = sum(1 for f in stations["features"] if f["properties"]["lines"] == "2")
-        assert total == 38, f"Expected 38 stations, got {total}"
+        assert total == SEATTLE.station_count, f"Expected {SEATTLE.station_count} stations, got {total}"
         assert shared == 13, f"Expected 13 shared stations, got {shared}"
         assert line1_only == 13, f"Expected 13 Line 1 only stations, got {line1_only}"
         assert line2_only == 12, f"Expected 12 Line 2 only stations, got {line2_only}"
@@ -109,7 +114,7 @@ class TestStationData:
     @pytest.mark.unit
     def test_stop_codes_unique_per_line(self):
         """Each (line, stopCode) pair must be unique."""
-        stations = load("all-stations")
+        stations = load(SEATTLE, "all-stations")
         seen = {}
         for feat in stations["features"]:
             props = feat["properties"]
@@ -124,7 +129,7 @@ class TestStationData:
     @pytest.mark.unit
     def test_known_stop_codes(self):
         """Verify specific codes match Sound Transit reference."""
-        stations = load("all-stations")
+        stations = load(SEATTLE, "all-stations")
         by_name = {f["properties"]["name"]: f["properties"]["stopCode"] for f in stations["features"]}
         assert by_name["Westlake Station"] == 50
         assert by_name["U District Station"] == 47
@@ -144,15 +149,106 @@ class TestSDOTSchemaGuard:
 
     @pytest.mark.unit
     def test_missing_name_raises_clear_schema_error(self):
-        process = load_process_module()
         feat = {"properties": {"STATUS": "Existing / Under Construction", "STATION": "X"}}
-        with pytest.raises(process.SDOTSchemaError, match="NAME"):
-            process.station_name(feat)
+        with pytest.raises(seattle_processor.SDOTSchemaError, match="NAME"):
+            seattle_processor.station_name(feat)
 
     @pytest.mark.unit
     def test_name_read_by_key_not_by_column_position(self):
-        process = load_process_module()
         # Property order deliberately does NOT match SDOT's usual
         # OBJECTID_1, STATUS, NAME, ... layout, to prove this reads by key.
         feat = {"properties": {"NAME": "Westlake Station", "STATUS": "Existing / Under Construction"}}
-        assert process.station_name(feat) == "Westlake Station"
+        assert seattle_processor.station_name(feat) == "Westlake Station"
+
+
+class TestHonoluluStations:
+    """HART publishes the whole 21-station project; only the open segments ship."""
+
+    @pytest.mark.unit
+    def test_only_open_segments_are_emitted(self):
+        stations = load(HONOLULU, "all-stations")
+        codes = sorted(f["properties"]["stopCode"] for f in stations["features"])
+        assert codes == list(range(1, honolulu_processor.OPEN_STATION_MAX_ID + 1)), (
+            "expected a contiguous run of open HART station IDs"
+        )
+
+    @pytest.mark.unit
+    def test_termini_are_the_open_extent(self):
+        by_code = {
+            f["properties"]["stopCode"]: f["properties"]["name"]
+            for f in load(HONOLULU, "all-stations")["features"]
+        }
+        assert by_code[1] == "Kualakaʻi Station"
+        assert by_code[honolulu_processor.OPEN_STATION_MAX_ID] == "Kahauiki Station"
+
+    @pytest.mark.unit
+    def test_single_line_has_no_shared_stations(self):
+        for feat in load(HONOLULU, "all-stations")["features"]:
+            assert feat["properties"]["shared"] is False
+            assert feat["properties"]["lines"] == "1"
+
+    @pytest.mark.unit
+    def test_okina_is_normalized(self):
+        """The two HART fields disagree on the ʻokina glyph; output uses U+02BB
+        throughout so a name never ships with mixed apostrophes."""
+        for feat in load(HONOLULU, "all-stations")["features"]:
+            for value in (feat["properties"]["name"], feat["properties"].get("altName", "")):
+                for lookalike in ("‘", "’", "'"):
+                    assert lookalike not in value, f"{value!r} carries {lookalike!r}"
+
+    @pytest.mark.unit
+    def test_alt_name_never_repeats_the_hawaiian_name(self):
+        """Stations whose FEIS descriptor is just the Hawaiian name carry a
+        current public name instead, or no altName at all — never a redundant
+        'Kalauao (Kalauao)'."""
+        for feat in load(HONOLULU, "all-stations")["features"]:
+            props = feat["properties"]
+            alt = props.get("altName")
+            if alt:
+                assert alt != props["name"].removesuffix(" Station")
+
+    @pytest.mark.unit
+    def test_renamed_stations_use_current_public_names(self):
+        by_code = {
+            f["properties"]["stopCode"]: f["properties"].get("altName")
+            for f in load(HONOLULU, "all-stations")["features"]
+        }
+        assert by_code[8] == "Pearlridge"
+        assert by_code[9] == "Aloha Stadium"
+        assert by_code[11] == "Daniel K. Inouye International Airport"
+
+
+class TestHonoluluAlignment:
+    @pytest.mark.unit
+    def test_alignment_runs_west_to_east(self):
+        coords = load(HONOLULU, "line1-alignment")["features"][0]["geometry"]["coordinates"]
+        assert coords[0][0] < coords[-1][0], "guideway should start at the west terminus"
+
+    @pytest.mark.unit
+    def test_alignment_spans_the_open_stations(self):
+        """The stitched guideway is trimmed to the open extent: its endpoints sit
+        at the first and last open station, not out in the unopened City Center
+        segment (whose section is excluded from OPEN_SECTIONS)."""
+        coords = load(HONOLULU, "line1-alignment")["features"][0]["geometry"]["coordinates"]
+        stations = {
+            f["properties"]["stopCode"]: f["geometry"]["coordinates"]
+            for f in load(HONOLULU, "all-stations")["features"]
+        }
+        first, last = stations[1], stations[honolulu_processor.OPEN_STATION_MAX_ID]
+        assert geometry.haversine_m(coords[0], first) < 500
+        assert geometry.haversine_m(coords[-1], last) < 500
+
+    @pytest.mark.unit
+    def test_stitching_leaves_no_section_sized_gap(self):
+        """Sections are chained end-to-end; a mis-ordered or un-reversed section
+        would leave a multi-kilometre jump between consecutive vertices."""
+        coords = load(HONOLULU, "line1-alignment")["features"][0]["geometry"]["coordinates"]
+        gaps = [geometry.haversine_m(coords[i], coords[i + 1]) for i in range(len(coords) - 1)]
+        assert max(gaps) < 1500, f"largest vertex gap {max(gaps):.0f} m suggests a broken joint"
+
+    @pytest.mark.unit
+    def test_simplification_keeps_the_line_compact(self):
+        """Douglas-Peucker at 1 m keeps the rendered line in the same size class
+        as Seattle's, instead of shipping HART's ~6,000-vertex survey geometry."""
+        coords = load(HONOLULU, "line1-alignment")["features"][0]["geometry"]["coordinates"]
+        assert 100 < len(coords) < 800, f"{len(coords)} vertices is outside the expected range"

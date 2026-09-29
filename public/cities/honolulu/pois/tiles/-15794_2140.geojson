@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 461456678, "name": "Kaahele Neighborhood Park", "category": "park", "tags": ["park"], "sources": ["osm"], "address": "98-750 Kaahele Street"}, "geometry": {"type": "Point", "coordinates": [-157.9359245, 21.4021114]}}]}

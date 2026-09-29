@@ -5,7 +5,8 @@
  *   <script src="https://walksheds.xyz/embed.js"></script>
  *   <script>
  *     const w = Walksheds.embed('#map', {
- *       station: 'seattle/1/50',      // or { line: '1', stopCode: 50 }
+ *       station: 'seattle/1/50',      // or { city: 'seattle', line: '1', stopCode: 50 }
+ *       city: 'honolulu',             // city when no station is given
  *       walkshed: [5, 10],            // enabled bands (minutes)
  *       pois: 'coffee,park',          // POI filters
  *       dark: false, units: 'metric',
@@ -28,17 +29,21 @@
  */
 (function (global) {
   var DEFAULT_BASE = 'https://walksheds.xyz/'
-  var CHROME_KEYS = ['legend', 'search', 'hints', 'help', 'guide', 'report', 'locate', 'darkToggle', 'unitsToggle']
+  var CHROME_KEYS = ['legend', 'search', 'hints', 'help', 'guide', 'report', 'locate', 'darkToggle', 'unitsToggle', 'cityPicker']
   var CHROME_PARAM = {
     legend: 'legend', search: 'search', hints: 'hints', help: 'help', guide: 'guide',
     report: 'report', locate: 'locate', darkToggle: 'darktoggle', unitsToggle: 'unitstoggle',
+    cityPicker: 'citypicker',
   }
+  // Matches the registry's default city; a station object without an explicit
+  // `city` is assumed to be in it, which keeps existing embeds working.
+  var DEFAULT_CITY = 'seattle'
 
   function stationPath(station) {
     if (!station) return ''
     if (typeof station === 'string') return station.replace(/^\/+/, '')
     if (station.line != null && station.stopCode != null) {
-      return 'seattle/' + station.line + '/' + station.stopCode
+      return (station.city || DEFAULT_CITY) + '/' + station.line + '/' + station.stopCode
     }
     return ''
   }
@@ -53,6 +58,8 @@
     CHROME_KEYS.forEach(function (key) {
       if (chrome[key] != null) q.set(CHROME_PARAM[key], chrome[key] ? '1' : '0')
     })
+    // Only meaningful without a station path, which already names its city.
+    if (opts.city && !stationPath(opts.station)) q.set('city', opts.city)
     if (opts.dark != null) q.set('dark', opts.dark ? '1' : '0')
     if (opts.units) q.set('units', opts.units)
     if (opts.walkshed != null) {

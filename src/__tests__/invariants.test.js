@@ -3,7 +3,7 @@
 // The data-side invariants live in data/pois/test_invariants.py.
 import { describe, it, expect } from 'vitest'
 import { MAIN_POI_CATEGORIES, POI_CATEGORIES } from '../constants'
-import tagCats from '../../public/pois/tag-categories.json'
+import tagCats from '../../public/cities/seattle/pois/tag-categories.json'
 
 const knownTags = new Set(Object.keys(tagCats.tag_to_category))
 const knownCats = new Set(Object.keys(POI_CATEGORIES))

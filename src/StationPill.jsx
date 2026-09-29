@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Marker } from 'react-map-gl'
-import { LINE_COLORS } from './constants'
-
-const LINE_1_COLOR = LINE_COLORS['1-line'].color
-const LINE_2_COLOR = LINE_COLORS['2-line'].color
+import { useLineColors } from './cityContext'
 
 // SVG paths drawn in a 24×24 viewBox: a bar at the terminus end + a
 // shaft + a chevron arrowhead whose tip sits right against the bar.
@@ -38,24 +35,38 @@ function ArrowSvg({ d, color }) {
 }
 
 /**
+ * The line roundels inside a pill: one per line key in `lines`, filled with
+ * that line's color and printing its glyph. The glyph is not the key — a
+ * single-line system prints an initial ("S" for Skyline) where Seattle prints
+ * a line number.
+ */
+function LineRoundels({ lines, colors }) {
+  return String(lines).split(',').map((raw) => {
+    const key = raw.trim()
+    const line = Object.values(colors).find(c => c.key === key)
+    return (
+      <span
+        key={key}
+        className="pill-circle"
+        style={{ background: line?.color || '#999' }}
+      >
+        {line?.glyph ?? key}
+      </span>
+    )
+  })
+}
+
+/**
  * Pure pill body — used by the on-map StationPill (wrapped in a Mapbox
  * Marker) and by the POI popup's "Nearest stations" rows. No animations,
  * no junction/terminus badges.
  */
 export function StationPillBody({ lines, stopCode, name, className }) {
-  const lineArr = lines.split(',')
+  const colors = useLineColors()
   return (
     <div className={className ? `station-pill ${className}` : 'station-pill'}>
       <div className="pill-lines">
-        {lineArr.map(num => (
-          <span
-            key={num}
-            className="pill-circle"
-            style={{ background: LINE_COLORS[`${num.trim()}-line`]?.color || '#999' }}
-          >
-            {num.trim()}
-          </span>
-        ))}
+        <LineRoundels lines={lines} colors={colors} />
       </div>
       {stopCode != null && <span className="pill-code">{stopCode}</span>}
       <span className="pill-name">{name.replace(' Station', '')}</span>
@@ -70,16 +81,23 @@ const SWITCH_PATH = 'M 6 3 V 13 A 4 4 0 0 0 10 17 H 19 M 16 14 L 19 17 L 16 20'
  * Chinatown junction: a small Line-2 circle paired with a south-then-east
  * branch arrow.
  */
-function SwitchBadge() {
+function SwitchBadge({ hints, currentLine }) {
+  const colors = useLineColors()
+  // The badge names the line that leaves the trunk here: whichever junction
+  // hint is not the line the rider is currently on (falling back to the last
+  // hint, so the badge is never blank).
+  const branching = hints.find(h => h.line !== currentLine)?.line
+    ?? hints[hints.length - 1]?.line
+  const { color = '#999', glyph = '', label = 'the branch' } = colors[branching] || {}
   return (
     <span
       className="pill-badge"
       role="img"
-      aria-label="Junction: Line 2 branches east"
+      aria-label={`Junction: ${label} branches off here`}
     >
       <span className="pill-badge-pair">
-        <span className="pill-badge-line-circle" style={{ background: LINE_2_COLOR }}>2</span>
-        <ArrowSvg d={SWITCH_PATH} color={LINE_2_COLOR} />
+        <span className="pill-badge-line-circle" style={{ background: color }}>{glyph}</span>
+        <ArrowSvg d={SWITCH_PATH} color={color} />
       </span>
     </span>
   )
@@ -92,15 +110,15 @@ function SwitchBadge() {
  * bearing into the station — see routeGraph.getTerminusInfo.
  */
 function TerminusBadge({ direction, lines }) {
+  const colors = useLineColors()
   const d = TERMINUS_PATHS[direction] || TERMINUS_PATHS.ArrowUp
   return (
     <span className="pill-badge" role="img" aria-label="End of line">
       {lines.map(line => {
-        const lineNum = line === '1-line' ? '1' : '2'
-        const color = line === '1-line' ? LINE_1_COLOR : LINE_2_COLOR
+        const { color = '#999', glyph = '' } = colors[line] || {}
         return (
           <span key={line} className="pill-badge-pair">
-            <span className="pill-badge-line-circle" style={{ background: color }}>{lineNum}</span>
+            <span className="pill-badge-line-circle" style={{ background: color }}>{glyph}</span>
             <ArrowSvg d={d} color={color} />
           </span>
         )
@@ -155,6 +173,7 @@ const DPAD_DIRECTION = {
  * junction badge.
  */
 function DpadArm({ hint, currentLine }) {
+  const colors = useLineColors()
   const direction = DPAD_DIRECTION[hint.arrowKey]
   const diverges = currentLine && hint.line !== currentLine
   const label = (
@@ -162,9 +181,9 @@ function DpadArm({ hint, currentLine }) {
       {diverges && (
         <span
           className="pill-badge-line-circle"
-          style={{ background: LINE_COLORS[hint.line]?.color || '#999' }}
+          style={{ background: colors[hint.line]?.color || '#999' }}
         >
-          {hint.line === '1-line' ? '1' : '2'}
+          {colors[hint.line]?.glyph || ''}
         </span>
       )}
       {hint.label}
@@ -180,6 +199,7 @@ function DpadArm({ hint, currentLine }) {
 }
 
 export default function StationPill({ longitude, latitude, lines, stopCode, name, junctionHints, terminusInfo, dpad, currentLine, onClick, exitsRevealed }) {
+  const colors = useLineColors()
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
@@ -198,19 +218,11 @@ export default function StationPill({ longitude, latitude, lines, stopCode, name
           aria-label={onClick ? `${name.replace(' Station', '')} — ${exitsRevealed ? 'hide' : 'show'} exits` : undefined}
         >
           <div className="pill-lines">
-            {lines.split(',').map(num => (
-              <span
-                key={num}
-                className="pill-circle"
-                style={{ background: LINE_COLORS[`${num.trim()}-line`]?.color || '#999' }}
-              >
-                {num.trim()}
-              </span>
-            ))}
+            <LineRoundels lines={lines} colors={colors} />
           </div>
           {stopCode != null && <span className="pill-code">{stopCode}</span>}
           <span className="pill-name">{name.replace(' Station', '')}</span>
-          {expanded && junctionHints.length > 0 && <SwitchBadge />}
+          {expanded && junctionHints.length > 0 && <SwitchBadge hints={junctionHints} currentLine={currentLine} />}
           {expanded && junctionHints.length === 0 && terminusInfo && (
             <TerminusBadge direction={terminusInfo.arrowKey} lines={terminusInfo.lines} />
           )}

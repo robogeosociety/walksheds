@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import tagCategories from '../../public/pois/tag-categories.json'
+import tagCategories from '../../public/cities/seattle/pois/tag-categories.json'
 import { MAIN_POI_CATEGORIES } from '../constants'
 import {
   BENCHMARKS,

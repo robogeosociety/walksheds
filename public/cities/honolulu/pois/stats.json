@@ -1,0 +1,21 @@
+{
+  "pois": 691,
+  "stations": 13,
+  "sources": [
+    {
+      "id": "osm",
+      "label": "OpenStreetMap",
+      "asOf": "2026-09-26"
+    },
+    {
+      "id": "hart",
+      "label": "HART / Honolulu Open Geospatial Data",
+      "asOf": "2026-09-26"
+    },
+    {
+      "id": "mapbox",
+      "label": "Mapbox walksheds",
+      "live": true
+    }
+  ]
+}

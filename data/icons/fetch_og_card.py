@@ -13,7 +13,7 @@ isochrones stacked in the day-map accent blue at the same opacities
 WalkshedLayers.jsx uses, the two-line station pill (Line 1 green + Line 2 blue,
 stop code, name) centered on the station, and the Walksheds wordmark.
 
-Reads from the canonical walksheds dump at data/pois/raw/walksheds.json.gz
+Reads from the canonical walksheds dump at data/cities/seattle/raw/pois/walksheds.json.gz
 (maintained by data/pois/fetch_walksheds.py). Build-only; no network.
 
 System requirement: cairosvg (and libcairo). Install via `pip install cairosvg`.
@@ -25,13 +25,21 @@ Usage:
 import argparse
 import gzip
 import json
+import sys
 import math
 from pathlib import Path
 
 import cairosvg
 
 ROOT = Path(__file__).resolve().parents[2]
-WALKSHEDS_DUMP = ROOT / "data" / "pois" / "raw" / "walksheds.json.gz"
+sys.path.insert(0, str(ROOT / "data"))
+
+import cities as city_registry  # noqa: E402
+
+# Site-level branding (favicon / home-screen icon / OG card) is drawn from
+# Seattle's walksheds — it is the flagship city, not a per-city asset.
+BRAND_CITY = city_registry.get_city("seattle")
+WALKSHEDS_DUMP = BRAND_CITY.walksheds_dump
 OUT_PATH = ROOT / "public" / "og-image.png"
 
 # Westlake Station — the app's default station, shared stop 50 (Lines 1 + 2).

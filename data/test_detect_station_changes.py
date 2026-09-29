@@ -14,7 +14,7 @@ pytest.importorskip("cairosvg")
 pytest.importorskip("PIL")
 
 from detect_station_changes import diff_stations, sdot_station_names  # noqa: E402
-from process import LINE_1_ORDER, MISSING_STATIONS  # noqa: E402
+from processors.seattle import LINE_1_ORDER, MISSING_STATIONS  # noqa: E402
 
 
 def _feat(name, status="Existing / Under Construction"):

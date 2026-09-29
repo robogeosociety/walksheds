@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 468255104, "name": "Salt Lake District Park", "category": "park", "tags": ["park"], "sources": ["osm"]}, "geometry": {"type": "Point", "coordinates": [-157.9108017, 21.3536797]}}]}

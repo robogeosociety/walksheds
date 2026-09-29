@@ -43,6 +43,16 @@ jobs:
 
       - run: pip install pytest
 
-      # Checks the committed POI data + dumps against the core invariants
-      # (data/pois/test_invariants.py, INV-NNN). INV-014 self-skips without cairosvg.
+      # Checks every city's committed data + dumps against the core invariants
+      # (data/pois/test_invariants.py, INV-NNN). Each invariant is parametrized
+      # over the cities whose capabilities it applies to, and test ids carry the
+      # city slug. INV-014 self-skips without cairosvg.
       - run: pytest data/pois/test_invariants.py -q
+
+      # INV-024 also covers this, but failing here names the fix directly: the
+      # frontend's committed city registry must match data/cities.py.
+      - name: City registry is in sync
+        run: |
+          python3 data/cities.py
+          git diff --exit-code -- src/cityRegistry.json \
+            || { echo "::error::src/cityRegistry.json is stale — run: python3 data/cities.py"; exit 1; }

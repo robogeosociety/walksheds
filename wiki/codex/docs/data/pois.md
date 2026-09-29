@@ -8,10 +8,10 @@ The POI layer starts from OpenStreetMap. `fetch_pois.py` is the simpler, OSM-onl
 flowchart LR
   OVP[Overpass API<br/>overpass-api.de] -->|--refresh| DUMP[osm-seattle.json.gz<br/>~1.5 MB, committed]
   DUMP -->|default, no network| BUILD[fetch_pois.py]
-  BUILD --> GEO[public/pois/*.geojson]
+  BUILD --> GEO[public/cities/<slug>/pois/*.geojson]
 ```
 
-1. **Refresh** (needs network): `python3 data/pois/fetch_pois.py --refresh` runs one broad Overpass query for every named node/way tagged `amenity` / `tourism` / `leisure` / `shop` inside the station bbox, and writes `data/pois/raw/osm-seattle.json.gz`.
+1. **Refresh** (needs network): `python3 data/pois/fetch_pois.py --refresh` runs one broad Overpass query for every named node/way tagged `amenity` / `tourism` / `leisure` / `shop` inside the station bbox, and writes `data/cities/<slug>/raw/pois/osm-pois.json.gz`.
 2. **Build** (default, no network): `python3 data/pois/fetch_pois.py` reads the committed dump, applies the `CATEGORIES` filters and `extract_tags`, and writes per-category GeoJSON.
 
 ## Adding a category
@@ -39,7 +39,7 @@ Restaurants surface roughly 315 canonical tags (compressed from about 340 raw vi
 
 ## Tag categorization and coloring
 
-`EXPLICIT_TAG_CATEGORIES` maps category id → `{label, color, tags[]}`. Anything not enumerated falls through to the `cuisine` bucket (the default). The build emits `public/pois/tag-categories.json` with:
+`EXPLICIT_TAG_CATEGORIES` maps category id → `{label, color, tags[]}`. Anything not enumerated falls through to the `cuisine` bucket (the default). The build emits `public/cities/<slug>/pois/tag-categories.json` with:
 
 - `categories` — id → label + color, for the legend color key.
 - `tag_to_category` — tag → category id, for chip coloring.

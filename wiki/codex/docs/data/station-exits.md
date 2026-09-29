@@ -1,6 +1,6 @@
 # Station exits (OSM)
 
-`public/station-exits.geojson` is a flat point set of station entrances/exits, rendered as floating green **"EXIT"** badges over the selected station — above the POI dots, below the station pill. When a POI popup is open, the exit physically closest to it turns orange (the "best exit").
+`public/cities/<slug>/station-exits.geojson` is a flat point set of station entrances/exits, rendered as floating green **"EXIT"** badges over the selected station — above the POI dots, below the station pill. When a POI popup is open, the exit physically closest to it turns orange (the "best exit").
 
 ## Two phases
 
@@ -10,7 +10,7 @@ The pipeline mirrors the POI build, with the raw Overpass dump committed.
 flowchart LR
   OVP[Overpass API] -->|--refresh| DUMP[station-exits.json.gz<br/>committed]
   DUMP -->|default, no network| BUILD[fetch_station_exits.py]
-  BUILD --> GEO[public/station-exits.geojson]
+  BUILD --> GEO[public/cities/<slug>/station-exits.geojson]
 ```
 
 1. **Refresh** (needs network): `python3 data/pois/fetch_station_exits.py --refresh` runs one Overpass query for every `railway=subway_entrance` / `railway=train_station_entrance` node in the station bbox.

@@ -1,0 +1,1 @@
+{"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"id": 10874271398, "name": "15th Medical Group", "category": "clinic", "tags": ["clinic"], "sources": ["osm"], "website": "https://pearlharborhickam.tricare.mil", "phone": "+1 888 683 2778", "address": "755 Scott Circle"}, "geometry": {"type": "Point", "coordinates": [-157.9584179, 21.3394212]}}]}

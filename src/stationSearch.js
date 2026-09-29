@@ -3,8 +3,26 @@
 // code shared by both lines ("50") or the full three-digit Sound Transit
 // station code whose first digit is the line ("150" = Line 1 stop 50,
 // "258" = Bellevue Downtown). See CLAUDE.md "Station Codes".
+//
+// Matching also covers a station's `altName` (the place descriptor riders
+// navigate by, e.g. Kalauao → "Pearlridge") and is diacritic-insensitive, so
+// Skyline's Hawaiian names are reachable from an ASCII keyboard: "halawa"
+// finds Hālawa and "hoaeae" finds Hōʻaeʻae.
 
 const MAX_STATION_MATCHES = 3
+
+// U+02BB ʻokina and the curly quotes that stand in for it are dropped rather
+// than folded to "'", so a query never has to guess which glyph a name uses.
+const OKINA_LIKE = /[\u02bb\u2018\u2019']/g
+
+/** Lowercase, strip combining diacritics and ʻokina — the search key. */
+export function foldName(text) {
+  return (text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(OKINA_LIKE, '')
+    .toLowerCase()
+}
 
 function stationLines(feature) {
   return (feature.properties.lines || '').split(',').map(s => s.trim())
@@ -38,11 +56,20 @@ export function matchStations(features, query) {
     return []
   }
 
+  const needle = foldName(q)
   const scored = []
   for (const f of features) {
-    const name = (f.properties.name || '').toLowerCase()
-    if (!name.includes(q)) continue
-    scored.push({ f, rank: name.startsWith(q) ? 0 : 1, name })
+    const name = foldName(f.properties.name)
+    const alt = foldName(f.properties.altName)
+    // A hit on the official name outranks one on the descriptor, so searching
+    // "pearl" surfaces Pearl Highlands (a name) above Kalauao (alt "Pearlridge").
+    let rank = null
+    if (name.startsWith(needle)) rank = 0
+    else if (alt && alt.startsWith(needle)) rank = 1
+    else if (name.includes(needle)) rank = 2
+    else if (alt && alt.includes(needle)) rank = 3
+    if (rank === null) continue
+    scored.push({ f, rank, name })
   }
   scored.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name))
   return scored.slice(0, MAX_STATION_MATCHES).map(s => s.f)
