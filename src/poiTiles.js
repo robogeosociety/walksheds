@@ -12,7 +12,7 @@
 
 // Both caches are keyed by `base` (a city's public data root), so switching
 // cities cannot serve one city's tiles for another, and switching back is free.
-const tileIndexes = new Map()  // base -> { tileDeg, count, tiles, stationTiles }
+const tileIndexes = new Map()  // base -> { base, tileDeg, count, tiles, stationTiles }
 const tileCache = new Map()    // `${base}|c_r` -> Promise<Feature[]>
 
 /** Load and memoize a city's tiles/index.json. */
@@ -23,6 +23,10 @@ export async function loadTileIndex(base) {
   if (!res.ok) throw new Error(`tile index ${res.status}`)
   const raw = await res.json()
   const tileIndex = {
+    // The data root this index was loaded from. Tiles are always fetched from
+    // the same root (see loadPoisForWalkshed), so the index and its tiles can
+    // never be resolved against different paths.
+    base,
     tileDeg: raw.tile_deg,
     count: raw.count,
     tiles: new Set(raw.tiles),
@@ -87,14 +91,16 @@ function loadTile(base, key) {
  * When `stationKey` is given and present in the precomputed `stationTiles`
  * lookup, uses that directly (no bbox math). Otherwise falls back to computing
  * the tiles from the walkshed polygon's bbox.
+ *
+ * Tiles are fetched from `index.base`, the root the index itself came from.
  */
-export async function loadPoisForWalkshed(base, walkshedFC, index, stationKey) {
+export async function loadPoisForWalkshed(walkshedFC, index, stationKey) {
   let keys = stationKey ? index.stationTiles?.[stationKey] : null
   if (!keys) {
     const bbox = walkshedBbox(walkshedFC)
     if (!bbox) return []
     keys = tileKeysForBbox(bbox, index)
   }
-  const chunks = await Promise.all(keys.map(k => loadTile(base, k)))
+  const chunks = await Promise.all(keys.map(k => loadTile(index.base, k)))
   return chunks.flat()
 }

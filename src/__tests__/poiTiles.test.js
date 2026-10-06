@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { tileKeysForBbox, walkshedBbox } from '../poiTiles'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { loadPoisForWalkshed, loadTileIndex, tileKeysForBbox, walkshedBbox } from '../poiTiles'
 
 const index = { tileDeg: 0.01, tiles: new Set(['-12235_4761', '-12235_4762', '-12234_4761']) }
 
@@ -56,5 +56,34 @@ describe('walkshedBbox', () => {
   it('returns null for an empty/absent FC', () => {
     expect(walkshedBbox({ features: [] })).toBeNull()
     expect(walkshedBbox(null)).toBeNull()
+  })
+})
+
+describe('loadPoisForWalkshed fetch paths', () => {
+  const realFetch = globalThis.fetch
+  afterEach(() => { globalThis.fetch = realFetch })
+
+  // Regression: after the multi-city move the index loaded from the city root
+  // but tiles were fetched from the site root, 404ed, and silently resolved
+  // to [] -- every walkshed showed zero POIs.
+  it('fetches tiles from the same city data root as the index', async () => {
+    const poi = { type: 'Feature', properties: { id: 1 }, geometry: { type: 'Point', coordinates: [-122.345, 47.615] } }
+    globalThis.fetch = vi.fn(async (url) => {
+      if (url === '/cities/testcity/pois/tiles/index.json') {
+        return { ok: true, json: async () => ({ tile_deg: 0.01, count: 1, tiles: ['-12235_4761'], station_tiles: { '1-50': ['-12235_4761'] } }) }
+      }
+      if (url === '/cities/testcity/pois/tiles/-12235_4761.geojson') {
+        return { ok: true, json: async () => ({ features: [poi] }) }
+      }
+      return { ok: false, json: async () => ({}) }
+    })
+
+    const index = await loadTileIndex('/cities/testcity/')
+    expect(index.base).toBe('/cities/testcity/')
+    const walkshed = { features: [{ geometry: { coordinates: [[[-122.35, 47.61], [-122.34, 47.61], [-122.34, 47.62]]] } }] }
+
+    expect(await loadPoisForWalkshed(walkshed, index, '1-50')).toEqual([poi])
+    const urls = globalThis.fetch.mock.calls.map(c => String(c[0]))
+    expect(urls.every(u => u.startsWith('/cities/testcity/pois/tiles/'))).toBe(true)
   })
 })
