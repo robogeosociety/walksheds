@@ -49,6 +49,7 @@ from fetch_pois import (
 )
 from fetch_overture import (
     CATEGORY_TO_FILE,
+    verify_places_schema,
     PLACES_GLOB,
     classify,
     derive_tags,
@@ -101,8 +102,13 @@ def get_overture_records(bbox, min_confidence):
     con = duckdb.connect()
     con.execute("INSTALL spatial; LOAD spatial; INSTALL httpfs; LOAD httpfs;")
     con.execute("SET s3_region='us-west-2';")
+    verify_places_schema(con)
+    # taxonomy.primary is the leaf category (what categories.primary used to be);
+    # taxonomy.alternates replaced categories.alternate. taxonomy.hierarchy is new
+    # and unused — walking it up would reclassify ~1k Seattle POIs, a data change
+    # that belongs in its own review, not in a lane fix.
     rows = con.execute(f"""
-        SELECT id, names.primary, categories.primary, categories.alternate,
+        SELECT id, names.primary, taxonomy.primary, taxonomy.alternates,
                ROUND(bbox.xmin, 7), ROUND(bbox.ymin, 7),
                list_extract(websites, 1), list_extract(phones, 1), addresses[1].freeform,
                operating_status

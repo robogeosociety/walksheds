@@ -41,6 +41,54 @@ from fetch_pois import (
 RELEASE = "2026-04-15.0"
 PLACES_GLOB = f"s3://overturemaps-us-west-2/release/{RELEASE}/theme=places/type=place/*"
 
+# Columns the places query in build_refined.py depends on, as top-level names.
+# Overture reshapes this schema between releases: 2026-09-23.1 replaced
+# `categories.{primary,alternate}` with `taxonomy.{primary,alternates}` (plus a
+# new mid-level `basic_category`), which broke the 2026-09-26 monthly refresh
+# with an opaque `Binder Error: Referenced table "categories" not found!`.
+# verify_places_schema turns that into one readable message.
+REQUIRED_PLACES_COLUMNS = (
+    "id", "names", "taxonomy", "bbox", "websites", "phones",
+    "addresses", "operating_status", "confidence",
+)
+
+
+class OvertureSchemaError(RuntimeError):
+    """The pinned release's places schema is not the one the query expects."""
+
+
+def verify_places_schema(con, glob=None):
+    """Fail early and legibly if the pinned release reshaped its columns.
+
+    Reads only the parquet schema (LIMIT 0), so this costs a footer read rather
+    than a scan. `latest_overture_release.py` checks that a release's places
+    theme *exists* but deliberately stays stdlib-only, so it cannot check the
+    shape — this is where drift is caught.
+    """
+    glob = glob or PLACES_GLOB
+    try:
+        cols = {row[0] for row in con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{glob}') LIMIT 0"
+        ).fetchall()}
+    except Exception as exc:  # noqa: BLE001 — surface the original text
+        raise OvertureSchemaError(
+            f"Could not read the places schema at {glob}. Overture prunes old "
+            "releases, so a pin that once worked can disappear; the monthly "
+            "refresh re-pins before building. Run `python3 "
+            "data/pois/latest_overture_release.py` to see what exists. "
+            f"Underlying error: {exc}"
+        ) from exc
+
+    missing = [c for c in REQUIRED_PLACES_COLUMNS if c not in cols]
+    if missing:
+        raise OvertureSchemaError(
+            f"The places schema at {glob} is missing the column(s) "
+            f"{', '.join(missing)} that the build query needs. Overture reshaped "
+            "the schema; update the SELECT in build_refined.py's "
+            "get_overture_records and REQUIRED_PLACES_COLUMNS here to match. "
+            f"Columns it does have: {', '.join(sorted(cols))}"
+        )
+
 # Which output file each frontend category lands in (mirrors POI_FILES + constants.js).
 CATEGORY_TO_FILE = {
     "restaurant": "restaurants", "cafe": "restaurants", "bar": "restaurants",
