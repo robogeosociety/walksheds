@@ -92,6 +92,17 @@ export function findStationByCode(stationsGeoJSON, line, stopCode) {
 }
 
 /**
+ * Resolve a city's registry `defaultStation` ({ lines, stopCode }). `lines` is
+ * a station lines key ("1,2" for a shared Seattle station), not a single line
+ * id, so match on its first line: findStationByCode accepts any line a shared
+ * station serves.
+ */
+export function findDefaultStation(stationsGeoJSON, defaultStation) {
+  const [line] = String(defaultStation.lines).split(',').map(l => l.trim())
+  return findStationByCode(stationsGeoJSON, line, defaultStation.stopCode)
+}
+
+/**
  * Parse ?walkshed= query params into a Set of minutes.
  * Returns null if no walkshed params (caller should use defaults).
  */
