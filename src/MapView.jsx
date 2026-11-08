@@ -63,11 +63,26 @@ const MapView = forwardRef(function MapView({
 
   const colors = lineColors(city, darkMode)
 
+  // Mapbox Standard ships 3D terrain; this map is flat. Its basemap import
+  // adds the terrain mid-load (while isStyleLoaded() is still false), and the
+  // DEM rasters (~300 KB, competing with the vector tiles) are requested on
+  // the next frame. Dropping it on every styledata catches it the moment it
+  // appears; waiting for onLoad was too late, as they had already downloaded.
+  const handleStyleData = useCallback((e) => {
+    const map = e.target
+    if (!map.getTerrain()) return
+    try {
+      map.setTerrain(null)
+    } catch {
+      // Root style not loaded yet; a later styledata retries.
+    }
+  }, [])
+
   const handleMapLoad = useCallback(() => {
     mapLoadedRef.current = true
     setMapLoaded(true)
     const map = mapRef.current?.getMap()
-    if (map) {
+    if (map?.getTerrain()) {
       map.setTerrain(null)
     }
     if (import.meta.env.DEV) {
@@ -244,6 +259,7 @@ const MapView = forwardRef(function MapView({
       onDragEnd={handleDragEnd}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onStyleData={handleStyleData}
       onLoad={handleMapLoad}
       projection="mercator"
       config={{
