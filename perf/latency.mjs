@@ -31,6 +31,7 @@
  * Usage:
  *   node perf/latency.mjs [--url URL | --dist DIR] [--runs 5]
  *        [--profiles desktop,mobile] [--path /] [--label name] [--out file.json]
+ *        [--block REGEX]   abort matching requests (what-if experiments)
  *
  * Numbers from a cloud runner include its egress latency; compare runs taken
  * from the same machine, not against field data.
@@ -54,6 +55,7 @@ const { values: args } = parseArgs({
     'quiet-ms': { type: 'string', default: '2500' },
     'timeout-ms': { type: 'string', default: '60000' },
     'no-warm': { type: 'boolean', default: false },
+    block: { type: 'string' },
   },
 })
 
@@ -163,6 +165,8 @@ function classify(url) {
 async function measure(context, page, profile, navStart) {
   const reqs = new Map() // request -> record
   const onReq = (req) => {
+    // blob:/data: URLs never report completion; they are not network requests.
+    if (!/^https?:/.test(req.url())) return
     reqs.set(req, { url: req.url(), kind: classify(req.url()), start: Date.now() - navStart, end: null, failed: false })
   }
   const onDone = (req) => { const r = reqs.get(req); if (r) r.end = Date.now() - navStart }
@@ -288,6 +292,12 @@ async function runOnce(browser, profileName, warm) {
   const context = await browser.newContext({ ...p.context, ignoreHTTPSErrors: true })
   // Fresh context = a true first visit (empty storage, so the hint overlay shows).
   await context.addInitScript(INIT_SCRIPT)
+  if (args.block) {
+    // What-if experiments: abort requests matching a regex (e.g. terrain DEM
+    // tiles) to estimate what removing them would save.
+    const re = new RegExp(args.block)
+    await context.route(u => re.test(u.href), route => route.abort('blockedbyclient'))
+  }
   if (args.dist) await serveDist(context, args.dist)
   const page = await context.newPage()
   await applyProfile(context, page, p)
