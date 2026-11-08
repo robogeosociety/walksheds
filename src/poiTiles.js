@@ -6,7 +6,7 @@
  * — a spatial grid over the full POI set — plus tiles/index.json with the grid
  * params and the keys of populated tiles. Instead of loading the whole 11.7 MB
  * dataset upfront, the app loads only the handful of tiles overlapping the active
- * walkshed bbox (typically ~11 tiles, ~20 KB), caching each tile so repeated
+ * walkshed bbox (typically ~11 tiles, ~350 KB gzip downtown), caching each tile so repeated
  * station visits are free.
  */
 
