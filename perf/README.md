@@ -23,6 +23,7 @@ Times are ms from navigation start. The app has no timing hooks, so the map mile
 | `mapStyle` | Mapbox Standard style (and iconset) received |
 | `mapLoad` | Map `load` event. Proxy: the station sprite request, which `MapView` fires from its load effect |
 | `isochroneStart` / `isochroneEnd` | First and last Mapbox Isochrone request: a station was selected / its walkshed polygons can render |
+| `walkshedData` | Walkshed polygons received, from the Isochrone API or the city's committed `walksheds.json` (whichever the build uses) |
 | `poiTilesEnd` | Last POI tile received: the walkshed's POIs can render |
 | `settled` | Last response before a quiet window (map tiles for the framed walkshed included): visually complete |
 

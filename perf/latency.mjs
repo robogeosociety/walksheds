@@ -13,7 +13,9 @@
  *   mapLoad        the station sprite manifest request (MapView registers the
  *                  station icons in its map-load effect, so it fires on load)
  *   isochroneStart first Mapbox Isochrone request (a station got selected)
- *   isochroneEnd   last Isochrone response (walkshed polygons can render)
+ *   isochroneEnd   last Isochrone response
+ *   walkshedData   walkshed polygons received, from the Isochrone API or the
+ *                  city's committed walksheds.json
  *   poiTilesEnd    last POI tile response (walkshed POIs can render)
  *   settled        last network response before a quiet window (map tiles
  *                  for the framed walkshed included): "visually complete"
@@ -153,6 +155,7 @@ function classify(url) {
   if (url.startsWith(ORIGIN)) {
     if (/\/assets\/.*\.js$/.test(u.pathname)) return 'app-js'
     if (/\/assets\/.*\.css$/.test(u.pathname)) return 'app-css'
+    if (/\/cities\/[^/]+\/walksheds\.json$/.test(u.pathname)) return 'walkshed-data'
     if (/\/pois\/tiles\/[-\d]+_[-\d]+\.geojson$/.test(u.pathname)) return 'poi-tiles'
     if (u.pathname.includes('/pois/')) return 'poi-meta'
     if (u.pathname.includes('/icons/')) return 'station-sprites'
@@ -189,8 +192,10 @@ async function measure(context, page, profile, navStart) {
     const inflight = all.filter(r => r.end == null).length
     const activity = all.length + all.filter(r => r.end != null).length
     if (activity !== lastCount || inflight > 0) { lastCount = activity; lastActivity = Date.now() }
-    const sawIso = all.some(r => r.kind === 'mapbox-isochrone' && r.end != null)
-    if (sawIso && inflight === 0 && Date.now() - lastActivity >= QUIET_MS) break
+    // Walkshed polygons arrive from the Isochrone API or, since they were
+    // committed, from the city's walksheds.json; POI tiles follow either way.
+    const sawWalkshed = all.some(r => ['mapbox-isochrone', 'walkshed-data', 'poi-tiles'].includes(r.kind) && r.end != null)
+    if (sawWalkshed && inflight === 0 && Date.now() - lastActivity >= QUIET_MS) break
     if (Date.now() > deadline) { timedOut = true; break }
   }
 
@@ -263,6 +268,7 @@ async function measure(context, page, profile, navStart) {
       mapLoad: minStart(sprite),
       isochroneStart: minStart(of('mapbox-isochrone')),
       isochroneEnd: maxEnd(of('mapbox-isochrone')),
+      walkshedData: maxEnd([...of('mapbox-isochrone'), ...of('walkshed-data')]),
       poiTilesEnd: maxEnd(of('poi-tiles')),
       settled: settledAt,
     },
