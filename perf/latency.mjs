@@ -16,7 +16,10 @@
  *   isochroneEnd   last Isochrone response
  *   walkshedData   walkshed polygons received, from the Isochrone API or the
  *                  city's committed walksheds.json
- *   poiTilesEnd    last POI tile response (walkshed POIs can render)
+ *   poiTilesEnd    last POI tile response
+ *   selected       the selected station's name pill appears (DOM)
+ *   poisVisible    max(selected, walkshedData, poiTilesEnd): the walkshed's
+ *                  POI dots can draw
  *   settled        last network response before a quiet window (map tiles
  *                  for the framed walkshed included): "visually complete"
  *
@@ -131,7 +134,8 @@ const INIT_SCRIPT = `(() => {
     new PerformanceObserver(l => { for (const e of l.getEntries()) m.longTasks.push([e.startTime, e.duration]) })
       .observe({ type: 'longtask', buffered: true })
   } catch {}
-  const watch = { canvas: '.mapboxgl-canvas', stationPill: '.station-pill' }
+  // The selected station's name pill is the only .station-pill inside a map Marker.
+  const watch = { canvas: '.mapboxgl-canvas', selected: '.mapboxgl-marker .station-pill' }
   const check = () => {
     for (const [k, sel] of Object.entries(watch)) {
       if (!m.seen[k] && document.querySelector(sel)) m.seen[k] = performance.now()
@@ -255,6 +259,15 @@ async function measure(context, page, profile, navStart) {
     k.bytes += r.bytes
   }
 
+  const walkshedData = maxEnd([...of('mapbox-isochrone'), ...of('walkshed-data')])
+  const poiTilesEnd = maxEnd(of('poi-tiles'))
+  const selected = inPage.seen.selected ?? null
+  // POI dots draw once the station is selected AND its walkshed and tiles are
+  // in (each can come first, depending on the build).
+  const poisVisible = [selected, walkshedData, poiTilesEnd].every(x => x != null)
+    ? Math.max(selected, walkshedData, poiTilesEnd)
+    : null
+
   return {
     timedOut,
     milestones: {
@@ -268,8 +281,10 @@ async function measure(context, page, profile, navStart) {
       mapLoad: minStart(sprite),
       isochroneStart: minStart(of('mapbox-isochrone')),
       isochroneEnd: maxEnd(of('mapbox-isochrone')),
-      walkshedData: maxEnd([...of('mapbox-isochrone'), ...of('walkshed-data')]),
-      poiTilesEnd: maxEnd(of('poi-tiles')),
+      walkshedData,
+      poiTilesEnd,
+      selected,
+      poisVisible,
       settled: settledAt,
     },
     tbt: Math.round(tbt),

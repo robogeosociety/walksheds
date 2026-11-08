@@ -25,6 +25,8 @@ Times are ms from navigation start. The app has no timing hooks, so the map mile
 | `isochroneStart` / `isochroneEnd` | First and last Mapbox Isochrone request: a station was selected / its walkshed polygons can render |
 | `walkshedData` | Walkshed polygons received, from the Isochrone API or the city's committed `walksheds.json` (whichever the build uses) |
 | `poiTilesEnd` | Last POI tile received: the walkshed's POIs can render |
+| `selected` | The selected station's name pill appears: a station was selected |
+| `poisVisible` | `max(selected, walkshedData, poiTilesEnd)`: the walkshed's POI dots can draw. The headline number |
 | `settled` | Last response before a quiet window (map tiles for the framed walkshed included): visually complete |
 
 `TBT` is total blocking time (the sum of long-task time over 50 ms) up to `settled`. Bytes are encoded (on-the-wire) sizes, broken down by request kind.
