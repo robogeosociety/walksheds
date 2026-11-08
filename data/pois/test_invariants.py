@@ -394,6 +394,27 @@ def test_inv_025_city_data_complete(city):
             f"{city.slug} declares 'pois' without 'walksheds'"
 
 
+# ── INV-026 — walksheds-public-sync: the drawn walksheds are the committed dump ──
+def test_inv_026_walksheds_public_sync(city):
+    """public/cities/<slug>/walksheds.json is what the app draws, and the dump is
+    what POI membership is computed against (INV-010). They must be the same
+    polygons, so a POI's band always matches the ring it is drawn inside.
+    Regenerate with `python3 data/pois/fetch_walksheds.py --city <slug>`."""
+    path = city.walksheds_geojson
+    if not city.has(city_registry.CAP_WALKSHEDS):
+        assert not path.exists(), f"{city.slug} has {path} without the walksheds capability"
+        return
+    assert path.exists(), f"{city.slug}: {path} missing — run fetch_walksheds.py --city {city.slug}"
+    with open(path) as f:
+        committed = json.load(f)
+    expected = fetch_walksheds.public_payload(fetch_walksheds.load_dump())
+    assert committed == expected, (
+        f"{city.slug}: {path} is stale against the walkshed dump — "
+        f"run python3 data/pois/fetch_walksheds.py --city {city.slug}")
+    stations = {fetch_walksheds.station_key(s) for s in fetch_walksheds.load_station_index()}
+    assert set(committed["walksheds"]) == stations, f"{city.slug}: walksheds.json stations != station index"
+
+
 # ── INV-014 — deterministic-build: sprite manifest reproducible (local; needs cairosvg) ──
 def test_inv_014_deterministic_build(city, tmp_path):
     pytest.importorskip("cairosvg")
