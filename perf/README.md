@@ -56,4 +56,4 @@ Caveats in this mode:
 
 - Headless runners have no GPU. Map rendering runs on SwiftShader (software GL), which inflates TBT and the map's render milestones. Every target pays the same cost, so comparisons hold, but real devices render faster.
 - A cloud runner's egress latency (and any proxy) is in every network number. Compare runs taken from the same machine, not against field data.
-- A plain `/` visit holds the default station for a deliberate 900 ms fly-in before selecting it. Deep links (`/seattle/1/50`) skip that delay.
+- Builds before #109 held a plain `/` visit on the system overview for a deliberate 900 ms before selecting the default station; deep links (`/seattle/1/50`) never had that delay. Keep it in mind when comparing `/` against older builds.
