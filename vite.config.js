@@ -47,6 +47,41 @@ function previewCities(includePreview) {
   }
 }
 
+/**
+ * Preload the mapbox-gl chunk from the HTML.
+ *
+ * react-map-gl loads mapbox-gl with a dynamic `import()` that only runs once
+ * the entry chunk has downloaded and executed, so the largest download
+ * (~460 KB gzip) started late: about 1 s in on a mobile profile. A
+ * modulepreload link lets the browser fetch it alongside the entry chunk. Kept
+ * as its own chunk (not folded into the entry) so it stays cached across app
+ * deploys.
+ */
+function preloadMapboxChunk() {
+  let base = '/'
+  return {
+    name: 'walksheds:preload-mapbox',
+    apply: 'build',
+    configResolved(config) {
+      base = config.base
+    },
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        const chunk = Object.values(ctx.bundle ?? {}).find(
+          (c) => c.type === 'chunk' && c.name === 'mapbox-gl',
+        )
+        if (!chunk) return html
+        return [{
+          tag: 'link',
+          attrs: { rel: 'modulepreload', crossorigin: '', href: `${base}${chunk.fileName}` },
+          injectTo: 'head',
+        }]
+      },
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // Read straight from the environment rather than loadEnv: the flag is set by
   // the deploy workflow, not by a committed .env file.
@@ -56,7 +91,7 @@ export default defineConfig(({ mode }) => {
   }
   return {
     base: '/',
-    plugins: [previewCities(includePreview), react(), basicSsl()],
+    plugins: [previewCities(includePreview), react(), basicSsl(), preloadMapboxChunk()],
     server: {
       port: 5187,
       strictPort: true,
