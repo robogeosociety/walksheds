@@ -97,11 +97,28 @@ describe('embed mode rendering', () => {
     expect(window.localStorage.getItem('walksheds_dark_mode')).toBeNull()
   })
 
-  it('non-embed control keeps the help button + wiki link and no embed class', () => {
+  it('non-embed control keeps the wiki link and no embed class', () => {
     setLocation('')
     const { container } = render(<Walksheds />)
     expect(container.querySelector('.app').classList.contains('embed')).toBe(false)
-    expect(container.querySelector('[aria-label="Toggle hints"]')).toBeTruthy()
     expect(container.querySelector('.legend-wiki-link')).toBeTruthy()
+  })
+
+  // The hint overlay is behind VITE_FEATURE_HINTS (off by default), and its
+  // legend button goes with it.
+  it('hides the help button by default and shows it with the hints flag on', () => {
+    setLocation('')
+    const off = render(<Walksheds />)
+    expect(off.container.querySelector('[aria-label="Toggle hints"]')).toBeNull()
+    expect(off.container.querySelector('.hint-overlay')).toBeNull()
+    off.unmount()
+
+    vi.stubEnv('VITE_FEATURE_HINTS', '1')
+    try {
+      const on = render(<Walksheds />)
+      expect(on.container.querySelector('[aria-label="Toggle hints"]')).toBeTruthy()
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

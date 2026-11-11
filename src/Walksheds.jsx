@@ -17,6 +17,7 @@ import LineLegend from './LineLegend'
 import POISearch from './POISearch'
 import HintOverlay from './HintOverlay'
 import { shouldShowHints, markHintsSeen } from './hintsState'
+import { hintsEnabled } from './featureFlags'
 import { parseEmbedConfig } from './embedConfig'
 import { useEmbedBridge } from './embedBridge'
 import './walksheds.css'
@@ -794,16 +795,15 @@ export default function Walksheds() {
   // Resolve deep link on initial load, or default to Westlake with a
   // full-system overview that flies in. selectStation is reached through a
   // ref: its identity changes whenever filter state or tagCategories load
-  // settles, and with it in the dep array the effect's cleanup would cancel
-  // the pending 900ms auto-select timer before it ever fired.
+  // settles, and with it in the dep array the resolve effect would re-run
+  // on every such change.
   const selectStationFnRef = useRef(selectStation)
   useEffect(() => { selectStationFnRef.current = selectStation }, [selectStation])
   // Gate the initial resolve on the map's `load` event. A deep-link URL selects
   // its station as soon as stationsData arrives, and selectStation frames the
   // walkshed with fitBounds once the (often cached) isochrones resolve — which
   // can beat the map's load event, making fitBounds a no-op and leaving the
-  // camera unframed. Waiting for load makes the deep-link fly-to reliable (the
-  // no-deep-link path only worked by accident, via its 900ms fly-in delay).
+  // camera unframed. Waiting for load makes the fly-to reliable on both paths.
   useEffect(() => {
     if (!stationsData || !mapReady || resolvedRef.current) return
     resolvedRef.current = true
@@ -815,18 +815,17 @@ export default function Walksheds() {
       queueMicrotask(() => selectStationFnRef.current(station.name, station.lng, station.lat, station.line))
       return
     }
-    // No deep link: snap to system-wide overview, then fly into the city's
-    // default station (data/cities.py `default_station`).
+    // No deep link: snap to the system-wide overview, then select the city's
+    // default station (data/cities.py `default_station`) straight away. Its
+    // walkshed is already prefetched, so the fly-in starts from the overview
+    // with no pause in between.
     const station = findDefaultStation(stationsData, city.defaultStation)
     if (!station) return
     const bounds = computeSystemBounds(stationsData)
     if (bounds) {
       mapViewRef.current?.fitBounds(bounds, { padding: 80, duration: 0 })
     }
-    const t = setTimeout(() => {
-      selectStationFnRef.current(station.name, station.lng, station.lat, station.line)
-    }, 900)
-    return () => clearTimeout(t)
+    queueMicrotask(() => selectStationFnRef.current(station.name, station.lng, station.lat, station.line))
   }, [stationsData, mapReady, city.defaultStation])
 
   // Warm the first station's walkshed and POI tiles while the map is still
@@ -1082,7 +1081,7 @@ export default function Walksheds() {
           onToggleCollapse={() => toggleLegendCollapsed()}
           onHintsToggle={handleHintsToggle}
           position={legendPosition}
-          showHelp={embed.chrome.help}
+          showHelp={embed.chrome.help && hintsEnabled()}
           showGuide={embed.chrome.guide}
           showDark={embed.chrome.darkToggle}
           showFeedback={embed.chrome.feedback}

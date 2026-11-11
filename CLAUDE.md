@@ -224,6 +224,14 @@ To preview a branch on the live Pages URL (overrides main until the next main pu
 
 The next push to `main` will re-deploy main's build via `deploy.yml` and overwrite the preview.
 
+## Feature flags
+
+Build-time flags live in `src/featureFlags.js`; a flag is on only when its env var is exactly `1` at build or dev-server time. None is set in `deploy.yml`, so every flag is off on walksheds.xyz.
+
+| Flag | Env var | Gates |
+| --- | --- | --- |
+| Onboarding hints | `VITE_FEATURE_HINTS=1` | The first-visit hint overlay (`HintOverlay.jsx`), the legend's "Toggle hints" button, and the `?hints` URL override (also the embed `hints=1` param). Off by default. `playwright.config.js` turns it on for the local dev server so `e2e/hints.spec.js` still covers it. |
+
 ## Embedding
 
 The app is embeddable in other sites/dashboards as an iframe served from `walksheds.xyz` (iframe — not a JS bundle — because the Mapbox token is origin-restricted and framing isolates CSS/global state). `?embed=1` parses a frozen config (`src/embedConfig.js`) that strips onboarding/branding chrome, stops writing to the URL + `localStorage` (the frame shares the real site's origin storage), and opens a two-way `postMessage` bridge (`src/embedBridge.js`, `useEmbedBridge`). Chrome is gated by JSX (legend/search), `LineLegend` `show*` props (help/guide/dark toggles), and `.app` CSS modifier classes (`embed-hide-report`, `embed-hide-locate`). Host helper + live demo: `public/embed.js`, `public/embed.html`. Full reference: `wiki/codex/docs/embedding.md`.
