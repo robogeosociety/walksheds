@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { shouldShowHints, markHintsSeen } from '../hintsState'
+import { hintsEnabled } from '../featureFlags'
 
 const STORAGE_KEY = 'walksheds_hints_v1_seen'
 
@@ -14,6 +15,8 @@ function setLocation({ pathname = '/', search = '' } = {}) {
 }
 
 beforeEach(() => {
+  // The overlay is behind a build flag; these cases cover the flag-on logic.
+  vi.stubEnv('VITE_FEATURE_HINTS', '1')
   window.localStorage.clear()
   setLocation()
   vi.spyOn(window.history, 'replaceState').mockImplementation(() => {})
@@ -21,6 +24,22 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
+})
+
+describe('hints feature flag', () => {
+  it('is off unless VITE_FEATURE_HINTS is exactly "1"', () => {
+    expect(hintsEnabled({})).toBe(false)
+    expect(hintsEnabled({ VITE_FEATURE_HINTS: 'true' })).toBe(false)
+    expect(hintsEnabled({ VITE_FEATURE_HINTS: '1' })).toBe(true)
+  })
+
+  it('with the flag off, hints never show: not on first visit, not with ?hints', () => {
+    vi.unstubAllEnvs()
+    expect(shouldShowHints()).toBe(false)
+    setLocation({ search: '?hints' })
+    expect(shouldShowHints()).toBe(false)
+  })
 })
 
 describe('shouldShowHints', () => {
