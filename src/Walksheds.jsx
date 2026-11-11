@@ -4,7 +4,7 @@ import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './map
 import { WALKSHED_OPTIONS, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS } from './constants'
 import { CAP_EXITS, CAP_POIS, CAP_WALKSHEDS, cityAsset, cityBySlug, hasCapability, lineColors, rememberCity, resolveCity, walkshedAccent } from './cities'
 import CityProvider from './CityProvider'
-import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
+import { parseStationPath, buildStationPath, findStationByCode, findDefaultStation, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
 import { loadTileIndex, loadPoisForWalkshed } from './poiTiles'
@@ -809,7 +809,7 @@ export default function Walksheds() {
     }
     // No deep link: snap to system-wide overview, then fly into the city's
     // default station (data/cities.py `default_station`).
-    const station = findStationByCode(stationsData, city.defaultStation.lines, city.defaultStation.stopCode)
+    const station = findDefaultStation(stationsData, city.defaultStation)
     if (!station) return
     const bounds = computeSystemBounds(stationsData)
     if (bounds) {
@@ -819,7 +819,7 @@ export default function Walksheds() {
       selectStationFnRef.current(station.name, station.lng, station.lat, station.line)
     }, 900)
     return () => clearTimeout(t)
-  }, [stationsData, mapReady, city.defaultStation.lines, city.defaultStation.stopCode])
+  }, [stationsData, mapReady, city.defaultStation])
 
   // Sync walkshed + POI filter query params when toggles change. The URL
   // codec uses a single tag namespace, so categories and filters are merged
