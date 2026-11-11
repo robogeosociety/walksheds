@@ -64,7 +64,6 @@ In the legend you'll find:
 
 - A **dark mode** toggle (sun / moon).
 - A **units** toggle — switch distances between miles/feet and kilometers/meters.
-- A **hints** button (the `?`) that explains the on-map controls.
 - The **open-book** icon, which opens this guide.
 - The three **walkshed band** toggles.
 
@@ -73,13 +72,6 @@ The legend itself collapses to a slim bar if you want more map and less chrome.
 <figure markdown="span">
   ![Capitol Hill station shown in dark mode](assets/img/dark-mode.png){ loading=lazy }
   <figcaption>Dark mode — the base map shifts to dusk and the walksheds switch to the green accent.</figcaption>
-</figure>
-
-The hints button (`?`) brings up a quick set of on-map annotations explaining each control — handy on a first visit:
-
-<figure markdown="span">
-  ![The on-map hints overlay annotating the search, filters, legend, and station controls](assets/img/hints.png){ loading=lazy }
-  <figcaption>The hints overlay, pointing out the search, the filter chips, the legend, and how to ride the line.</figcaption>
 </figure>
 
 !!! tip "A good first exercise"

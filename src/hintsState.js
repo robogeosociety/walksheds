@@ -1,3 +1,5 @@
+import { hintsEnabled } from './featureFlags'
+
 const STORAGE_KEY = 'walksheds_hints_v1_seen'
 
 function safeStorage() {
@@ -13,6 +15,9 @@ function safeStorage() {
 
 export function shouldShowHints() {
   if (typeof window === 'undefined') return false
+  // The whole overlay sits behind a build flag (off by default); with it off,
+  // not even ?hints shows it.
+  if (!hintsEnabled()) return false
   // ?hints forces hints regardless of storage or deep link
   const params = new URLSearchParams(window.location.search)
   if (params.has('hints')) return true

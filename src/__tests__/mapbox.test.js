@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { computeSnapTarget } from '../mapbox'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { computeSnapTarget, fetchWalkshed } from '../mapbox'
 
 // Square ring centered at [cx, cy] with half-width `half`. Inside ⇔ |x - cx| < half && |y - cy| < half.
 function squareRing(cx, cy, half) {
@@ -118,5 +118,45 @@ describe('computeSnapTarget', () => {
       popup: STATION,
       poiPopup: null,
     })).toBeNull()
+  })
+})
+
+describe('fetchWalkshed sources', () => {
+  const realFetch = globalThis.fetch
+  afterEach(() => { globalThis.fetch = realFetch })
+
+  const fc = (tag) => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { tag }, geometry: null }] })
+
+  it('serves the committed polygon without calling the Isochrone API', async () => {
+    globalThis.fetch = vi.fn(async (url) => {
+      if (url === '/cities/t1/walksheds.json') {
+        return { ok: true, json: async () => ({ walksheds: { '1,2-50': { 10: fc('committed') } } }) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    })
+    const got = await fetchWalkshed(-122.3, 47.6, 10, { setUrl: '/cities/t1/walksheds.json', stationKey: '1,2-50' })
+    expect(got.features[0].properties.tag).toBe('committed')
+    expect(globalThis.fetch.mock.calls.map(c => c[0])).toEqual(['/cities/t1/walksheds.json'])
+  })
+
+  it('loads a city set once for every station and contour', async () => {
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true, json: async () => ({ walksheds: { 'a-1': { 5: fc('a5'), 15: fc('a15') }, 'b-2': { 5: fc('b5') } } }),
+    }))
+    const setUrl = '/cities/t2/walksheds.json'
+    await Promise.all([
+      fetchWalkshed(0, 0, 5, { setUrl, stationKey: 'a-1' }),
+      fetchWalkshed(0, 0, 15, { setUrl, stationKey: 'a-1' }),
+      fetchWalkshed(1, 1, 5, { setUrl, stationKey: 'b-2' }),
+    ])
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the live API for a station the set lacks', async () => {
+    globalThis.fetch = vi.fn(async (url) => (url.startsWith('https://api.mapbox.com/isochrone/')
+      ? { ok: true, json: async () => fc('live') }
+      : { ok: true, json: async () => ({ walksheds: {} }) }))
+    const got = await fetchWalkshed(-157.9, 21.4, 5, { setUrl: '/cities/t3/walksheds.json', stationKey: '1-99' })
+    expect(got.features[0].properties.tag).toBe('live')
   })
 })
