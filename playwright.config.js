@@ -15,7 +15,8 @@ export default defineConfig({
   webServer: process.env.BASE_URL
     ? undefined
     : {
-        command: 'npm run dev',
+        // hints.spec.js covers the flagged-off hint overlay, so turn it on.
+        command: 'VITE_FEATURE_HINTS=1 npm run dev',
         port: 5187,
         reuseExistingServer: true,
       },

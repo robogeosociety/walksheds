@@ -71,7 +71,7 @@ Initial state still hydrates from the URL you set: the deep-link path
 | `legend`, `search` | `0`/`1` | Show the legend / POI search (default on). |
 | `help`, `guide` | `0`/`1` | Legend help button / wiki link (default off in embed). |
 | `report`, `locate` | `0`/`1` | POI report link (default off) / map locate control (default on). |
-| `hints` | `0`/`1` | Onboarding overlay (default off in embed). |
+| `hints` | `0`/`1` | Onboarding overlay (default off in embed). Only has an effect in a build with the `VITE_FEATURE_HINTS=1` feature flag; the public site ships with it off. |
 | `darktoggle`, `unitstoggle` | `0`/`1` | Show the dark / units toggles in the legend (default on). |
 | `dark` | `0`/`1` | Force light / dark. Omit for the default (light). |
 | `units` | `metric`/`imperial` | Distance units. |

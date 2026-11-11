@@ -6,10 +6,11 @@ Two phases (mirrors fetch_pois.py):
      contours_minutes=5,10,15 returns the three nested polygons in one shot.
      Saved gzipped to data/pois/raw/walksheds.json.gz with a sha1 version stamp.
   2. Build/read (default, offline): the dump is consumed by
-     fetch_walking_distances.py and fetch_pois.py.
+     fetch_walking_distances.py and fetch_pois.py, and exported to
+     public/cities/<slug>/walksheds.json, which the app draws (INV-026).
 
 Usage:
-  python3 data/pois/fetch_walksheds.py                 # validate existing dump
+  python3 data/pois/fetch_walksheds.py                 # validate dump, export browser copy
   python3 data/pois/fetch_walksheds.py --refresh       # refetch from Mapbox
   python3 data/pois/fetch_walksheds.py --dry-run       # refresh without writing
 """
@@ -142,6 +143,41 @@ def refresh_dump(stations, token, out_path=None, dry_run=False):
     return payload
 
 
+def public_payload(dump):
+    """The browser's copy of a dump: {version, contours, walksheds: {key: {minutes: FC}}}.
+
+    One single-feature FeatureCollection per (station, contour), the same shape
+    a one-contour Isochrone call returns, so the app can serve walksheds from
+    the CDN instead of three API round-trips per station. Only `contour` is
+    kept from the Mapbox properties (the rest are styling hints the app ignores).
+    Serving the dump also makes the drawn walkshed the exact polygon that POI
+    membership and bands were computed against (INV-010).
+    """
+    walksheds = {}
+    for key, fc in dump["walksheds"].items():
+        walksheds[key] = {
+            str(f["properties"]["contour"]): {
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature",
+                    "properties": {"contour": f["properties"]["contour"]},
+                    "geometry": f["geometry"],
+                }],
+            }
+            for f in fc["features"]
+        }
+    return {"version": dump["version"], "contours": dump["contours"], "walksheds": walksheds}
+
+
+def write_public(dump, out_path=None):
+    """Write public/cities/<slug>/walksheds.json from a dump (INV-026)."""
+    out_path = out_path or str(_city().walksheds_geojson)
+    data = json.dumps(public_payload(dump), separators=(",", ":"), sort_keys=True)
+    with open(out_path, "w") as f:
+        f.write(data + "\n")
+    print(f"  Wrote {out_path} ({len(data):,} bytes)")
+
+
 def load_dump(path=None):
     """Load the committed walkshed dump. Looks up RAW_DUMP at call time so tests can monkeypatch it."""
     if path is None:
@@ -175,10 +211,12 @@ def main():
             print("  If your browser-side token is URL-restricted to walksheds.xyz, mint a", file=sys.stderr)
             print("  separate unrestricted one for build scripts.", file=sys.stderr)
             sys.exit(1)
-        refresh_dump(stations, token, dry_run=args.dry_run)
+        payload = refresh_dump(stations, token, dry_run=args.dry_run)
+        if not args.dry_run:
+            write_public(payload)
         return
 
-    # Default mode: validate the committed dump.
+    # Default mode: validate the committed dump and re-export the browser copy.
     payload = load_dump()
     version = payload.get("version", "?")
     contours = payload.get("contours", [])
@@ -194,6 +232,7 @@ def main():
         print(f"  EXTRA (probably outdated): {sorted(extra)}", file=sys.stderr)
     if missing:
         sys.exit(1)
+    write_public(payload)
 
 
 if __name__ == "__main__":

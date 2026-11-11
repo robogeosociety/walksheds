@@ -1,9 +1,12 @@
-import { CITY_SLUGS } from '../cities'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { CITIES, CITY_SLUGS } from '../cities'
 import { describe, it, expect } from 'vitest'
 import {
   parseStationPath,
   buildStationPath,
   findStationByCode,
+  findDefaultStation,
   parseWalkshedParams,
   buildWalkshedParams,
   combineQuery,
@@ -225,5 +228,22 @@ describe('deep links across cities', () => {
     expect(parseStationPath('/1/50', '/')).toEqual({
       system: DEFAULT_SYSTEM, line: '1', stopCode: 50,
     })
+  })
+})
+
+describe('findDefaultStation', () => {
+  // Regression: Seattle's default is the shared Westlake station, keyed "1,2".
+  // Passing that key straight to findStationByCode never matched, so a plain
+  // visit to / selected no station and showed no walkshed.
+  it.each(CITIES.map(c => [c.slug, c]))('resolves %s\'s registry default against its committed stations', (slug, city) => {
+    const stations = JSON.parse(readFileSync(resolve(import.meta.dirname, `../../public/cities/${slug}/all-stations.geojson`), 'utf8'))
+    const station = findDefaultStation(stations, city.defaultStation)
+    expect(station).not.toBeNull()
+    expect(station.line).toBe(`${city.defaultStation.lines.split(',')[0]}-line`)
+  })
+
+  it('accepts a shared-station lines key', () => {
+    const fc = { features: [{ properties: { name: 'Westlake', stopCode: 50, lines: '1,2' }, geometry: { coordinates: [-122.33, 47.61] } }] }
+    expect(findDefaultStation(fc, { lines: '1,2', stopCode: 50 })?.name).toBe('Westlake')
   })
 })

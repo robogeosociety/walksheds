@@ -4,7 +4,7 @@ import { fetchWalkshed, getLargestEnabledBounds, computeSnapTarget } from './map
 import { WALKSHED_OPTIONS, MAIN_POI_CATEGORIES, DEFAULT_ENABLED_MAIN_CATEGORIES, DEFAULT_ENABLED_CATEGORY_TAGS } from './constants'
 import { CAP_EXITS, CAP_POIS, CAP_WALKSHEDS, cityAsset, cityBySlug, hasCapability, lineColors, rememberCity, resolveCity, walkshedAccent } from './cities'
 import CityProvider from './CityProvider'
-import { parseStationPath, buildStationPath, findStationByCode, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
+import { parseStationPath, buildStationPath, findStationByCode, findDefaultStation, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
 import { loadTileIndex, loadPoisForWalkshed } from './poiTiles'
@@ -17,6 +17,7 @@ import LineLegend from './LineLegend'
 import POISearch from './POISearch'
 import HintOverlay from './HintOverlay'
 import { shouldShowHints, markHintsSeen } from './hintsState'
+import { hintsEnabled } from './featureFlags'
 import { parseEmbedConfig } from './embedConfig'
 import { useEmbedBridge } from './embedBridge'
 import './walksheds.css'
@@ -335,6 +336,14 @@ export default function Walksheds() {
   const [mapReady, setMapReady] = useState(false)
   const handleMapLoad = useCallback(() => setMapReady(true), [])
 
+  // Where a station's walkshed comes from: the city's committed set (one CDN
+  // file, the polygons POI membership was built against), else the live API.
+  const walkshedSource = useCallback((lines, stopCode) => (
+    hasCapability(city, CAP_WALKSHEDS) && stopCode != null
+      ? { setUrl: cityAsset(city, 'walksheds.json'), stationKey: `${lines}-${stopCode}` }
+      : null
+  ), [city])
+
   const selectStation = useCallback((name, lng, lat, line, opts = {}) => {
     // Any navigation that isn't the locate snap ends the orientation
     // session (no-op if rotation isn't active).
@@ -384,7 +393,7 @@ export default function Walksheds() {
     const results = {}
     Promise.all(
       WALKSHED_OPTIONS.map(async (min) => {
-        const data = await fetchWalkshed(lng, lat, min)
+        const data = await fetchWalkshed(lng, lat, min, walkshedSource(lines, stopCode))
         if (data) results[min] = data
       })
     ).then(() => {
@@ -402,7 +411,7 @@ export default function Walksheds() {
       setLegendPosition(computeLegendPosition(map, results, enabledWalksheds))
       setAutoCollapsed(legendOverlapsWalkshed(map, results, enabledWalksheds))
     })
-  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories, compass, embed, city.slug])
+  }, [stationsData, enabledWalksheds, enabledSpotlights, activeCategories, activeFilters, tagCategories, compass, embed, city.slug, walkshedSource])
 
   // Embed-bridge helper: select a station by line + stop code (e.g. '1', 50).
   const selectStationByCode = useCallback((line, stopCode) => {
@@ -786,16 +795,15 @@ export default function Walksheds() {
   // Resolve deep link on initial load, or default to Westlake with a
   // full-system overview that flies in. selectStation is reached through a
   // ref: its identity changes whenever filter state or tagCategories load
-  // settles, and with it in the dep array the effect's cleanup would cancel
-  // the pending 900ms auto-select timer before it ever fired.
+  // settles, and with it in the dep array the resolve effect would re-run
+  // on every such change.
   const selectStationFnRef = useRef(selectStation)
   useEffect(() => { selectStationFnRef.current = selectStation }, [selectStation])
   // Gate the initial resolve on the map's `load` event. A deep-link URL selects
   // its station as soon as stationsData arrives, and selectStation frames the
   // walkshed with fitBounds once the (often cached) isochrones resolve — which
   // can beat the map's load event, making fitBounds a no-op and leaving the
-  // camera unframed. Waiting for load makes the deep-link fly-to reliable (the
-  // no-deep-link path only worked by accident, via its 900ms fly-in delay).
+  // camera unframed. Waiting for load makes the fly-to reliable on both paths.
   useEffect(() => {
     if (!stationsData || !mapReady || resolvedRef.current) return
     resolvedRef.current = true
@@ -807,19 +815,40 @@ export default function Walksheds() {
       queueMicrotask(() => selectStationFnRef.current(station.name, station.lng, station.lat, station.line))
       return
     }
-    // No deep link: snap to system-wide overview, then fly into the city's
-    // default station (data/cities.py `default_station`).
-    const station = findStationByCode(stationsData, city.defaultStation.lines, city.defaultStation.stopCode)
+    // No deep link: snap to the system-wide overview, then select the city's
+    // default station (data/cities.py `default_station`) straight away. Its
+    // walkshed is already prefetched, so the fly-in starts from the overview
+    // with no pause in between.
+    const station = findDefaultStation(stationsData, city.defaultStation)
     if (!station) return
     const bounds = computeSystemBounds(stationsData)
     if (bounds) {
       mapViewRef.current?.fitBounds(bounds, { padding: 80, duration: 0 })
     }
-    const t = setTimeout(() => {
-      selectStationFnRef.current(station.name, station.lng, station.lat, station.line)
-    }, 900)
-    return () => clearTimeout(t)
-  }, [stationsData, mapReady, city.defaultStation.lines, city.defaultStation.stopCode])
+    queueMicrotask(() => selectStationFnRef.current(station.name, station.lng, station.lat, station.line))
+  }, [stationsData, mapReady, city.defaultStation])
+
+  // Warm the first station's walkshed and POI tiles while the map is still
+  // loading. The resolve above has to wait for the map's load event (so its
+  // camera move lands), but the data does not: by the time it selects the
+  // station, both are already cached and draw immediately. Same target logic
+  // as the resolve: a deep link wins, else the city's default station.
+  useEffect(() => {
+    if (!stationsData || resolvedRef.current || !hasCapability(city, CAP_WALKSHEDS)) return
+    const parsed = parseStationPath(window.location.pathname, import.meta.env.BASE_URL)
+    const target = parsed
+      ? findStationByCode(stationsData, parsed.line, parsed.stopCode)
+      : findDefaultStation(stationsData, city.defaultStation)
+    if (!target) return
+    const feat = stationsData.features.find(f => f.properties.name === target.name)
+    if (!feat) return
+    const { lines, stopCode } = feat.properties
+    for (const min of WALKSHED_OPTIONS) {
+      fetchWalkshed(target.lng, target.lat, min, walkshedSource(lines, stopCode))
+    }
+    // The precomputed station->tiles lookup needs no walkshed polygon.
+    if (tileIndex) loadPoisForWalkshed(null, tileIndex, `${lines}-${stopCode}`)
+  }, [stationsData, tileIndex, city, walkshedSource])
 
   // Sync walkshed + POI filter query params when toggles change. The URL
   // codec uses a single tag namespace, so categories and filters are merged
@@ -1052,7 +1081,7 @@ export default function Walksheds() {
           onToggleCollapse={() => toggleLegendCollapsed()}
           onHintsToggle={handleHintsToggle}
           position={legendPosition}
-          showHelp={embed.chrome.help}
+          showHelp={embed.chrome.help && hintsEnabled()}
           showGuide={embed.chrome.guide}
           showDark={embed.chrome.darkToggle}
           showFeedback={embed.chrome.feedback}
