@@ -44,6 +44,8 @@ IDs are **append-only and stable** (`INV-NNN` — never reused; a retired invari
 - **INV-024 city-registry-sync** — `src/cityRegistry.json` (what the frontend reads) matches `data/cities.py` (the source). Regenerate with `python3 data/cities.py`. (`test_invariants.py`, plus a named CI step)
 - **INV-025 city-data-complete** — a city's declared `capabilities` match what is actually committed, **in both directions**: declaring `walksheds`/`pois`/`exits` requires the artifact, and having the artifact requires declaring it (otherwise the UI silently hides real data). `pois` additionally requires `walksheds`, since POI membership is defined by the isochrones. (`test_invariants.py`)
 
+- **INV-026 walksheds-public-sync** — `public/cities/<slug>/walksheds.json` (the polygons the app draws) equals the export of the committed walkshed dump (the polygons POI membership is computed against), station for station; a city without the `walksheds` capability has no such file. Regenerate with `python3 data/pois/fetch_walksheds.py --city <slug>`. (`test_invariants.py`)
+
 Every data invariant is parametrized over the cities it applies to, gated on capability; test ids carry the city slug, so a failure names the city.
 
 ## Commands
@@ -65,6 +67,7 @@ python3 data/process.py --city honolulu  # ...for one city
 uv run data/refresh.py --city all        # Re-download every city's rail feed from its agency, then reprocess
 python3 data/pois/fetch_pois.py  # Rebuild POI GeoJSONs from committed OSM dump (no network)
 python3 data/pois/fetch_pois.py --refresh  # Refetch OSM dump from Overpass, then rebuild
+python3 data/pois/fetch_walksheds.py                     # Validate the walkshed dump and re-export public/cities/<slug>/walksheds.json (no network)
 python3 data/pois/fetch_walksheds.py --refresh           # Refetch walkshed polygons from Mapbox Isochrone
 python3 data/pois/fetch_walking_distances.py --refresh   # Refetch POI↔station walking distances from Mapbox Matrix
 python3 data/pois/fetch_station_exits.py                 # Rebuild station-exits.geojson from the committed OSM entrance dump (no network)
@@ -107,7 +110,7 @@ public/cities/<slug>/              everything the browser fetches
 ## Architecture
 
 - **Frontend**: React + Vite + react-map-gl (Mapbox GL JS wrapper)
-- **Map**: Mapbox Standard style, walksheds via Mapbox Isochrone API
+- **Map**: Mapbox Standard style; walksheds are the committed Mapbox Isochrone polygons, served as one `walksheds.json` per city (the live Isochrone API is only a fallback for a station missing from it)
 - **Data**: each agency's station + alignment GeoJSON, processed by `data/process.py` (a city-agnostic driver) plus a per-city ingest module in `data/processors/<slug>.py`, into `public/cities/<slug>/`. Shared geometry is `data/geometry.py`; sprite sheets are `data/sprites.py`.
 - **Active city**: resolved in `src/Walksheds.jsx` — a station deep link carries its own city in the path (`/honolulu/1/8`) and wins outright, then `?city=`, then `localStorage`. Published to leaf components via `src/cityContext.js` / `CityProvider.jsx`.
 - **Station icons**: per-city sprite sheets under `public/cities/<slug>/icons/`, loaded and sliced at runtime (`src/stationIcons.js`), light/dark variants
@@ -164,7 +167,7 @@ Per-feature properties on output GeoJSON: `id` (OSM node/way id), `name`, `categ
 
 Two committed dumps power the "Nearest stations" section of POI popups:
 
-1. **`data/cities/<slug>/raw/pois/walksheds.json.gz`** — one Mapbox Isochrone call per station (38 stations × `contours_minutes=5,10,15`). Built by `python3 data/pois/fetch_walksheds.py --refresh`. Keyed by `f"{lines}-{stopCode}"` (disambiguates the two stations sharing stopCode 54). Includes a `version` (sha1) used to invalidate downstream caches.
+1. **`data/cities/<slug>/raw/pois/walksheds.json.gz`** — one Mapbox Isochrone call per station (38 stations × `contours_minutes=5,10,15`). Built by `python3 data/pois/fetch_walksheds.py --refresh`. Keyed by `f"{lines}-{stopCode}"` (disambiguates the two stations sharing stopCode 54). Includes a `version` (sha1) used to invalidate downstream caches. The same script (offline, and after a refresh) exports it to `public/cities/<slug>/walksheds.json` — `{version, contours, walksheds: {stationKey: {minutes: FeatureCollection}}}`, ~20 KB gzip for Seattle — which the app draws instead of calling the Isochrone API, so the drawn rings are exactly the ones POI bands were built against (INV-026).
 
 2. **`data/cities/<slug>/raw/pois/walking-distances.json.gz`** — for every (station, POI) pair where the POI sits inside the station's 15-min isochrone, the walking distance + duration from Mapbox Matrix API. Built by `python3 data/pois/fetch_walking_distances.py --refresh`. Caches per pair, so re-running is incremental. Re-running with a new walkshed version invalidates the whole cache.
 

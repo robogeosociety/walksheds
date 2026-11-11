@@ -3,7 +3,35 @@ import { pointInPolygon } from './poiUtils'
 
 const walkshedCache = new Map()
 
-export async function fetchWalkshed(lng, lat, minutes) {
+// A city's committed walksheds (public/cities/<slug>/walksheds.json, exported
+// from the build's dump by data/pois/fetch_walksheds.py), memoized by URL.
+// Resolves to { [stationKey]: { [minutes]: FeatureCollection } }, or null.
+const walkshedSets = new Map()
+
+export function loadWalkshedSet(url) {
+  if (!walkshedSets.has(url)) {
+    walkshedSets.set(url, fetch(url)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => d?.walksheds ?? null)
+      .catch(() => null))
+  }
+  return walkshedSets.get(url)
+}
+
+/**
+ * One station's walkshed for `minutes`, as a single-polygon FeatureCollection.
+ *
+ * With `source` ({ setUrl, stationKey }) the committed polygon is used: one
+ * cached CDN file per city instead of an Isochrone round-trip per contour, and
+ * the same polygon POI membership was built against (INV-010, INV-026). The
+ * live API is the fallback for a station the set lacks.
+ */
+export async function fetchWalkshed(lng, lat, minutes, source) {
+  if (source?.setUrl && source.stationKey) {
+    const set = await loadWalkshedSet(source.setUrl)
+    const committed = set?.[source.stationKey]?.[minutes]
+    if (committed) return committed
+  }
   const key = `${lng},${lat},${minutes}`
   const cached = walkshedCache.get(key)
   if (cached) return cached

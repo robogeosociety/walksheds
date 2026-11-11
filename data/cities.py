@@ -137,6 +137,11 @@ class City:
         return self.raw_pois_dir / "walksheds.json.gz"
 
     @property
+    def walksheds_geojson(self) -> Path:
+        """Browser copy of the walkshed dump, keyed by station then minutes."""
+        return self.public_dir / "walksheds.json"
+
+    @property
     def distances_dump(self) -> Path:
         return self.raw_pois_dir / "walking-distances.json.gz"
 
