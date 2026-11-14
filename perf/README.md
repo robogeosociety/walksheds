@@ -27,6 +27,7 @@ Times are ms from navigation start. The app has no timing hooks, so the map mile
 | `poiTilesEnd` | Last POI tile received: the walkshed's POIs can render |
 | `selected` | The selected station's name pill appears: a station was selected |
 | `poisVisible` | `max(selected, walkshedData, poiTilesEnd)`: the walkshed's POI dots can draw. The headline number |
+| `poisFirst` / `poisComplete` | App User Timing marks (`walksheds:pois-first`, `walksheds:pois-complete`): the first batch of the walkshed's POIs committed for drawing, and the last. Read directly from the page, so they need no network proxy; absent (`-`) on builds before they were added |
 | `settled` | Last response before a quiet window (map tiles for the framed walkshed included): visually complete |
 
 `TBT` is total blocking time (the sum of long-task time over 50 ms) up to `settled`. Bytes are encoded (on-the-wire) sizes, broken down by request kind.

@@ -18,6 +18,9 @@
  *                  city's committed walksheds.json
  *   poiTilesEnd    last POI tile response
  *   selected       the selected station's name pill appears (DOM)
+ *   poisFirst      app mark: the first batch of the walkshed's POIs committed
+ *                  for drawing (streamed builds draw before every tile lands)
+ *   poisComplete   app mark: every POI tile landed and committed
  *   poisVisible    max(selected, walkshedData, poiTilesEnd): the walkshed's
  *                  POI dots can draw
  *   settled        last network response before a quiet window (map tiles
@@ -37,12 +40,19 @@
  *   node perf/latency.mjs [--url URL | --dist DIR] [--runs 5]
  *        [--profiles desktop,mobile] [--path /] [--label name] [--out file.json]
  *        [--block REGEX]   abort matching requests (what-if experiments)
+ *        [--serve DIR]     a local build over real local HTTPS (throttled like
+ *                          the live site; see startLocalServer)
+ *        [--navigate KEY]  after the cold load, press KEY and time the next
+ *                          station's POIs (see measureNavigation)
  *
  * Numbers from a cloud runner include its egress latency; compare runs taken
  * from the same machine, not against field data.
  */
 import { chromium } from '@playwright/test'
-import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, statSync, mkdtempSync, rmSync } from 'node:fs'
+import { createServer } from 'node:https'
+import { execFileSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { parseArgs } from 'node:util'
@@ -51,6 +61,7 @@ const { values: args } = parseArgs({
   options: {
     url: { type: 'string', default: 'https://walksheds.xyz' },
     dist: { type: 'string' },
+    serve: { type: 'string' },
     runs: { type: 'string', default: '5' },
     profiles: { type: 'string', default: 'desktop,mobile' },
     path: { type: 'string', default: '/' },
@@ -60,11 +71,13 @@ const { values: args } = parseArgs({
     'quiet-ms': { type: 'string', default: '2500' },
     'timeout-ms': { type: 'string', default: '60000' },
     'no-warm': { type: 'boolean', default: false },
+    navigate: { type: 'string' },
     block: { type: 'string' },
   },
 })
 
-const ORIGIN = args.dist ? 'https://walksheds.xyz' : args.url.replace(/\/$/, '')
+const LOCAL = args.dist || args.serve
+const ORIGIN = LOCAL ? 'https://walksheds.xyz' : args.url.replace(/\/$/, '')
 const RUNS = Number(args.runs)
 const QUIET_MS = Number(args['quiet-ms'])
 const TIMEOUT_MS = Number(args['timeout-ms'])
@@ -94,6 +107,44 @@ const MIME = {
   '.webmanifest': 'application/manifest+json', '.txt': 'text/plain', '.woff2': 'font/woff2',
 }
 const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.json', '.geojson', '.svg', '.txt', '.webmanifest'])
+
+/**
+ * --serve mode: a real local HTTPS server for a build, which Chromium reaches
+ * as walksheds.xyz (host-resolver rule + proxy bypass). Unlike --dist, its
+ * responses are real network requests, so profile throttling applies to the
+ * app's own files and they contend with Mapbox's for the same emulated link.
+ * Gzip and cache headers mirror GitHub Pages. The certificate is a throwaway
+ * self-signed one (the browser context ignores HTTPS errors).
+ */
+async function startLocalServer(dist) {
+  const root = resolve(dist)
+  const dir = mkdtempSync(join(tmpdir(), 'walksheds-latency-'))
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+    '-subj', '/CN=walksheds.xyz', '-keyout', join(dir, 'key.pem'), '-out', join(dir, 'cert.pem')], { stdio: 'ignore' })
+  const server = createServer({ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) }, (req, res) => {
+    const url = new URL(req.url, ORIGIN)
+    let file = join(root, decodeURIComponent(url.pathname))
+    if (!file.startsWith(root)) { res.writeHead(403).end(); return }
+    if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html')
+    let status = 200
+    if (!existsSync(file)) {
+      const notFound = join(root, '404.html')
+      status = existsSync(notFound) ? 404 : 200
+      file = existsSync(notFound) ? notFound : join(root, 'index.html')
+    }
+    const ext = extname(file)
+    let body = readFileSync(file)
+    const headers = { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': 'max-age=600' }
+    if (COMPRESSIBLE.has(ext) && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+      body = gzipSync(body)
+      headers['content-encoding'] = 'gzip'
+    }
+    headers['content-length'] = body.length
+    res.writeHead(status, headers).end(body)
+  })
+  await new Promise(r => server.listen(0, '127.0.0.1', r))
+  return { port: server.address().port, close: () => { server.close(); rmSync(dir, { recursive: true, force: true }) } }
+}
 
 // --dist mode: request URL -> bytes GitHub Pages would put on the wire.
 const distWireBytes = new Map()
@@ -219,6 +270,11 @@ async function measure(context, page, profile, navStart) {
       longTasks: window.__lat?.longTasks ?? [],
       seen: window.__lat?.seen ?? {},
       timeOrigin: performance.timeOrigin,
+      // App-side User Timing marks (builds from #110 on); absent in older builds.
+      marks: Object.fromEntries(['pois-first', 'pois-complete'].map((n) => {
+        const m = performance.getEntriesByName(`walksheds:${n}`, 'mark')[0]
+        return [n, m ? m.startTime : null]
+      })),
     }
   })
 
@@ -285,6 +341,8 @@ async function measure(context, page, profile, navStart) {
       poiTilesEnd,
       selected,
       poisVisible,
+      poisFirst: inPage.marks['pois-first'],
+      poisComplete: inPage.marks['pois-complete'],
       settled: settledAt,
     },
     tbt: Math.round(tbt),
@@ -298,6 +356,45 @@ async function measure(context, page, profile, navStart) {
     byKind,
     profile,
   }
+}
+
+/**
+ * --navigate KEY: after the cold load settles, press KEY (e.g. ArrowUp, the
+ * next station north) and time the new station's POIs from the keypress:
+ *   navTilesEnd     last POI tile response (resource timing; any build)
+ *   navPoisFirst    app mark: first batch committed for drawing
+ *   navPoisComplete app mark: last batch committed
+ * Pre-streaming builds draw only once every tile lands, so compare their
+ * navTilesEnd with a streamed build's navPoisFirst.
+ */
+async function measureNavigation(page, key) {
+  const t0 = await page.evaluate(() => performance.now())
+  await page.keyboard.press(key)
+  await page.waitForFunction(
+    (t) => performance.getEntriesByName('walksheds:pois-complete', 'mark').some(m => m.startTime > t),
+    t0, { timeout: 15000 },
+  ).catch(() => {})
+  // Builds without marks: wait for the tile requests to go quiet instead.
+  let last = -1
+  for (let i = 0; i < 30; i++) {
+    const n = await page.evaluate(() => performance.getEntriesByType('resource').length)
+    if (n === last) break
+    last = n
+    await page.waitForTimeout(500)
+  }
+  return page.evaluate((t) => {
+    const after = (name) => {
+      const m = performance.getEntriesByName(`walksheds:${name}`, 'mark').find(e => e.startTime > t)
+      return m ? Math.round(m.startTime - t) : null
+    }
+    const tiles = performance.getEntriesByType('resource')
+      .filter(e => e.startTime > t && /\/pois\/tiles\/[-\d]+_[-\d]+\.geojson$/.test(e.name))
+    return {
+      navTilesEnd: tiles.length ? Math.round(Math.max(...tiles.map(e => e.responseEnd)) - t) : null,
+      navPoisFirst: after('pois-first'),
+      navPoisComplete: after('pois-complete'),
+    }
+  }, t0)
 }
 
 async function applyProfile(context, page, p) {
@@ -323,6 +420,7 @@ async function runOnce(browser, profileName, warm) {
   const page = await context.newPage()
   await applyProfile(context, page, p)
   let result = await measure(context, page, profileName, Date.now())
+  if (args.navigate && !warm) Object.assign(result.milestones, await measureNavigation(page, args.navigate))
   if (warm) {
     // Second visit in the same context: HTTP cache primed, JS heap fresh.
     result = await measure(context, page, profileName, Date.now())
@@ -383,16 +481,25 @@ function printReport(report) {
   }
 }
 
+const local = args.serve ? await startLocalServer(args.serve) : null
+const browserArgs = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
+if (local) {
+  // walksheds.xyz resolves to the local server and bypasses any proxy; every
+  // other host (Mapbox) keeps its normal route.
+  browserArgs.push(`--host-resolver-rules=MAP walksheds.xyz 127.0.0.1:${local.port}`)
+  const proxy = process.env.HTTPS_PROXY || process.env.https_proxy
+  if (proxy) browserArgs.push(`--proxy-server=${proxy}`, '--proxy-bypass-list=walksheds.xyz')
+}
 const browser = await chromium.launch({
   // CHROMIUM_PATH: a system Chromium when Playwright's pinned build is absent.
   executablePath: process.env.CHROMIUM_PATH || undefined,
   // Software GL: headless runners have no GPU. Same for every target, so
   // comparisons hold, but absolute render times are pessimistic.
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  args: browserArgs,
 })
 const report = {
-  label: args.label ?? (args.dist ? `dist:${args.dist}` : ORIGIN),
-  target: args.dist ? `${args.dist} served as ${ORIGIN}` : ORIGIN,
+  label: args.label ?? (LOCAL ? `${args.serve ? 'serve' : 'dist'}:${LOCAL}` : ORIGIN),
+  target: LOCAL ? `${LOCAL} ${args.serve ? 'served over local HTTPS' : 'intercepted'} as ${ORIGIN}` : ORIGIN,
   path: args.path,
   when: new Date().toISOString(),
   results: {},
@@ -412,5 +519,6 @@ for (const profileName of args.profiles.split(',')) {
   }
 }
 await browser.close()
+local?.close()
 printReport(report)
 if (args.out) writeFileSync(args.out, JSON.stringify(report, null, 2))
