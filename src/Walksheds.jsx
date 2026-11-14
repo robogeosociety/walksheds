@@ -7,7 +7,7 @@ import CityProvider from './CityProvider'
 import { parseStationPath, buildStationPath, findStationByCode, findDefaultStation, parseWalkshedParams, buildWalkshedParams, combineQuery } from './deepLink'
 import { buildPoiFilterParam, parsePoiFilterParam } from './poiFilterUrl'
 import { filterPOIsInWalkshed, filterByCategoriesAndFilters, getAvailableTags } from './poiUtils'
-import { loadTileIndex, loadPoisForWalkshed } from './poiTiles'
+import { loadTileIndex, streamPoisForWalkshed } from './poiTiles'
 import { indexExitsByStation, exitsForStation, nearestExit, exitBoundsWithMargin } from './stationExits'
 import { useNavigation } from './useNavigation'
 import { findNearestStation, MAX_SNAP_METERS } from './locate'
@@ -89,6 +89,18 @@ function computeLegendPosition(map, walksheds, enabledWalksheds) {
     // map.project can throw if map not ready
   }
   return 'bottom-left'
+}
+
+const EMPTY_FC = { type: 'FeatureCollection', features: [] }
+
+// rAF where the browser has it (not in every test environment), else ~1 frame.
+const nextFrame = (cb) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(cb) : setTimeout(cb, 16))
+const cancelFrame = (id) => (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame(id) : clearTimeout(id))
+
+// Load-timing marks (walksheds:pois-first, walksheds:pois-complete), read by
+// the latency suite (perf/latency.mjs) and visible in any performance trace.
+function markLoad(name) {
+  try { performance.mark(`walksheds:${name}`) } catch { /* no User Timing */ }
 }
 
 export default function Walksheds() {
@@ -176,7 +188,7 @@ export default function Walksheds() {
   const [legendPosition, setLegendPosition] = useState('bottom-left')
   const [hintsVisible, setHintsVisible] = useState(() => shouldShowHints())
   const [tileIndex, setTileIndex] = useState(null)
-  const [walkshedPois, setWalkshedPois] = useState({ type: 'FeatureCollection', features: [] })
+  const [walkshedPois, setWalkshedPois] = useState(EMPTY_FC)
   const [tagCategories, setTagCategories] = useState(null)
   const [dataStats, setDataStats] = useState(null)
   // Three independent state sets per the category/filter/spotlight model
@@ -446,27 +458,56 @@ export default function Walksheds() {
     return null
   }, [walksheds, enabledWalksheds])
 
-  // Stream POIs for the active walkshed: load the overlapping spatial tiles,
-  // then point-in-polygon clip. Async (tiles fetched on demand) — results land
-  // in walkshedPois state; the empty case resolves synchronously to [].
+  // Stream POIs for the active walkshed. Its spatial tiles are requested
+  // nearest-first to the station, and each is point-in-polygon clipped as it
+  // lands, so the closest POIs draw while the far tiles are still downloading.
+  // Landed tiles are committed at most once per animation frame (cached tiles
+  // all land in one microtask burst, so a band toggle is a single update).
+  // The previous walkshed's POIs stay up until the first new batch replaces
+  // them, so a re-clip never flashes empty.
   useEffect(() => {
-    let cancelled = false
-    const run = async () => {
-      if (!tileIndex || !activeWalkshedFC) {
-        if (!cancelled) setWalkshedPois({ type: 'FeatureCollection', features: [] })
-        return
-      }
-      // Station key ({lines}-{stopCode}) lets the tile loader use the build's
-      // precomputed station->tiles lookup instead of recomputing the bbox.
-      // Tiles load from the same city data root as the index (tileIndex.base).
-      const stationKey = popup?.stopCode != null ? `${popup.lines}-${popup.stopCode}` : null
-      const features = await loadPoisForWalkshed(activeWalkshedFC, tileIndex, stationKey)
-      if (!cancelled) {
-        setWalkshedPois(filterPOIsInWalkshed({ type: 'FeatureCollection', features }, activeWalkshedFC))
-      }
+    if (!tileIndex || !activeWalkshedFC) {
+      setWalkshedPois(EMPTY_FC)
+      return
     }
-    run()
-    return () => { cancelled = true }
+    let cancelled = false
+    let committed = []
+    let pending = []
+    let frame = 0
+    const commit = () => {
+      frame = 0
+      if (cancelled || !pending.length) return
+      if (!committed.length) markLoad('pois-first')
+      committed = committed.concat(pending)
+      pending = []
+      setWalkshedPois({ type: 'FeatureCollection', features: committed })
+    }
+    // Station key ({lines}-{stopCode}) lets the tile loader use the build's
+    // precomputed station->tiles lookup instead of recomputing the bbox.
+    // Tiles load from the same city data root as the index (tileIndex.base).
+    const stationKey = popup?.stopCode != null ? `${popup.lines}-${popup.stopCode}` : null
+    const center = popup ? [popup.longitude, popup.latitude] : null
+    streamPoisForWalkshed(activeWalkshedFC, tileIndex, stationKey, {
+      center,
+      onTile: (features) => {
+        if (cancelled) return
+        const clipped = filterPOIsInWalkshed({ type: 'FeatureCollection', features }, activeWalkshedFC).features
+        if (!clipped.length) return
+        pending.push(...clipped)
+        if (!frame) frame = nextFrame(commit)
+      },
+    }).then(() => {
+      if (cancelled) return
+      if (frame) cancelFrame(frame)
+      commit()
+      // No tile had a POI inside: clear the previous walkshed's POIs.
+      if (!committed.length) setWalkshedPois(EMPTY_FC)
+      markLoad('pois-complete')
+    })
+    return () => {
+      cancelled = true
+      if (frame) cancelFrame(frame)
+    }
   }, [activeWalkshedFC, tileIndex, popup])
 
   const tagColors = useMemo(() => {
@@ -846,8 +887,22 @@ export default function Walksheds() {
     for (const min of WALKSHED_OPTIONS) {
       fetchWalkshed(target.lng, target.lat, min, walkshedSource(lines, stopCode))
     }
-    // The precomputed station->tiles lookup needs no walkshed polygon.
-    if (tileIndex) loadPoisForWalkshed(null, tileIndex, `${lines}-${stopCode}`)
+    // POI tiles (~350 KB downtown) are held until the mapbox-gl chunk has
+    // arrived: started any earlier, they share the connection with it and
+    // delay the map itself (measured on a throttled mobile profile). They go
+    // out nearest-first at low priority, so the station's closest POIs are
+    // cached first and the map's own requests still win any contention. The
+    // precomputed station->tiles lookup needs no walkshed polygon.
+    if (!tileIndex) return
+    let cancelled = false
+    import('mapbox-gl').catch(() => {}).then(() => {
+      if (cancelled) return
+      streamPoisForWalkshed(null, tileIndex, `${lines}-${stopCode}`, {
+        center: [target.lng, target.lat],
+        priority: 'low',
+      })
+    })
+    return () => { cancelled = true }
   }, [stationsData, tileIndex, city, walkshedSource])
 
   // Sync walkshed + POI filter query params when toggles change. The URL

@@ -72,11 +72,18 @@ export function walkshedBbox(walkshedFC) {
   return [minLon, minLat, maxLon, maxLat]
 }
 
-/** Fetch one tile's features (cached). Missing tiles resolve to []. */
-function loadTile(base, key) {
+/**
+ * Fetch one tile's features (cached). Missing tiles resolve to [].
+ *
+ * `priority` is a fetch priority hint ('low' for prefetches, so they yield to
+ * the map's own requests on a shared connection). The first request for a
+ * tile sets it; later callers share the cached promise.
+ */
+function loadTile(base, key, priority) {
   const cacheKey = `${base}|${key}`
   if (!tileCache.has(cacheKey)) {
-    tileCache.set(cacheKey, fetch(`${base}pois/tiles/${key}.geojson`)
+    const url = `${base}pois/tiles/${key}.geojson`
+    tileCache.set(cacheKey, (priority ? fetch(url, { priority }) : fetch(url))
       .then(r => (r.ok ? r.json() : { features: [] }))
       .then(fc => fc.features ?? [])
       .catch(() => []))
@@ -85,22 +92,53 @@ function loadTile(base, key) {
 }
 
 /**
- * Load every POI feature in the tiles a walkshed touches. Returns a flat
- * Feature[] (a superset of the walkshed — caller still point-in-polygon clips).
- *
- * When `stationKey` is given and present in the precomputed `stationTiles`
- * lookup, uses that directly (no bbox math). Otherwise falls back to computing
- * the tiles from the walkshed polygon's bbox.
+ * The tile keys a walkshed touches: the build's precomputed station lookup
+ * when `stationKey` is in it (no bbox math), else the walkshed polygon's bbox.
+ */
+function walkshedTileKeys(walkshedFC, index, stationKey) {
+  const keys = stationKey ? index.stationTiles?.[stationKey] : null
+  if (keys) return keys
+  const bbox = walkshedBbox(walkshedFC)
+  return bbox ? tileKeysForBbox(bbox, index) : []
+}
+
+/**
+ * Order tile keys nearest-first to `center` ([lng, lat]), by the distance
+ * from each grid cell's centre. Longitude is scaled by cos(latitude), so the
+ * order holds at any latitude the app serves.
+ */
+export function orderTilesByDistance(keys, index, center) {
+  const d = index.tileDeg
+  const [lng, lat] = center
+  const kx = Math.cos((lat * Math.PI) / 180)
+  const dist = (key) => {
+    const [col, row] = key.split('_').map(Number)
+    const dx = ((col + 0.5) * d - lng) * kx
+    const dy = (row + 0.5) * d - lat
+    return dx * dx + dy * dy
+  }
+  return [...keys].sort((a, b) => dist(a) - dist(b))
+}
+
+/**
+ * Stream the POI tiles a walkshed touches. Every tile is requested at once,
+ * nearest-first to `center` when given, and `onTile(features, key)` fires as
+ * each one lands, so the caller can draw the closest POIs while the far tiles
+ * are still downloading. Resolves to the flat Feature[] of all tiles (a
+ * superset of the walkshed; the caller still point-in-polygon clips).
  *
  * Tiles are fetched from `index.base`, the root the index itself came from.
  */
-export async function loadPoisForWalkshed(walkshedFC, index, stationKey) {
-  let keys = stationKey ? index.stationTiles?.[stationKey] : null
-  if (!keys) {
-    const bbox = walkshedBbox(walkshedFC)
-    if (!bbox) return []
-    keys = tileKeysForBbox(bbox, index)
-  }
-  const chunks = await Promise.all(keys.map(k => loadTile(index.base, k)))
-  return chunks.flat()
+export function streamPoisForWalkshed(walkshedFC, index, stationKey, { center, onTile, priority } = {}) {
+  let keys = walkshedTileKeys(walkshedFC, index, stationKey)
+  if (center) keys = orderTilesByDistance(keys, index, center)
+  return Promise.all(keys.map(k => loadTile(index.base, k, priority).then((features) => {
+    onTile?.(features, k)
+    return features
+  }))).then(chunks => chunks.flat())
+}
+
+/** Load every POI feature in the tiles a walkshed touches, all at once. */
+export function loadPoisForWalkshed(walkshedFC, index, stationKey) {
+  return streamPoisForWalkshed(walkshedFC, index, stationKey)
 }

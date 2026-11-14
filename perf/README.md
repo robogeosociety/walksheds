@@ -27,6 +27,7 @@ Times are ms from navigation start. The app has no timing hooks, so the map mile
 | `poiTilesEnd` | Last POI tile received: the walkshed's POIs can render |
 | `selected` | The selected station's name pill appears: a station was selected |
 | `poisVisible` | `max(selected, walkshedData, poiTilesEnd)`: the walkshed's POI dots can draw. The headline number |
+| `poisFirst` / `poisComplete` | App User Timing marks (`walksheds:pois-first`, `walksheds:pois-complete`): the first batch of the walkshed's POIs committed for drawing, and the last. Read directly from the page, so they need no network proxy; absent (`-`) on builds before they were added |
 | `settled` | Last response before a quiet window (map tiles for the framed walkshed included): visually complete |
 
 `TBT` is total blocking time (the sum of long-task time over 50 ms) up to `settled`. Bytes are encoded (on-the-wire) sizes, broken down by request kind.
@@ -47,7 +48,15 @@ VITE_MAPBOX_ACCESS_TOKEN=pk.... npx vite build --outDir /tmp/dist-candidate
 npm run latency -- --dist /tmp/dist-candidate --no-warm
 ```
 
-Caveats in this mode:
+To compare builds *under throttling*, use `--serve <dir>` instead: it runs a local HTTPS server for the build and points Chromium's `walksheds.xyz` at it (a host-resolver rule, bypassing any proxy), so the app's own files are real network requests sharing the profile's emulated link with Mapbox's. That is what shows contention between the app's downloads and the map's. It needs `openssl` for a throwaway certificate.
+
+```bash
+npm run latency -- --serve /tmp/dist-candidate --no-warm --navigate ArrowUp
+```
+
+`--navigate KEY` presses KEY once the cold load settles (ArrowUp from Westlake is Capitol Hill, which needs six tiles Westlake did not load) and reports `navTilesEnd`, `navPoisFirst` and `navPoisComplete`, measured from the keypress.
+
+Caveats in `--dist` mode:
 
 - Same-origin assets are served from disk without network throttling or CDN latency, and are counted at their gzip size (what Pages ships). Mapbox requests still go over the real network.
 - So `--dist` numbers are comparable with each other, not with live numbers. Use the live site for absolute mobile timings.
